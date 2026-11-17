@@ -681,15 +681,15 @@
       nd.map((d) => '<div class="nd-row"><span>' + esc(d.label || '기기') + ' · ' + esc(String(d.at).slice(5, 10).replace('-', '/')) + '</span><button type="button" class="chipbtn" data-act="notMe" data-id="' + esc(d.id) + '">내가 아님</button></div>').join('') +
       '<div class="btn-row"><button type="button" class="btn" data-act="seenAllDev">모두 내 기기예요 · 확인</button></div></div>' : '') +
       '<div class="home-grid"><div><div class="hello"><span class="muted">' + (TODAY.getMonth() + 1) + '월 ' + TODAY.getDate() + '일 ' + WD[TODAY.getDay()] + '요일 · ' + esc(meName()) + '</span><b>내가 할 일 ' + t.length + '개</b></div>' +
-      '<div class="todo">' + (t.length ? t.slice(0, 6).map((x) => '<button type="button" class="todo-item' + (x.req ? ' req' : '') + '" data-item="' + x.n.id + '">' + ico(x.n) + '<span class="tx"><b>' + esc(x.n.title) + '</b><small>' + esc(x.why) + '</small></span>' + (x.req ? '<span class="badge t-warn">검토 요청</span>' : badge(x.n)) + '</button>').join('') +
+      '<div class="todo">' + (t.length ? t.slice(0, 6).map((x) => '<button type="button" class="todo-item' + (x.req ? ' req' : '') + '" data-item="' + x.n.id + '">' + ico(x.n) + '<span class="tx"><b>' + fieldTag(x.n) + esc(x.n.title) + '</b><small>' + esc(x.why) + '</small></span>' + (x.req ? '<span class="badge t-warn">검토 요청</span>' : badge(x.n)) + '</button>').join('') +
         (t.length > 6 ? '<button type="button" class="fold" data-act="findMine">내 것 모두 보기 (' + t.length + ') →</button>' : '')
         : '<div class="card empty">지금 할 일이 없어요. 새 실험을 만들거나, 아이디어에 담당 지원해 보세요.</div>') + '</div>' +
-      (club.length ? '<h2 class="sec">동아리 챙길 것 <small>기장 · 선생님</small></h2><div class="todo">' + club.slice(0, 3).map((x) => '<button type="button" class="todo-item" data-item="' + x.n.id + '">' + ico(x.n) + '<span class="tx"><b>' + esc(x.n.title) + '</b><small>' + esc(x.why) + (x.n.owner ? ' · ' + esc(x.n.owner) : '') + '</small></span>' + badge(x.n) + '</button>').join('') + '</div>' : '') +
+      (club.length ? '<h2 class="sec">동아리 챙길 것 <small>기장 · 선생님</small></h2><div class="todo">' + club.slice(0, 3).map((x) => '<button type="button" class="todo-item" data-item="' + x.n.id + '">' + ico(x.n) + '<span class="tx"><b>' + fieldTag(x.n) + esc(x.n.title) + '</b><small>' + esc(x.why) + (x.n.owner ? ' · ' + esc(x.n.owner) : '') + '</small></span>' + badge(x.n) + '</button>').join('') + '</div>' : '') +
       '<div class="quick">' +
         '<button type="button" data-new="exp" style="background:#2F6FDB">' + svgIcon('exp', '#fff') + '새 실험</button>' +
         '<button type="button" data-new="idea" style="background:#B86200">' + svgIcon('idea', '#fff') + '아이디어</button>' +
         '<button type="button" data-new="q" style="background:#6E4FE0">' + svgIcon('q', '#fff') + '질문</button></div>' +
-      (reps.length ? '<h2 class="sec">완성된 보고서 <small>누르면 보고서가 열려요</small></h2><div class="rep-list">' + reps.map((n) => '<button type="button" class="rep-card" data-report="' + esc(n.id) + '"><span class="rep-ic">' + svgIcon('res', '#fff') + '</span><span class="tx"><small class="code">' + esc(code(n)) + ' · ' + esc(n.owner || '') + '</small><b>' + esc(n.title) + '</b><small>' + esc(lineName(lineage(n)[0].line)) + ' · ' + fmt(n.date) + '</small></span>' + (isFinal(n) ? '<span class="badge t-ok">확정</span>' : badge(n)) + '</button>').join('') + '</div>' : '') + '</div>' +
+      (reps.length ? '<h2 class="sec">완성된 보고서 <small>누르면 보고서가 열려요</small></h2><div class="rep-list">' + reps.map((n) => '<button type="button" class="rep-card" data-report="' + esc(n.id) + '"><span class="rep-ic">' + svgIcon('res', '#fff') + '</span><span class="tx"><small class="code">' + esc(code(n)) + ' · ' + esc(n.owner || '') + '</small><b>' + fieldTag(n) + esc(n.title) + '</b><small>' + esc(lineName(lineage(n)[0].line)) + ' · ' + fmt(n.date) + '</small></span>' + (isFinal(n) ? '<span class="badge t-ok">확정</span>' : badge(n)) + '</button>').join('') + '</div>' : '') + '</div>' +
       '<div><h2 class="sec">연구 줄기 <small>큰 가지부터 · 누르면 펼쳐져요</small></h2>' + lines.map(lineCard).join('') +
       '<button type="button" class="fold" data-tab-go="tree">가지 전체 보기 →</button>' +
 '</div></div>' + hallOfFame();
@@ -797,7 +797,7 @@
   function cond(ok, label) { return '<div><span class="cdot" style="background:' + (ok ? 'var(--done)' : 'var(--edge)') + '"><svg viewBox="0 0 24 24"><path d="' + (ok ? ICON.check : ICON.minus) + '"/></svg></span>' + label + '</div>'; }
   function viewItem(id) {
     const n = byId(id); if (!n) return '<div class="card empty">항목을 찾지 못했어요.</div>';
-    if (isArch(n) && PF.mode === 'live') { const head = '<div class="detail-head"><div class="idrow">' + ico(n) + '<span class="idchip">' + esc(code(n)) + '</span></div><h2>' + esc(n.title) + '</h2><div class="idrow">' + badge(n) + '</div></div>'; return head + archWait(n); }
+    if (isArch(n) && PF.mode === 'live') { const head = '<div class="detail-head"><div class="idrow">' + ico(n) + '<span class="idchip">' + esc(code(n)) + '</span></div><h2>' + fieldTag(n, 'big') + esc(n.title) + '</h2><div class="idrow">' + badge(n) + '</div></div>'; return head + archWait(n); }
     if (isDel(n)) return '<div class="card empty">휴지통에 있는 항목이에요. <button type="button" class="chipbtn" data-act="restore" data-id="' + esc(n.id) + '">되살리기</button></div>';
     let h = '<div class="detail-head"><div class="idrow">' + ico(n) + '<span class="idchip">' + esc(code(n)) + '</span><button type="button" class="chipbtn" data-act="copy">번호 복사</button><span class="muted" style="font-size:12px">' + TYPE[n.type].label + ' · ' + esc(n.field) + (n.owner ? ' · ' + esc(n.owner) : '') + '</span><button type="button" class="chipbtn more-btn" data-act="itemMenu" aria-label="더 보기">⋯ 관리</button></div>' +
       '<h2>' + fieldTag(n, 'big') + esc(n.title) + '</h2><div class="idrow">' + badge(n) + (n.type === 'exp' && tone(n)[1] !== n.status ? '<span class="badge t-info">' + esc(n.status) + '</span>' : '') + (isFinal(n) ? '<span class="badge t-ok">보고서 확정</span>' : '') + (isPriv(n) ? '<span class="badge t-neutral">비공개</span>' : '') + (inTeam(n) ? '<span class="badge t-info">내 실험</span>' : '') + '</div></div>';
@@ -1246,7 +1246,7 @@
     const n = byId(id); if (!n) return '<div class="card empty">항목을 찾지 못했어요.</div>';
     const steps = (n.plan && n.plan.steps) || [], r = n.run || {}, done = r.done || {}, curI = steps.findIndex((_, i) => !done[i]), ended = !!r.ended;
     const rw = canWork(n);
-    let h = '<div class="run-head"><span class="idchip">' + esc(code(n)) + '</span><b>' + esc(n.title) + '</b><span class="muted">' + (r.started ? '시작 ' + md(r.started) + ' ' + hm(r.started) : '아직 시작 전') + (ended ? ' · 끝 ' + hm(r.ended) : '') + '</span></div>';
+    let h = '<div class="run-head"><span class="idchip">' + esc(code(n)) + '</span><b>' + fieldTag(n) + esc(n.title) + '</b><span class="muted">' + (r.started ? '시작 ' + md(r.started) + ' ' + hm(r.started) : '아직 시작 전') + (ended ? ' · 끝 ' + hm(r.ended) : '') + '</span></div>';
     if (!steps.length) h += '<div class="card muted">계획서에 실험 방법이 없어요. 계획서에 단계를 적으면 여기서 하나씩 체크할 수 있어요. <button type="button" class="chipbtn" data-act="plan">계획서 고치기</button></div>';
     else h += '<div class="card run-steps">' + steps.map((s, i) => '<button type="button" class="rs' + (done[i] ? ' on' : '') + (i === curI && !ended ? ' cur' : '') + '" data-act="stepToggle" data-i="' + i + '"' + ((ended && !isAdmin()) || !rw ? ' disabled' : '') + '><span class="rs-n">' + (done[i] ? '✓' : i + 1) + '</span><span class="rs-t">' + esc(s) + '</span>' + (done[i] ? '<small>' + hm(done[i]) + '</small>' : '') + '</button>').join('') + '</div>';
     if (!rw) h += '<div class="card muted" style="font-size:13px">' + esc(teamOf(n).join(' · ')) + '의 실험이에요. 진행 노트는 읽기만 할 수 있어요.</div>';
@@ -1362,7 +1362,7 @@
     const cands = alive().filter((x) => isExpLike(x) && !bad.has(x.id) && x.status !== '취소').sort((a, b) => String(b.date).localeCompare(String(a.date)));
     openSheet('<h3>가지 옮기기</h3><p class="muted" style="margin:0 0 8px">' + esc(n.title) + '을(를) 어느 실험에서 이어지게 할까요? 이 실험 뒤에 이어진 실험도 함께 옮겨져요.</p><div class="move-list">' +
       '<button type="button" class="srow" data-act="moveTo" data-id=""><span class="tx"><b>뿌리로 (새 줄기의 시작)</b><small>어느 실험에도 이어지지 않음</small></span>' + (!cur ? '<span class="badge t-info">지금</span>' : '') + '</button>' +
-      cands.map((x) => '<button type="button" class="srow" data-act="moveTo" data-id="' + esc(x.id) + '">' + ico(x) + '<span class="tx"><small class="code">' + esc(code(x)) + ' · ' + esc(lineName(lineage(x)[0].line)) + '</small><b>' + esc(x.title) + '</b></span>' + (cur && cur.id === x.id ? '<span class="badge t-info">지금</span>' : '') + '</button>').join('') +
+      cands.map((x) => '<button type="button" class="srow" data-act="moveTo" data-id="' + esc(x.id) + '">' + ico(x) + '<span class="tx"><small class="code">' + esc(code(x)) + ' · ' + esc(lineName(lineage(x)[0].line)) + '</small><b>' + fieldTag(x) + esc(x.title) + '</b></span>' + (cur && cur.id === x.id ? '<span class="badge t-info">지금</span>' : '') + '</button>').join('') +
       '</div><div class="btn-row"><button type="button" class="btn" data-act="closeSheet">닫기</button></div>');
     PF.moving = n.id;
   }
@@ -1382,7 +1382,7 @@
   function viewTrash() {
     const list = db.nodes.filter(isDel);
     return '<p class="muted" style="margin:0 2px;font-size:13px">지운 항목은 여기에 남아요. 만든 사람이나 관리자가 되살릴 수 있어요.</p>' +
-      (list.length ? list.map((n) => '<div class="srow">' + ico(n) + '<span class="tx"><small class="code">' + esc(code(n)) + '</small><b>' + esc(n.title) + '</b></span>' + (canDelete(n) ? '<button type="button" class="chipbtn" data-act="restore" data-id="' + esc(n.id) + '">되살리기</button>' : '') + '</div>').join('') : '<div class="card empty">휴지통이 비어 있어요.</div>');
+      (list.length ? list.map((n) => '<div class="srow">' + ico(n) + '<span class="tx"><small class="code">' + esc(code(n)) + '</small><b>' + fieldTag(n) + esc(n.title) + '</b></span>' + (canDelete(n) ? '<button type="button" class="chipbtn" data-act="restore" data-id="' + esc(n.id) + '">되살리기</button>' : '') + '</div>').join('') : '<div class="card empty">휴지통이 비어 있어요.</div>');
   }
 
   /* ---------- 보고서 ---------- */
@@ -1694,7 +1694,7 @@
   function viewBoard() {
     const items = alive().filter(isExpLike);
     return '<p class="muted" style="margin:0 2px;font-size:13px">카드를 누르면 상세로 들어가요. 단계는 상세의 버튼으로 바꿉니다.</p><div class="board">' + STAGES.map((st) => { const l = items.filter((n) => n.status === st);
-      return '<div class="col"><h3>' + st + '<span class="badge t-neutral">' + l.length + '</span></h3>' + l.map((n) => '<button type="button" class="bcard' + (n.type === 'idea' ? ' idea' : '') + '" data-item="' + n.id + '"><span class="code">' + esc(code(n)) + '</span><b>' + esc(n.title) + '</b>' + badge(n) + '</button>').join('') + '</div>'; }).join('') + '</div>';
+      return '<div class="col"><h3>' + st + '<span class="badge t-neutral">' + l.length + '</span></h3>' + l.map((n) => '<button type="button" class="bcard' + (n.type === 'idea' ? ' idea' : '') + '" data-item="' + n.id + '"><span class="code">' + esc(code(n)) + '</span><b>' + fieldTag(n) + esc(n.title) + '</b>' + badge(n) + '</button>').join('') + '</div>'; }).join('') + '</div>';
   }
   /* 전체 지도 (3D): 분야마다 별무리처럼 모인 실험들, 끌어서 돌리기 · 휠/두 손가락 확대 · 한 번=요약 · 두 번=상세 */
   function viewMap() {
