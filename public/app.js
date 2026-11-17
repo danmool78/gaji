@@ -51,7 +51,8 @@
     S.day = dstr(new Date());
     return S;
   }
-  function load() { try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && s.day === dstr(new Date())) return s; } catch (e) {} return freshSample(); }
+  // 날짜가 바뀌거나 예시 데이터가 새 판(ver)이면 처음 상태로
+  function load() { try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && s.day === dstr(new Date()) && s.ver === (window.GAJI_SAMPLE.ver || '')) return s; } catch (e) {} return freshSample(); }
   function save() { if (PF.mode === 'live') return scheduleSync(); try { db.day = db.day || dstr(new Date()); localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { toast('이 브라우저 저장 공간이 꽉 찼어요'); } }
   let db = load();
   /* 실제 동아리 주소(/c/주소)로 열렸을 때 platform.js 가 채워 줌 */

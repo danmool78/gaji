@@ -3,6 +3,7 @@
 // 날짜는 2026-11-16 기준으로 적었고, 앱이 오늘 날짜에 맞춰 옮겨서 보여 줍니다.
 window.GAJI_SAMPLE = {
   base: '2026-11-16',
+  ver: '2026-11-17-docs',   // 예시 데이터를 고치면 바꿈 → 체험 중인 브라우저도 바로 새 데이터로
   settings: { clubName: '○○고 실험 동아리', color: '#C26A00', logo: '' },
   lines: {
     enzyme: '효소 연구', plant: '식물 · 빛', antho: '안토시아닌 · pH', precip: '앙금 · 농도',
@@ -305,3 +306,41 @@ window.GAJI_SAMPLE = {
     if (f.report) { n.prep = prep(n, null, f.day); n.run = run(n, f.day, f.notes); n.report = f.report; }
   });
 })(window.GAJI_SAMPLE);
+
+// 단계에 맞는 문서 갖추기: 변인 · 참고 자료 · 승인 기록 (준비 중 이상은 팀 밖 부원 2명 + 선생님 승인)
+(function (S) {
+  var V = {
+    p3: ['시료 종류: 감자 · 닭 간', '1분 동안 생긴 기체 부피(mL)', '시료 2g, 3% 과산화수소 10mL, 실온'],
+    g8: ['같은 감자 조각을 쓴 횟수: 1 · 2 · 3 · 4회', '1분 동안 생긴 기체 부피(mL)', '감자 2g, 과산화수소 3% 10mL, 매번 증류수로 헹굼'],
+    p5: ['빛: 햇빛 받음 · 검은 천으로 가림', '7일 뒤 줄기 길이(cm) · 색', '콩 100g씩, 물 주는 양과 시각, 온도'],
+    g14: ['섞은 용액의 몰 농도: 0.05 · 0.1 · 0.2M', '마른 앙금 질량(g) → 계산한 몰 농도', '용액 20mL씩, 거름 · 말리는 방법 같게'],
+    g17: ['식히는 방법: 보온병(천천히) · 실온(빨리)', '7일 뒤 가장 큰 결정 길이(cm)', '포화 용액 양, 백반 양, 씨결정 크기']
+  };
+  var by = {}; S.nodes.forEach(function (n) { by[n.id] = n; });
+  var ST = ['아이디어', '계획 작성', '검토 중', '준비 중', '실험 완료', '기록 완료'];
+  var T = S.members.filter(function (m) { return m.role === '교사'; }).map(function (m) { return m.name; });
+  var people = S.members.filter(function (m) { return m.role !== '교사'; }).map(function (m) { return m.name; });
+  var cid = 0, at = function (base, h) { var d = new Date(base || '2026-09-01T07:00:00.000Z'); d.setTime(d.getTime() + h * 3600e3); return d.toISOString(); };
+  S.nodes.forEach(function (n, k) {
+    if (n.type !== 'exp') return;
+    var i = ST.indexOf(n.status), p = n.plan;
+    if (p && V[n.id] && !(p.ind || p.dep || p.ctrl)) { p.ind = V[n.id][0]; p.dep = V[n.id][1]; p.ctrl = V[n.id][2]; }
+    if (n.id === 'g14' && n.report && !n.report.next) n.report.next = '앙금 무게 대신 전기 전도도로 농도를 잴 수 있을까?';
+    if (i === 5 && p && !p.refs) {
+      var par = S.links.filter(function (l) { return l.t === n.id && (l.k === 'next' || l.k === 'follow'); }).map(function (l) { return by[l.s]; }).filter(Boolean)[0];
+      p.refs = '통합과학 · 과학탐구실험 교과서 관련 단원' + (par ? '\n동아리 이전 실험 보고서: ' + par.title : '');
+    }
+    if (i < 3 || !p) return;
+    var team = [n.owner, n.createdBy].concat(n.team || []);
+    var ap = S.comments.filter(function (c) { return c.node === n.id && c.kind === 'approve'; });
+    var peers = ap.filter(function (c) { return T.indexOf(c.by) < 0 && team.indexOf(c.by) < 0; }).map(function (c) { return c.by; });
+    var cand = people.filter(function (x) { return team.indexOf(x) < 0 && peers.indexOf(x) < 0; });
+    for (var j = 0; peers.length < 2 && cand.length; j++) {
+      var who = cand.splice((k + j * 3) % cand.length, 1)[0]; peers.push(who);
+      S.comments.push({ id: 'ca' + (++cid), node: n.id, sec: '', kind: 'approve', text: '', by: who, role: '부원', at: at(p.at, 3 + j * 4), resolved: false });
+    }
+    if (T.length && !ap.some(function (c) { return T.indexOf(c.by) >= 0; }))
+      S.comments.push({ id: 'ca' + (++cid), node: n.id, sec: '', kind: 'approve', text: '', by: T[0], role: '교사', at: at(p.at, 22), resolved: false });
+  });
+})(window.GAJI_SAMPLE);
+

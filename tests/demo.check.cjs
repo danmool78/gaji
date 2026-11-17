@@ -8,6 +8,10 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) process
   const errs = []; p.on('pageerror', (e) => errs.push(e.message)); p.on('dialog', (d) => d.accept());
   await p.route('**/platform.js', (r) => r.fulfill({ body: 'document.querySelector(".app").hidden=false', contentType: 'text/javascript' }));
   await p.goto('http://localhost:5096/c/demo');
+  // 예전 판 데이터가 브라우저에 남아 있어도(오늘 날짜) 새 판이면 바로 새 데이터로
+  await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('gaji-demo-v2') || '{}'); localStorage.setItem('gaji-demo-v2', JSON.stringify(Object.assign({}, s, { nodes: [], ver: 'old', day: new Date().toISOString().slice(0, 10) }))); });
+  await p.reload(); await p.waitForTimeout(300);
+  ok((await p.textContent('.layout')).includes('전지 연구') || (await p.textContent('.layout')).includes('내가 할 일'), '예전 판 저장 데이터 → 새 예시로 바뀜');
   const body = () => p.textContent('.layout'), click = async (s) => { await p.click(s); await p.waitForTimeout(80); };
   let t = await body(); ok(t.includes('북일고등학교 실험 동아리') && (await p.textContent('#demoPill')).includes('김기장'), '북일고 · 김기장으로 시작');
   await p.screenshot({ path: 'shots/demo-home-' + W + '.png' });
