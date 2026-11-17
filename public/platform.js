@@ -88,6 +88,7 @@ async function clubPage(slug) {
   const snap = await getDoc(doc(db, 'clubs', slug)).catch(() => null);
   if (!snap || !snap.exists()) return portal(head() + '<div class="card p-form"><b style="font-size:18px">동아리를 찾을 수 없어요</b><p class="muted">주소 <span class="code">/c/' + esc(slug) + '</span> 를 다시 확인해 주세요.</p><a class="btn" href="/">처음으로</a></div>');
   const club = Object.assign({}, snap.data());
+  try { localStorage.setItem('gaji-club:' + slug, JSON.stringify({ name: club.name, color: club.color, logo: club.logo || '', connector: club.connector || '' })); } catch (e) {}
   const code = params.get('handover');
   if (code) return handoverPage(slug, club, code);
   let isMaster = false;
@@ -185,4 +186,11 @@ document.addEventListener('submit', (e) => { if (e.target.id === 'createForm') {
 document.addEventListener('input', (e) => { if (e.target.name === 'slug' && $('#slugPreview')) { const v = e.target.value.toLowerCase(); e.target.value = v; $('#slugPreview').textContent = location.origin + '/c/' + (v || '…') + (v && (!SLUG_RE.test(v) || RESERVED.includes(v)) ? '  (형식 확인)' : ''); } });
 
 // 처음 그리기: 동아리 체험 화면은 로그인 확인을 기다리지 않음
-if (route.page === 'club' && route.slug === 'demo') showApp(); else authReady.then(() => {});
+if (route.page === 'club' && route.slug === 'demo') showApp();
+else {
+  // 이 기기에서 연 적 있는 동아리는 저장해 둔 이름 · 연결기 주소로 바로 열고, 로그인 · 명부 확인은 뒤에서
+  if (route.page === 'club' && !params.get('handover')) {
+    try { const c = JSON.parse(localStorage.getItem('gaji-club:' + route.slug) || 'null'); const dv = JSON.parse(localStorage.getItem('gaji-dev:' + route.slug) || 'null'); if (c && c.connector && dv && dv.url === c.connector) { showApp(); window.GAJI_APP.setClub(c, false, null, route.slug); } } catch (e) {}
+  }
+  authReady.then(() => {});
+}

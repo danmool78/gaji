@@ -53,7 +53,14 @@
   const PF = { club: null, isMaster: false, api: null, slug: null, handover: null, mode: 'demo', me: null, dev: null, rev: 0, base: null, busy: false, newDevices: [], people: null, myMoves: {},
     approveId: new URLSearchParams(location.search).get('approve') };
   window.GAJI_APP = {
-    setClub(club, isMaster, api, slug) { PF.club = club; PF.isMaster = !!isMaster; PF.api = api; PF.slug = slug; dbg('동아리설정'); startClub(); },
+    setClub(club, isMaster, api, slug) {
+      dbg('동아리설정');
+      // 같은 동아리를 다시 알려 주면(저장해 둔 정보로 먼저 연 뒤 명부 확인) 다시 시작하지 않고 정보만 바꿈
+      if (PF.started && PF.slug === slug && PF.club && (PF.club.connector || '') === (club.connector || '')) {
+        PF.club = club; PF.isMaster = !!isMaster; PF.api = api; if (PF.mode === 'live') masterExtras(); if (PF.mode === 'join' || PF.mode === 'closed' || PF.mode === 'preview') startClub(); else render(); return;
+      }
+      PF.club = club; PF.isMaster = !!isMaster; PF.api = api; PF.slug = slug; PF.started = true; startClub();
+    },
     refresh() { render(); }, toast: (m) => toast(m), dbg: (k, v) => dbg(k, v),
     open(sc) { nav = [{ s: 'more' }, { s: sc }]; render(true); }
   };
@@ -77,7 +84,11 @@
   const devKey = () => 'gaji-dev:' + PF.slug;
   const getDev = () => { try { return JSON.parse(localStorage.getItem(devKey()) || 'null'); } catch (e) { return null; } };
   const putDev = (d) => { try { localStorage.setItem(devKey(), JSON.stringify(d)); } catch (e) {} PF.dev = d; };
-  const dropDev = () => { try { localStorage.removeItem(devKey()); } catch (e) {} PF.dev = null; };
+  const cacheKey = () => 'gaji-cache:' + PF.slug;
+  const dropDev = () => { try { localStorage.removeItem(devKey()); localStorage.removeItem(cacheKey()); } catch (e) {} PF.dev = null; };
+  // 마지막으로 불러온 데이터를 이 기기에 보관 → 다음에 열 때 바로 보여 주고 뒤에서 최신으로 맞춤
+  function putCache(d) { try { localStorage.setItem(cacheKey(), JSON.stringify({ url: PF.club.connector, at: Date.now(), d })); } catch (e) {} }
+  function getCache() { try { const c = JSON.parse(localStorage.getItem(cacheKey()) || 'null'); return c && c.url === PF.club.connector ? c : null; } catch (e) { return null; } }
   const isAdmin = () => PF.mode === 'live' && PF.me && (PF.me.role === '관리자' || PF.me.role === '마스터');
   const meName = () => (PF.mode === 'live' && PF.me ? PF.me.name : '나');
   const URL_RE = /^https:\/\/script\.google\.com\/(a\/[^/]+\/)?macros\/s\/[\w-]+\/exec$/;
@@ -117,9 +128,10 @@
     return j.data;
   }
   // 기기가 끊긴 경우 공통 처리
+  function dropCacheOnly() { try { localStorage.removeItem(cacheKey()); } catch (x) {} }
   function deviceLost(e) {
     if (['no_device', 'blocked', 'member_off', 'expired'].includes(e.code)) { dropDev(); PF.mode = 'join'; PF.notice = e.message; render(); return true; }
-    if (e.code === 'pending') { startClub(); return true; }
+    if (e.code === 'pending') { dropCacheOnly(); PF.mode = 'loading'; liveLoad(); return true; }
     return false;
   }
   async function startClub() {
@@ -127,13 +139,11 @@
     if (!c.connector) { PF.mode = PF.isMaster ? 'preview' : 'closed'; return render(); }
     let d = getDev(); if (d && d.url !== c.connector) { dropDev(); d = null; }
     if (!d) { PF.mode = 'join'; return render(); }
-    PF.dev = d; PF.mode = 'loading'; render();
-    try {
-      const st = await rpc('status');
-      if (st.status === '승인') return liveLoad();
-      if (st.status === '만료') { dropDev(); PF.mode = 'join'; PF.notice = '오래 안 써서 다시 승인이 필요해요'; return render(); }
-      PF.pending = st; PF.mode = 'pending'; render(); pollPending();
-    } catch (e) { if (!deviceLost(e)) { PF.mode = 'error'; PF.error = e.message; render(); } }
+    PF.dev = d;
+    const cached = getCache();
+    if (cached) { applyLoad(cached.d); PF.refreshing = true; render(); }
+    else { PF.mode = 'loading'; render(); }
+    return liveLoad();
   }
   function pollPending() {
     clearTimeout(pollPending.t);
@@ -149,16 +159,32 @@
   const fixNode = (n) => Object.assign(n, { equip: n.equip === true || n.equip === 'true', fans: +n.fans || 0, signal: +n.signal || 0, review: +n.review || 0, no: +n.no || 0, date: n.date || n.created || dstr(TODAY), created: n.created || dstr(TODAY), field: n.field || '공통', desc: n.desc || '' });
   const lkey = (l) => l.s + '|' + l.t + '|' + l.k;
   function snapshot() { const m = {}; db.nodes.forEach((n) => (m[n.id] = JSON.stringify(n))); return { nodes: m, links: new Set(db.links.map(lkey)), lines: JSON.stringify(db.lines) }; }
+  function masterExtras() {   // 마스터: 연결기 판 확인 · 사용 현황 숫자 보내기 (뒤에서)
+    if (PF.isMaster && !PF.connVer) rpc('ping', null, null, { quiet: true }).then((pg) => { PF.connVer = pg.version; render(); }, () => {});
+    if (PF.isMaster && PF.api && !PF.statsSent) { PF.statsSent = true; rpc('stats', null, null, { quiet: true }).then((st) => PF.api.saveStats(st)).catch(() => {}); }
+  }
+  function applyLoad(d) {
+    PF.me = d.me; PF.rev = d.rev; PF.newDevices = (d.newDevices || []).filter((x) => !(prefs.seenDev || []).includes(x.id));
+    db = { settings: db.settings, nodes: d.nodes.map(fixNode), links: d.links, lines: d.lines || {}, lastNo: d.lastNo || { exp: 0, q: 0, res: 0 }, comments: d.comments || [] }; PF.members = d.members || [];
+    PF.base = snapshot(); PF.mode = 'live';
+  }
   async function liveLoad() {
     try {
+      if (PF.mode === 'live' && PF.base && dirty()) await doSync();
       const d = await rpc('load');
-      PF.me = d.me; PF.rev = d.rev; PF.newDevices = (d.newDevices || []).filter((x) => !(prefs.seenDev || []).includes(x.id));
-      db = { settings: db.settings, nodes: d.nodes.map(fixNode), links: d.links, lines: d.lines || {}, lastNo: d.lastNo || { exp: 0, q: 0, res: 0 }, comments: d.comments || [] }; PF.members = d.members || [];
-      PF.base = snapshot(); PF.mode = 'live'; PF.notice = ''; render(); pollRev();
-      if (PF.isMaster && !PF.connVer) rpc('ping').then((pg) => { PF.connVer = pg.version; render(); }, () => {});
-      if (PF.isMaster && PF.api && !PF.statsSent) { PF.statsSent = true; rpc('stats').then((st) => PF.api.saveStats(st)).catch(() => {}); }
+      if (PF.mode === 'live' && PF.base && dirty()) { await doSync(); return liveLoad(); }   // 기다리는 사이 고친 것이 있으면 먼저 보내고 다시
+      applyLoad(d); putCache(d); PF.refreshing = false; PF.notice = ''; render(); pollRev();
+      masterExtras();
       if (PF.approveId) { const id = PF.approveId; PF.approveId = null; history.replaceState(null, '', location.pathname); openApprove(id); }
-    } catch (e) { if (!deviceLost(e)) { PF.mode = 'error'; PF.error = e.message; render(); } }
+    } catch (e) {
+      PF.refreshing = false;
+      if (e.code === 'pending') {   // 아직 승인 전
+        try { const st = await rpc('status'); PF.pending = st; PF.mode = 'pending'; render(); pollPending(); return; } catch (e2) { e = e2; }
+      }
+      if (deviceLost(e)) return;
+      if (PF.mode === 'live') { render(); toast('최신 내용을 불러오지 못했어요 · 이 기기에 저장된 내용을 보여 줘요'); pollRev(); return; }
+      PF.mode = 'error'; PF.error = e.message; render();
+    }
   }
   /* 바꾼 것만 연결기로 보냄 → 번호는 연결기가 매김 */
   function dirty() {
@@ -1340,7 +1366,7 @@
     const st = brand();
     const pill = $('#demoPill');
     pill.hidden = GATE.has(PF.mode);
-    pill.textContent = PF.mode === 'live' ? (PF.busy ? '저장 중…' : PF.me.name + (PF.me.role !== '부원' ? ' · ' + PF.me.role : '')) : PF.club ? '드라이브 연결 전' : '체험 모드';
+    pill.textContent = PF.mode === 'live' ? (PF.busy ? '저장 중…' : PF.refreshing ? '최신으로 맞추는 중…' : PF.me.name + (PF.me.role !== '부원' ? ' · ' + PF.me.role : '')) : PF.club ? '드라이브 연결 전' : '체험 모드';
     pill.classList.toggle('live', PF.mode === 'live');
     document.documentElement.style.setProperty('--brand', st.color || '#C26A00');
     $('#clubName').textContent = st.clubName; $('#clubLogo').innerHTML = logoInner();
