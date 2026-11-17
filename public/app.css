@@ -618,3 +618,18 @@ body { overscroll-behavior-y: none; }
 /* 소개 영상 (비메오) */
 .vimeo { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; background: #0E5133; box-shadow: var(--shadow); }
 .vimeo iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+
+/* 홈: 세 구역 (해야 할 일 · 쌓인 기록 · 명예의 전당) — 한눈에 구분 */
+.zone { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.zone-h { display: flex; align-items: center; gap: 10px; margin: 0 2px 2px; font-size: 19px; font-weight: 900; letter-spacing: -.3px; padding-bottom: 10px; border-bottom: 2px solid var(--line); }
+.zone-h small { font-size: 12.5px; font-weight: 600; color: var(--muted); letter-spacing: 0; }
+.zone-dot { width: 12px; height: 12px; border-radius: 4px; flex: none; }
+.zone-do .zone-dot { background: var(--brand); } .zone-do .zone-h { border-bottom-color: var(--brand); }
+.zone-done .zone-dot { background: var(--done); } .zone-done .zone-h { border-bottom-color: var(--done); }
+.zone-hof .zone-dot { background: #D9A400; } .zone-hof .zone-h { border-bottom-color: #D9A400; }
+.zone-sub { display: flex; align-items: baseline; gap: 8px; margin: 10px 2px 0; font-size: 15px; font-weight: 800; }
+.zone-sub small { font-size: 12px; font-weight: 500; color: var(--muted); }
+.zone > .zone-sub:first-of-type { margin-top: 2px; }
+.zone-hof { margin-top: 8px; }
+@media (min-width: 900px) { .hof { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 560px) and (max-width: 899px) { .hof { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

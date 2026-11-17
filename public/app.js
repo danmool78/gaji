@@ -673,30 +673,38 @@
     const king = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0];
     if (king) cards.push({ who: king[0], k: '연구왕', v: king[1] + '개 완성', s: '기록 완료까지 함께 해낸 실험 수', ic: 'M3 7l4 4 5-7 5 7 4-4-2 12H5z' });
     if (!cards.length) return '';
-    return '<h2 class="sec">명예의 전당 <small>쌓인 기록에서 저절로 뽑아요</small></h2><div class="hof">' + cards.map((c, i) =>
+    return '<section class="zone zone-hof"><h2 class="zone-h"><span class="zone-dot"></span>명예의 전당<small>쌓인 기록에서 저절로 뽑아요</small></h2><div class="hof">' + cards.map((c, i) =>
       '<button type="button" class="hof-card" ' + (c.n ? 'data-item="' + esc(c.n.id) + '"' : 'data-act="findPerson" data-name="' + esc(c.who) + '"') + ' style="--i:' + i + '"><span class="hof-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="' + c.ic + '"/></svg></span>' +
-      '<span class="hof-k">' + c.k + '</span><b class="hof-v">' + c.v + '</b>' + (c.n ? '<span class="hof-t">' + fieldTag(c.n) + esc(c.n.title) + '</span>' : '<span class="hof-t"><b>' + esc(c.who) + '</b></span>') + '<small class="muted">' + (c.n ? esc(c.s) : c.s) + '</small></button>').join('') + '</div>';
+      '<span class="hof-k">' + c.k + '</span><b class="hof-v">' + c.v + '</b>' + (c.n ? '<span class="hof-t">' + fieldTag(c.n) + esc(c.n.title) + '</span>' : '<span class="hof-t"><b>' + esc(c.who) + '</b></span>') + '<small class="muted">' + (c.n ? esc(c.s) : c.s) + '</small></button>').join('') + '</div></section>';
   }
   function viewHome() {
-    const t = myTodos(), club = isAdmin() ? todos().filter((x) => !t.some((y) => y.n.id === x.n.id)) : [], lines = computeLines().sort((a, b) => b.rows.length - a.rows.length || (a.state === 'done') - (b.state === 'done')).slice(0, 4);
-    const reps = alive().filter((n) => n.type === 'exp' && n.status === '기록 완료' && resultReady(n.report)).sort((a, b) => (isFinal(b) - isFinal(a)) || String(b.date).localeCompare(String(a.date))).slice(0, 4);
+    const t = myTodos(), club = isAdmin() ? todos().filter((x) => !t.some((y) => y.n.id === x.n.id)) : [], allLines = computeLines(), lines = allLines.slice().sort((a, b) => b.rows.length - a.rows.length || (a.state === 'done') - (b.state === 'done')).slice(0, 3);
+    const reps = alive().filter((n) => n.type === 'exp' && n.status === '기록 완료' && resultReady(n.report)).sort((a, b) => (isFinal(b) - isFinal(a)) || String(b.date).localeCompare(String(a.date)));
+    const repAll = reps.length; reps.splice(3);
     const nd = PF.mode === 'live' ? PF.newDevices : [];
     return (nd.length ? '<div class="card notice"><b>내 이름으로 새 기기' + (nd.length > 1 ? ' ' + nd.length + '대가' : '가') + ' 승인됐어요</b><span class="muted" style="font-size:13px">내가 연 기기가 아니면 ‘내가 아님’을 눌러 바로 막으세요.</span>' +
       nd.map((d) => '<div class="nd-row"><span>' + esc(d.label || '기기') + ' · ' + esc(String(d.at).slice(5, 10).replace('-', '/')) + '</span><button type="button" class="chipbtn" data-act="notMe" data-id="' + esc(d.id) + '">내가 아님</button></div>').join('') +
       '<div class="btn-row"><button type="button" class="btn" data-act="seenAllDev">모두 내 기기예요 · 확인</button></div></div>' : '') +
-      '<div class="home-grid"><div><div class="hello"><span class="muted">' + (TODAY.getMonth() + 1) + '월 ' + TODAY.getDate() + '일 ' + WD[TODAY.getDay()] + '요일 · ' + esc(meName()) + '</span><b>내가 할 일 ' + t.length + '개</b></div>' +
+      '<div class="home-grid">' +
+      // 왼쪽 = 해야 할 일
+      '<section class="zone zone-do"><h2 class="zone-h"><span class="zone-dot"></span>해야 할 일<small>나와 동아리가 지금 챙길 것</small></h2>' +
+      '<div class="hello"><span class="muted">' + (TODAY.getMonth() + 1) + '월 ' + TODAY.getDate() + '일 ' + WD[TODAY.getDay()] + '요일 · ' + esc(meName()) + '</span><b>내가 할 일 ' + t.length + '개</b></div>' +
       '<div class="todo">' + (t.length ? t.slice(0, 6).map((x) => '<button type="button" class="todo-item' + (x.req ? ' req' : '') + '" data-item="' + x.n.id + '">' + ico(x.n) + '<span class="tx"><b>' + fieldTag(x.n) + esc(x.n.title) + '</b><small>' + esc(x.why) + '</small></span>' + (x.req ? '<span class="badge t-warn">검토 요청</span>' : badge(x.n)) + '</button>').join('') +
         (t.length > 6 ? '<button type="button" class="fold" data-act="findMine">내 것 모두 보기 (' + t.length + ') →</button>' : '')
         : '<div class="card empty">지금 할 일이 없어요. 새 실험을 만들거나, 아이디어에 담당 지원해 보세요.</div>') + '</div>' +
-      (club.length ? '<h2 class="sec">동아리 챙길 것 <small>기장 · 선생님</small></h2><div class="todo">' + club.slice(0, 3).map((x) => '<button type="button" class="todo-item" data-item="' + x.n.id + '">' + ico(x.n) + '<span class="tx"><b>' + fieldTag(x.n) + esc(x.n.title) + '</b><small>' + esc(x.why) + (x.n.owner ? ' · ' + esc(x.n.owner) : '') + '</small></span>' + badge(x.n) + '</button>').join('') + '</div>' : '') +
-      '<div class="quick">' +
+      (club.length ? '<h3 class="zone-sub">동아리 챙길 것 <small>기장 · 선생님</small></h3><div class="todo">' + club.slice(0, 3).map((x) => '<button type="button" class="todo-item" data-item="' + x.n.id + '">' + ico(x.n) + '<span class="tx"><b>' + fieldTag(x.n) + esc(x.n.title) + '</b><small>' + esc(x.why) + (x.n.owner ? ' · ' + esc(x.n.owner) : '') + '</small></span>' + badge(x.n) + '</button>').join('') + '</div>' : '') +
+      '<h3 class="zone-sub">새로 올리기</h3><div class="quick">' +
         '<button type="button" data-new="exp" style="background:#2F6FDB">' + svgIcon('exp', '#fff') + '새 실험</button>' +
         '<button type="button" data-new="idea" style="background:#B86200">' + svgIcon('idea', '#fff') + '아이디어</button>' +
         '<button type="button" data-new="q" style="background:#6E4FE0">' + svgIcon('q', '#fff') + '질문</button></div>' +
-      (reps.length ? '<h2 class="sec">완성된 보고서 <small>누르면 보고서가 열려요</small></h2><div class="rep-list">' + reps.map((n) => '<button type="button" class="rep-card" data-report="' + esc(n.id) + '"><span class="rep-ic">' + svgIcon('res', '#fff') + '</span><span class="tx"><small class="code">' + esc(code(n)) + ' · ' + esc(n.owner || '') + '</small><b>' + fieldTag(n) + esc(n.title) + '</b><small>' + esc(lineName(lineage(n)[0].line)) + ' · ' + fmt(n.date) + '</small></span>' + (isFinal(n) ? '<span class="badge t-ok">확정</span>' : badge(n)) + '</button>').join('') + '</div>' : '') + '</div>' +
-      '<div><h2 class="sec">연구 줄기 <small>큰 가지부터 · 누르면 펼쳐져요</small></h2>' + lines.map(lineCard).join('') +
-      '<button type="button" class="fold" data-tab-go="tree">가지 전체 보기 →</button>' +
-'</div></div>' + hallOfFame();
+      '</section>' +
+      // 오른쪽 = 쌓인 기록
+      '<section class="zone zone-done"><h2 class="zone-h"><span class="zone-dot"></span>쌓인 기록<small>우리 동아리 연구가 자라는 모습</small></h2>' +
+      '<h3 class="zone-sub">연구 줄기 <small>' + (allLines.length > 3 ? '큰 줄기 3개 · 모두 ' + allLines.length + '개' : '큰 가지부터 · 누르면 펼쳐져요') + '</small></h3>' + lines.map(lineCard).join('') +
+      '<button type="button" class="fold" data-tab-go="tree">줄기 ' + allLines.length + '개 · 전체 가지 보기 →</button>' +
+            (reps.length ? '<h3 class="zone-sub">완성된 보고서 <small>' + (repAll > 3 ? '최근 3개 · 모두 ' + repAll + '개' : '누르면 보고서가 열려요') + '</small></h3><div class="rep-list">' + reps.map((n) => '<button type="button" class="rep-card" data-report="' + esc(n.id) + '"><span class="rep-ic">' + svgIcon('res', '#fff') + '</span><span class="tx"><small class="code">' + esc(code(n)) + ' · ' + esc(n.owner || '') + '</small><b>' + fieldTag(n) + esc(n.title) + '</b><small>' + esc(lineName(lineage(n)[0].line)) + ' · ' + fmt(n.date) + '</small></span>' + (isFinal(n) ? '<span class="badge t-ok">확정</span>' : badge(n)) + '</button>').join('') + '</div>' : '') +
+      (repAll > 3 ? '<button type="button" class="fold" data-act="findDone">보고서 모두 보기 (' + repAll + ') →</button>' : '') +
+      '</section></div>' + hallOfFame();
   }
 
   /* ---------- 가지 ---------- */
@@ -2164,6 +2172,7 @@
     const copyText = (txt, done) => (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast(done), () => toast('길게 눌러 복사해 주세요'));
     if (act === 'clearFilters') { ['fy', 'ff', 'fp', 'fs'].forEach((k) => delete prefs[k]); savePrefs(); return render(); }
     if (act === 'retry') return startClub();
+    if (act === 'findDone') { ['fy', 'ff', 'fp'].forEach((k) => delete prefs[k]); prefs.fs = '기록 완료'; prefs.ty = 'exp'; prefs.q = ''; savePrefs(); return tab('find'); }
     if (act === 'findPerson') { prefs.fp = a.dataset.name; prefs.ty = 'all'; prefs.q = ''; savePrefs(); return tab('find'); }
     if (act === 'findMine') { prefs.ty = 'mine'; prefs.q = ''; savePrefs(); return tab('find'); }
     if (act === 'demoWho') return demoWho();
