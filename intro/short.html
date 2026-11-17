@@ -56,6 +56,10 @@ html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font
 .res { position: absolute; left: 70px; right: 70px; top: 740px; display: flex; flex-direction: column; gap: 24px; }
 .res div { background: #fff; border-radius: 26px; padding: 28px 36px; font-size: 36px; font-weight: 700; box-shadow: 0 10px 30px rgba(60, 10, 25, .08); letter-spacing: -.5px; line-height: 1.35; }
 .res i { font-style: normal; display: block; font-size: 26px; font-weight: 500; color: var(--mute); margin-bottom: 6px; }
+.tips { position: absolute; left: 70px; right: 70px; top: 1250px; display: flex; flex-direction: column; gap: 22px; }
+.tips div { background: #fff; border-radius: 26px; padding: 26px 34px; font-size: 40px; font-weight: 800; box-shadow: 0 10px 30px rgba(60, 10, 25, .08); letter-spacing: -.8px; display: flex; align-items: center; gap: 24px; }
+.tips b { width: 60px; height: 60px; border-radius: 50%; background: var(--g); color: #fff; display: grid; place-items: center; font-size: 32px; flex: none; }
+.tips p { margin: 10px 0 0; text-align: center; font-size: 44px; font-weight: 900; color: var(--g); letter-spacing: -1px; }
 mark { background: #FFF4B0; color: inherit; border-radius: 6px; padding: 0 4px; }
 </style>
 </head>
@@ -97,37 +101,49 @@ mark { background: #FFF4B0; color: inherit; border-radius: 6px; padding: 0 4px; 
     <div class="tablet up" style="--d:22.6s;top:1160px"><div class="scr"><img src="shots/report.png" alt=""><img src="shots/report-chart.png" alt="" class="fade" style="--d:24.6s"></div></div>
   </section>
 
-  <!-- 4. 검색 (27~34초) -->
-  <section class="scene" style="--at:27s;--len:7.2s">
-    <div class="cap up" style="--d:27.3s;top:200px;font-size:68px">10년 뒤의 후배도,<br>검색 한 번으로</div>
-    <div class="search up" style="--d:27.8s"><svg viewBox="0 0 24 24" fill="none" stroke="#7D1029" stroke-width="2.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="typed" style="--d:28.4s">레몬 전지</span><span class="caret"></span></div>
-    <div class="res">
-      <div class="up" style="--d:29.8s"><i>2025 · 김기장</i>동전 전지: 구리 동전과 알루미늄 호일</div>
-      <div class="up" style="--d:30.3s"><i>2026 · 정다온</i><mark>레몬 전지</mark>: 전극 금속에 따라 전압이 달라질까?</div>
-      <div class="up" style="--d:30.8s"><i>2026 · 이하늘</i><mark>레몬 전지</mark> 병렬 연결: LED가 더 밝아질까?</div>
-      <div class="up" style="--d:31.3s"><i>2036 · 10년 뒤의 후배</i>선배의 실험에서 이어서, 나의 첫 실험</div>
+  <!-- 3-2. 진행 도우미 (27~34초) -->
+  <section class="scene" id="sRun" style="--at:27s;--len:7.2s">
+    <div class="cap up" style="--d:27.3s;top:150px;font-size:64px">실험하는 날엔,<br>진행 도우미가 한 단계씩</div>
+    <div class="tablet up" style="--d:27.7s;top:470px"><div class="scr"><img src="shots/run0.png" alt=""><img src="shots/run1.png" alt="" class="fade" style="--d:30s"></div></div>
+    <div class="tips">
+      <div class="up" style="--d:28.6s"><b>1</b>계획서의 방법이 체크리스트로</div>
+      <div class="up" style="--d:29.3s"><b>2</b>관찰 · 바꾼 점 · 문제 메모</div>
+      <div class="up" style="--d:30s"><b>3</b>사진은 그 자리에서 바로 찍기</div>
+      <p class="up" style="--d:31.2s">순서를 빠뜨리지 않는, 실수 없는 실험</p>
     </div>
   </section>
 
-  <!-- 5. 마무리 (34~41초) -->
-  <section class="scene green last" style="--at:34s;--len:7s">
+  <!-- 4. 검색 (34~41초) -->
+  <section class="scene" style="--at:34s;--len:7.2s">
+    <div class="cap up" style="--d:34.3s;top:200px;font-size:68px">10년 뒤의 후배도,<br>검색 한 번으로</div>
+    <div class="search up" style="--d:34.8s"><svg viewBox="0 0 24 24" fill="none" stroke="#7D1029" stroke-width="2.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="typed" style="--d:35.4s">레몬 전지</span><span class="caret"></span></div>
+    <div class="res">
+      <div class="up" style="--d:36.8s"><i>2025 · 김기장</i>동전 전지: 구리 동전과 알루미늄 호일</div>
+      <div class="up" style="--d:37.3s"><i>2026 · 정다온</i><mark>레몬 전지</mark>: 전극 금속에 따라 전압이 달라질까?</div>
+      <div class="up" style="--d:37.8s"><i>2026 · 이하늘</i><mark>레몬 전지</mark> 병렬 연결: LED가 더 밝아질까?</div>
+      <div class="up" style="--d:38.3s"><i>2036 · 10년 뒤의 후배</i>선배의 실험에서 이어서, 나의 첫 실험</div>
+    </div>
+  </section>
+
+  <!-- 5. 마무리 (41~48초) -->
+  <section class="scene green last" style="--at:41s;--len:7s">
     <svg class="logo" style="top:300px" viewBox="0 0 512 512">
       <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
-        <path pathLength="1" class="draw" style="--d:34.3s;--dur:1s" d="M164 432C190 356 228 304 284 254C326 216 356 176 368 128" stroke-width="42"/>
-        <path pathLength="1" class="draw" style="--d:34.9s;--dur:.6s" d="M232 318C196 292 164 262 140 222" stroke-width="30"/>
-        <path pathLength="1" class="draw" style="--d:35.1s;--dur:.6s" d="M298 240C334 246 368 262 400 288" stroke-width="28"/>
+        <path pathLength="1" class="draw" style="--d:41.3s;--dur:1s" d="M164 432C190 356 228 304 284 254C326 216 356 176 368 128" stroke-width="42"/>
+        <path pathLength="1" class="draw" style="--d:41.9s;--dur:.6s" d="M232 318C196 292 164 262 140 222" stroke-width="30"/>
+        <path pathLength="1" class="draw" style="--d:42.1s;--dur:.6s" d="M298 240C334 246 368 262 400 288" stroke-width="28"/>
       </g>
       <g fill="#FFFFCC">
-        <g class="pop" style="--d:35.4s;transform-origin:138px 222px"><path d="M0 0C26-30 74-34 104-6C74 22 28 26 0 0Z" transform="translate(138 222) rotate(-132)"/></g>
-        <g class="pop" style="--d:35.6s;transform-origin:402px 290px"><path d="M0 0C26-30 74-34 104-6C74 22 28 26 0 0Z" transform="translate(402 290) rotate(28)"/></g>
-        <g class="pop" style="--d:35.8s;transform-origin:330px 182px"><path d="M0 0C22-26 62-28 88-6C62 18 24 22 0 0Z" transform="translate(330 182) rotate(-12)"/></g>
+        <g class="pop" style="--d:42.4s;transform-origin:138px 222px"><path d="M0 0C26-30 74-34 104-6C74 22 28 26 0 0Z" transform="translate(138 222) rotate(-132)"/></g>
+        <g class="pop" style="--d:42.6s;transform-origin:402px 290px"><path d="M0 0C26-30 74-34 104-6C74 22 28 26 0 0Z" transform="translate(402 290) rotate(28)"/></g>
+        <g class="pop" style="--d:42.8s;transform-origin:330px 182px"><path d="M0 0C22-26 62-28 88-6C62 18 24 22 0 0Z" transform="translate(330 182) rotate(-12)"/></g>
       </g>
-      <g fill="#FFE27A" class="pop" style="--d:36s;transform-origin:368px 122px"><g class="breathe" style="--d:37s"><path d="M0 0C16-20 48-24 68-6C48 12 18 16 0 0Z" transform="translate(366 122) rotate(-128)"/><path d="M0 0C16-20 48-24 68-6C48 12 18 16 0 0Z" transform="translate(370 122) rotate(-58)"/></g></g>
+      <g fill="#FFE27A" class="pop" style="--d:43s;transform-origin:368px 122px"><g class="breathe" style="--d:44s"><path d="M0 0C16-20 48-24 68-6C48 12 18 16 0 0Z" transform="translate(366 122) rotate(-128)"/><path d="M0 0C16-20 48-24 68-6C48 12 18 16 0 0Z" transform="translate(370 122) rotate(-58)"/></g></g>
     </svg>
-    <div class="big up" style="--d:36s;top:900px;font-size:46px;font-weight:900;letter-spacing:12px;color:#FFFFCC">EPEC × 가지</div>
-    <div class="big up" style="--d:36.3s;top:1000px;font-size:68px;font-weight:900;line-height:1.4;letter-spacing:-1.5px">한 번 하고 끝나는 실험 말고,<br><span style="color:var(--sprout)">가지를 치며 자라는 연구</span></div>
-    <div class="big up" style="--d:37.4s;top:1330px;font-size:52px;font-weight:700;letter-spacing:1px">gaji-lab.web.app</div>
-    <div class="big up" id="by" style="--d:38s;top:1450px;font-size:44px;font-weight:700;color:#FFFFCC"></div>
+    <div class="big up" style="--d:43s;top:900px;font-size:46px;font-weight:900;letter-spacing:12px;color:#FFFFCC">EPEC × 가지</div>
+    <div class="big up" style="--d:43.3s;top:1000px;font-size:68px;font-weight:900;line-height:1.4;letter-spacing:-1.5px">한 번 하고 끝나는 실험 말고,<br><span style="color:var(--sprout)">가지를 치며 자라는 연구</span></div>
+    <div class="big up" style="--d:44.4s;top:1330px;font-size:52px;font-weight:700;letter-spacing:1px">gaji-lab.web.app</div>
+    <div class="big up" id="by" style="--d:45s;top:1450px;font-size:44px;font-weight:700;color:#FFFFCC"></div>
   </section>
 </div>
 <script>
@@ -163,7 +179,7 @@ mark { background: #FFF4B0; color: inherit; border-radius: 6px; padding: 0 4px; 
   var q = new URLSearchParams(location.search); if (q.get('by')) document.getElementById('by').textContent = q.get('by');
   function fit() { var s = Math.min(innerWidth / 1080, innerHeight / 1920), st = document.getElementById('stage'); st.style.transform = 'translate(' + (innerWidth - 1080 * s) / 2 + 'px,' + (innerHeight - 1920 * s) / 2 + 'px) scale(' + s + ')'; }
   addEventListener('resize', fit); fit();
-  window.LENGTH = 41;
+  window.LENGTH = 48;
   window.seek = function (t) { document.getAnimations().forEach(function (a) { a.pause(); a.currentTime = t * 1000; }); };
   if (q.has('record')) window.seek(0);
 })();
