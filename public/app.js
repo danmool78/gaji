@@ -717,9 +717,8 @@
         : '<div class="card empty">지금 할 일이 없어요. 새 실험을 만들거나, 아이디어에 담당 지원해 보세요.</div>') + '</div>' +
       (club.length ? '<h3 class="zone-sub">동아리 챙길 것 <small>' + (club.length > 3 ? '급한 3개 · 모두 ' + club.length + '개' : '기장 · 선생님') + '</small></h3><div class="todo">' + club.slice(0, 3).map((x) => '<button type="button" class="todo-item" data-item="' + x.n.id + '">' + ico(x.n) + '<span class="tx"><b>' + fieldTag(x.n) + esc(x.n.title) + '</b><small>' + esc(x.why) + (x.n.owner ? ' · ' + esc(x.n.owner) : '') + '</small></span>' + badge(x.n) + '</button>').join('') + '</div>' + (club.length > 3 ? '<button type="button" class="fold" data-go-screen="board">동아리 챙길 것 모두 보기 (' + club.length + ') →</button>' : '') : '') +
       '<h3 class="zone-sub">새로 올리기</h3><div class="quick">' +
-        '<button type="button" data-new="exp" style="background:#2F6FDB">' + svgIcon('exp', '#fff') + '새 실험</button>' +
-        '<button type="button" data-new="idea" style="background:#B86200">' + svgIcon('idea', '#fff') + '아이디어</button>' +
-        '<button type="button" data-new="q" style="background:#6E4FE0">' + svgIcon('q', '#fff') + '질문</button></div>' +
+        [['exp', '새 실험', '계획서부터 시작해요', 'var(--exp)'], ['idea', '아이디어', '해 보고 싶은 것을 남겨요', 'var(--idea)'], ['q', '질문', '선배 · 선생님께 물어봐요', 'var(--q)']].map((q) =>
+          '<button type="button" data-new="' + q[0] + '" style="--qc:' + q[3] + '"><span class="q-ic">' + svgIcon(q[0], 'currentColor') + '</span><span class="q-tx"><b>' + q[1] + '</b><small>' + q[2] + '</small></span><span class="q-plus" aria-hidden="true">+</span></button>').join('') + '</div>' +
       '</section>' +
       // 오른쪽 = 쌓인 기록
       '<section class="zone zone-done"><h2 class="zone-h"><span class="zone-dot"></span>쌓인 기록<small>우리 동아리 연구가 자라는 모습</small></h2>' +
