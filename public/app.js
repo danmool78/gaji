@@ -699,6 +699,29 @@
     else { db.notice = text ? { text: text.slice(0, 1000), by: meName(), role: myRole(), at: nowIso() } : null; save(); }
     closeSheet(); render(); toast(text ? '공지를 올렸어요' : '공지를 지웠어요');
   }
+  /* 홈 달력: 실험 · 아이디어 날짜를 점으로, 날짜를 누르면 그날 목록 */
+  function homeCalendar() {
+    const off = PF.calOff || 0, base = new Date(TODAY.getFullYear(), TODAY.getMonth() + off, 1), y = base.getFullYear(), m = base.getMonth();
+    const key = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const byDay = {}; alive().filter((n) => (n.type === 'exp' || n.type === 'idea') && n.status !== '취소' && n.date).forEach((n) => { const k = String(n.date).slice(0, 10); (byDay[k] = byDay[k] || []).push(n); });
+    const first = new Date(y, m, 1), start = new Date(first); start.setDate(1 - first.getDay());
+    const todayK = key(TODAY), sel = PF.calDay && PF.calDay.slice(0, 7) === key(first).slice(0, 7) ? PF.calDay : '';
+    let cells = '';
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(start); d.setDate(start.getDate() + i); const k = key(d), out = d.getMonth() !== m, list = byDay[k] || [];
+      if (i === 35 && out) break;   // 마지막 줄이 다음 달뿐이면 생략
+      cells += '<button type="button" class="cal-d' + (out ? ' out' : '') + (k === todayK ? ' today' : '') + (k === sel ? ' sel' : '') + (list.length ? ' has' : '') + '" data-calday="' + k + '"' + (list.length ? '' : ' tabindex="-1"') + ' aria-label="' + (d.getMonth() + 1) + '월 ' + d.getDate() + '일' + (list.length ? ' · ' + list.length + '개' : '') + '">' +
+        '<span class="cal-n">' + d.getDate() + '</span><span class="cal-dots">' + list.slice(0, 3).map((n) => '<i style="background:' + nodeColor(n) + '"></i>').join('') + (list.length > 3 ? '<b>+</b>' : '') + '</span></button>';
+    }
+    const items = sel ? (byDay[sel] || []) : [];
+    const cnt = Object.keys(byDay).filter((k) => k.slice(0, 7) === key(first).slice(0, 7)).reduce((a, k) => a + byDay[k].length, 0);
+    return '<h3 class="zone-sub">달력 <span class="cnt">' + cnt + '</span><small>' + y + '년 ' + (m + 1) + '월 실험 · 아이디어</small></h3>' +
+      '<div class="cal"><div class="cal-top"><button type="button" class="chipbtn" data-calmove="-1" aria-label="이전 달">‹</button><b>' + (y !== TODAY.getFullYear() ? y + '년 ' : '') + (m + 1) + '월</b><button type="button" class="chipbtn" data-calmove="1" aria-label="다음 달">›</button>' +
+      (off ? '<button type="button" class="chipbtn" data-calmove="0">오늘</button>' : '') + '</div>' +
+      '<div class="cal-grid">' + WD.map((w, i) => '<span class="cal-w' + (i === 0 ? ' sun' : i === 6 ? ' sat' : '') + '">' + w + '</span>').join('') + cells + '</div>' +
+      (sel ? '<div class="cal-list"><div class="cal-lh"><b>' + Number(sel.slice(5, 7)) + '월 ' + Number(sel.slice(8, 10)) + '일</b><span class="muted">' + (items.length ? items.length + '개' : '예정 없음') + '</span></div>' +
+        items.map((n) => '<button type="button" class="srow" data-item="' + esc(n.id) + '">' + ico(n) + '<span class="tx"><b>' + fieldTag(n) + esc(n.title) + '</b><small>' + esc([n.owner, lineName(n.line)].filter(Boolean).join(' · ')) + '</small></span>' + badge(n) + '</button>').join('') + '</div>' : '') + '</div>';
+  }
   function viewHome() {
     const t = myTodos(), club = isAdmin() ? todos().filter((x) => !t.some((y) => y.n.id === x.n.id)) : [], allLines = computeLines(), lines = allLines.slice().sort((a, b) => b.rows.length - a.rows.length || (a.state === 'done') - (b.state === 'done')).slice(0, 3);
     const reps = alive().filter((n) => n.type === 'exp' && n.status === '기록 완료' && resultReady(n.report)).sort((a, b) => (isFinal(b) - isFinal(a)) || String(b.date).localeCompare(String(a.date)));
@@ -718,7 +741,7 @@
       (club.length ? '<h3 class="zone-sub">동아리 챙길 것 <span class="cnt">' + club.length + '</span><small>' + (club.length > 3 ? '급한 3개만 · 기장 · 선생님' : '기장 · 선생님') + '</small></h3><div class="todo">' + club.slice(0, 3).map((x) => '<button type="button" class="todo-item" data-item="' + x.n.id + '">' + ico(x.n) + '<span class="tx"><b>' + fieldTag(x.n) + esc(x.n.title) + '</b><small>' + esc(x.why) + (x.n.owner ? ' · ' + esc(x.n.owner) : '') + '</small></span>' + badge(x.n) + '</button>').join('') + '</div>' + (club.length > 3 ? '<button type="button" class="fold" data-go-screen="board">동아리 챙길 것 모두 보기 (' + club.length + ') →</button>' : '') : '') +
       '<h3 class="zone-sub">새로 올리기 <small>실험 · 아이디어 · 질문</small></h3><div class="quick">' +
         [['exp', '새 실험', '계획서부터 시작해요', 'var(--exp)'], ['idea', '아이디어', '해 보고 싶은 것을 남겨요', 'var(--idea)'], ['q', '질문', '선배 · 선생님께 물어봐요', 'var(--q)']].map((q) =>
-          '<button type="button" data-new="' + q[0] + '" style="--qc:' + q[3] + '"><span class="q-ic">' + svgIcon(q[0], 'currentColor') + '</span><span class="q-tx"><b>' + q[1] + '</b><small>' + q[2] + '</small></span><span class="q-plus" aria-hidden="true">+</span></button>').join('') + '</div>' +
+          '<button type="button" data-new="' + q[0] + '" style="--qc:' + q[3] + '"><span class="q-ic">' + svgIcon(q[0], 'currentColor') + '</span><span class="q-tx"><b>' + q[1] + '</b><small>' + q[2] + '</small></span><span class="q-plus" aria-hidden="true">+</span></button>').join('') + '</div>' + homeCalendar() +
       '</section>' +
       // 오른쪽 = 쌓인 기록
       '<section class="zone zone-done"><h2 class="zone-h"><span class="zone-dot"></span>쌓인 기록<small>우리 동아리 연구가 자라는 모습</small></h2>' +
@@ -2183,6 +2206,8 @@
     if (t.closest('[data-fold]')) { prefs.showDone = !prefs.showDone; savePrefs(); return render(); }
     const vd = t.closest('[data-verdict]'); if (vd) { const it2 = cur().s === 'item' ? byId(cur().arg) : null; if (it2) { it2.verdict = vd.dataset.verdict; save(); render(); toast('판정: ' + it2.verdict); } return; }
     const ty = t.closest('[data-ty]'); if (ty) { prefs.ty = ty.dataset.ty; savePrefs(); return render(); }
+    const cm = t.closest('[data-calmove]'); if (cm) { const v = Number(cm.dataset.calmove); PF.calOff = v ? (PF.calOff || 0) + v : 0; PF.calDay = ''; return render(); }
+    const cd = t.closest('[data-calday]'); if (cd) { PF.calDay = PF.calDay === cd.dataset.calday ? '' : cd.dataset.calday; return render(); }
     const col = t.closest('[data-color]'); if (col) return saveBrand({ color: col.dataset.color });
     const col2 = t.closest('[data-color2]'); if (col2) return saveBrand({ color2: col2.dataset.color2 });
     const pr = t.closest('[data-pair]'); if (pr) { const [m, l] = pr.dataset.pair.split(','); return saveBrand({ color: m, color2: l }); }
