@@ -675,7 +675,7 @@
       if (n.type === 'q' && n.createdBy === me && n.status !== '해결') { const a = commentsOf(n.id).filter((c) => c.kind === 'answer').length; if (a) out.push({ n, why: '답변 ' + a + '개가 달렸어요', w: 2 }); }
     });
     // 실험일 승인 요청 (선생님 · 마스터)
-    if (isApprover()) curEvents().filter((e) => e.state === 'wait').forEach((e) => { const n = e.node && byId(e.node); if (n) out.push({ n, ev: e, why: '실험일 ' + md(e.date) + ' · ' + e.by + ' · 허가하면 모두에게 보여요', w: -1, req: true, tag: '실험일 승인' }); });
+    if (isApprover()) curEvents().filter((e) => e.state === 'wait').forEach((e) => { const n = e.node && byId(e.node); if (n) out.push({ n, ev: e, why: '실험일 ' + (+e.date.slice(5, 7)) + '/' + (+e.date.slice(8, 10)) + ' · ' + e.by + ' · 허가하면 모두에게 보여요', w: -1, req: true, tag: '실험일 승인' }); });
     return out.sort((a, b) => a.w - b.w);
   }
   function todos() {
@@ -2201,7 +2201,7 @@
   function brandColors(main, light) {
     main = hexRgb(main) ? main.toUpperCase() : '#C26A00';
     light = hexRgb(light) ? light.toUpperCase() : '';
-    const on = light && contrast(light, main) >= 3 ? light : '#FFFFFF';
+    const on = light && contrast(light, main) >= 4.5 ? light : contrast('#FFFFFF', main) >= contrast('#14171C', main) ? '#FFFFFF' : '#14171C';   // 주도 색 위 글자는 늘 잘 보이게
     const soft = light && lum(light) > 0.55 && lum(light) < 0.995 ? (lum(light) < 0.85 ? mix(light, '#FFFFFF', 0.4) : light) : mix(main, '#FFFFFF', 0.88);
     return { main, light: light || '#FFFFFF', on, soft, softDark: mix(main, '#14171C', 0.72) };
   }
