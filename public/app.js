@@ -673,21 +673,43 @@
   }
   const titleOf = (e) => e.s === 'line' ? lineName(e.arg) : e.s === 'item' ? (byId(e.arg) ? TYPE[byId(e.arg).type].label + ' 상세' : '') : TITLES[e.s] || '';
   function viewFor(e) { return ({ home: viewHome, tree: viewTree, find: viewFind, more: viewMore, line: () => viewLine(e.arg), item: () => viewItem(e.arg), board: viewBoard, map: viewMap, settings: viewSettings, about: viewAbout, club: viewClub, people: viewPeople }[e.s] || (() => ''))(); }
+  /* 내용이 같으면 화면을 건드리지 않음 (입력 칸 · 버튼이 바뀌지 않게).
+     내용이 바뀌어도 입력 중이던 칸의 글자와 커서는 그대로 살림. */
+  const lastHTML = {};
+  function setHTML(sel, html) {
+    const el = $(sel); if (lastHTML[sel] === html && el.innerHTML) return;
+    const keep = [], act = document.activeElement;
+    el.querySelectorAll('input:not([type=file]):not([type=checkbox]),textarea,select').forEach((f) => { const k = (f.form ? f.form.id : '') + '|' + (f.id || f.name); if (f.value && !f.readOnly) keep.push([k, f.value]); });
+    const focusKey = act && el.contains(act) && /INPUT|TEXTAREA|SELECT/.test(act.tagName) ? [(act.form ? act.form.id : '') + '|' + (act.id || act.name), act.selectionStart, act.selectionEnd] : null;
+    el.innerHTML = html; lastHTML[sel] = html;
+    const find = (k) => Array.from(el.querySelectorAll('input,textarea,select')).find((f) => (f.form ? f.form.id : '') + '|' + (f.id || f.name) === k);
+    keep.forEach(([k, v]) => { const f = find(k); if (f && !f.value && f.id !== 'q') f.value = v; });
+    if (focusKey) { const f = find(focusKey[0]); if (f) { f.focus(); try { f.setSelectionRange(focusKey[1], focusKey[2]); } catch (e) {} } }
+  }
+  // 진단: 짧은 시간에 화면을 너무 자주 다시 그리면 원인을 알려 줌
+  const rTimes = [];
+  function renderWatch() {
+    const now = Date.now(); rTimes.push(now); while (rTimes.length && now - rTimes[0] > 3000) rTimes.shift();
+    if (rTimes.length === 12) { const st = (new Error().stack || '').split('\n').slice(3, 6).map((l) => l.trim().replace(/^at /, '').replace(/\(.*\/([^/]+)\)/, '($1)')).join(' ← '); toast('화면 반복 그리기: ' + st); console.warn('render loop', new Error().stack); }
+  }
   function render(scrollTop) {
+    renderWatch();
     applyBrand();
     const gated = GATE.has(PF.mode);
     $('.app').classList.toggle('gated', gated);
-    if (gated) { $('#backBtn').hidden = true; $('#brand').hidden = false; $('#screenTitle').hidden = true; $('#pane').hidden = true; $('#screen').innerHTML = viewGate(); if (scrollTop) window.scrollTo(0, 0); return; }
+    if (gated) { $('#backBtn').hidden = true; $('#brand').hidden = false; $('#screenTitle').hidden = true; $('#pane').hidden = true; setHTML('#screen', viewGate()); if (scrollTop) window.scrollTo(0, 0); return; }
     const mi = mainIndex(), main = nav[mi], paneOn = mi < nav.length - 1, root = mi === 0;
     $('#backBtn').hidden = root; $('#brand').hidden = !root; $('#screenTitle').hidden = root;
     if (!root) $('#screenTitle').textContent = titleOf(main);
     document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === nav[0].s ? 'page' : 'false'));
-    $('#screen').innerHTML = viewFor(main);
+    setHTML('#screen', viewFor(main));
     $('#pane').hidden = !paneOn;
+    if (!paneOn) document.querySelectorAll('#screen .sel-ring').forEach((el) => el.classList.remove('sel-ring'));
     if (paneOn) {
       const p = cur(); $('#paneTitle').textContent = titleOf(p); $('#paneBack').hidden = nav.length - 1 - mi <= 1;
-      $('#paneBody').innerHTML = viewFor(p);
+      setHTML('#paneBody', viewFor(p));
       const sel = p.s === 'item' ? '[data-item="' + p.arg + '"]' : '[data-line="' + p.arg + '"]';
+      document.querySelectorAll('#screen .sel-ring').forEach((el) => el.classList.remove('sel-ring'));
       document.querySelectorAll('#screen ' + sel).forEach((el) => el.classList.add('sel-ring'));
     }
     if (scrollTop) window.scrollTo(0, 0);
