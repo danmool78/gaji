@@ -185,3 +185,46 @@ h2.sec small { font-size: 12px; color: var(--muted); font-weight: 500; }
 .dim { opacity: .18; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ---------- 반응형: 휴대폰 · 태블릿 ---------- */
+.home-grid { display: flex; flex-direction: column; gap: 18px; }
+.home-grid > div { display: flex; flex-direction: column; gap: 14px; }
+.grid2 { display: grid; grid-template-columns: 1fr; gap: 12px; }
+.sel-ring { outline: 3px solid var(--exp); outline-offset: 1px; }
+.pane-top .screen-title { flex: 1; }
+
+@media (min-width: 640px) {
+  .grid2 { grid-template-columns: 1fr 1fr; }
+}
+
+/* 태블릿 세로 이상: 왼쪽 메뉴 */
+@media (min-width: 768px) {
+  .app { max-width: none; padding-bottom: 0; padding-left: calc(92px + env(safe-area-inset-left, 0px)); }
+  .tabs { left: 0; top: 0; bottom: 0; transform: none; width: calc(92px + env(safe-area-inset-left, 0px)); max-width: none;
+    display: flex; flex-direction: column; justify-content: flex-start; gap: 6px; border-top: 0; border-right: 1px solid var(--line);
+    padding: calc(18px + env(safe-area-inset-top, 0px)) 8px 16px calc(8px + env(safe-area-inset-left, 0px)); }
+  .tabs button { min-height: 70px; font-size: 13px; flex: none; }
+  .main-col { max-width: 1120px; margin: 0 auto; width: 100%; }
+  .top { padding-left: 28px; padding-right: 28px; }
+  .screen { padding-left: 28px; padding-right: 28px; }
+  .home-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+  .hello b { font-size: 28px; }
+  .quick button { min-height: 108px; font-size: 16px; }
+  .quick svg { width: 30px; height: 30px; }
+  .toast { bottom: 28px; left: calc(50% + 46px); }
+  .sheet { max-width: 560px; top: 50%; bottom: auto; left: calc(50% + 46px); transform: translate(-50%, -50%); border-radius: 22px; max-height: 86vh; }
+  .board .col { flex-basis: 230px; }
+}
+
+/* 태블릿 가로 이상: 목록 + 상세 두 칸 */
+@media (min-width: 1024px) {
+  .layout { display: flex; align-items: flex-start; }
+  .main-col { flex: 1; min-width: 0; }
+  .pane { flex: 0 0 min(44%, 540px); position: sticky; top: 0; height: 100vh; overflow-y: auto; border-left: 1px solid var(--line); background: var(--bg); }
+  .pane .top { padding-left: 20px; padding-right: 20px; }
+  .pane .screen { padding-left: 20px; padding-right: 20px; padding-bottom: 40px; }
+  .grid2.wide3 { grid-template-columns: 1fr 1fr; }
+}
+@media (min-width: 1280px) {
+  .grid2.wide3 { grid-template-columns: repeat(3, 1fr); }
+}

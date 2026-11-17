@@ -13,17 +13,28 @@
 </head>
 <body>
 <div class="app">
-  <header class="top">
-    <button type="button" class="back" id="backBtn" aria-label="뒤로" hidden><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
-    <div class="brand" id="brand">
-      <span class="logo" id="clubLogo" aria-hidden="true"></span>
-      <div class="brand-text"><b id="clubName">실험 동아리</b><small>가지</small></div>
+  <div class="layout">
+    <div class="main-col">
+      <header class="top">
+        <button type="button" class="back" id="backBtn" aria-label="뒤로" hidden><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <div class="brand" id="brand">
+          <span class="logo" id="clubLogo" aria-hidden="true"></span>
+          <div class="brand-text"><b id="clubName">실험 동아리</b><small>가지</small></div>
+        </div>
+        <h1 class="screen-title" id="screenTitle" hidden></h1>
+        <span class="demo-pill" id="demoPill">체험 모드</span>
+      </header>
+      <main id="screen" class="screen" aria-live="polite"></main>
     </div>
-    <h1 class="screen-title" id="screenTitle" hidden></h1>
-    <span class="demo-pill" id="demoPill">체험 모드</span>
-  </header>
-
-  <main id="screen" class="screen" aria-live="polite"></main>
+    <aside class="pane" id="pane" hidden aria-label="자세히 보기">
+      <header class="top pane-top">
+        <button type="button" class="back" id="paneBack" aria-label="뒤로" hidden><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <h1 class="screen-title" id="paneTitle"></h1>
+        <button type="button" class="back" id="paneClose" aria-label="닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </header>
+      <div id="paneBody" class="screen"></div>
+    </aside>
+  </div>
 
   <nav class="tabs" aria-label="메뉴">
     <button type="button" data-tab="home"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>홈</button>

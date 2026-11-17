@@ -153,11 +153,15 @@
   }
 
   /* ---------- 화면 상태 ---------- */
+  // 휴대폰 · 태블릿 세로: 한 화면씩 쌓임. 태블릿 가로(1024px 이상): 실험 · 줄기 상세는 오른쪽 칸에.
   let nav = [{ s: prefs.tab || 'home' }];
+  const SPLIT = new Set(['item', 'line']);
+  const wide = () => window.matchMedia('(min-width: 1024px)').matches;
   const cur = () => nav[nav.length - 1];
-  function go(s, arg) { nav.push({ s, arg }); render(true); }
+  function mainIndex() { if (!wide()) return nav.length - 1; let i = nav.length - 1; while (i > 0 && SPLIT.has(nav[i].s)) i--; return i; }
+  function go(s, arg, src) { if (wide() && src === 'main' && SPLIT.has(s)) nav = nav.slice(0, mainIndex() + 1); nav.push({ s, arg }); render(src !== 'pane'); if (src === 'pane') $('#pane').scrollTop = 0; }
   function tab(s) { nav = [{ s }]; prefs.tab = s; savePrefs(); render(true); }
-  function back() { if (nav.length > 1) nav.pop(); render(true); }
+  function back() { const mi = mainIndex(); nav = nav.slice(0, Math.max(1, wide() ? mi : nav.length - 1)); render(true); }
 
   /* ---------- 홈 ---------- */
   function todos() {
@@ -173,14 +177,14 @@
   }
   function viewHome() {
     const t = todos(), lines = computeLines().filter((l) => l.state !== 'done').slice(0, 3);
-    return '<div class="hello"><span class="muted">' + (TODAY.getMonth() + 1) + '월 ' + TODAY.getDate() + '일 ' + WD[TODAY.getDay()] + '요일</span><b>지금 챙길 것 ' + t.length + '개</b></div>' +
+    return '<div class="home-grid"><div><div class="hello"><span class="muted">' + (TODAY.getMonth() + 1) + '월 ' + TODAY.getDate() + '일 ' + WD[TODAY.getDay()] + '요일</span><b>지금 챙길 것 ' + t.length + '개</b></div>' +
       '<div class="todo">' + (t.length ? t.map((x) => '<button type="button" class="todo-item" data-item="' + x.n.id + '">' + ico(x.n) + '<span class="tx"><b>' + esc(x.n.title) + '</b><small>' + esc(x.why) + '</small></span>' + badge(x.n) + '</button>').join('') : '<div class="card empty">지금 챙길 일이 없어요.</div>') + '</div>' +
       '<div class="quick">' +
         '<button type="button" data-new="exp" style="background:#2F6FDB">' + svgIcon('exp', '#fff') + '새 실험</button>' +
         '<button type="button" data-new="idea" style="background:#B86200">' + svgIcon('idea', '#fff') + '아이디어</button>' +
-        '<button type="button" data-new="q" style="background:#6E4FE0">' + svgIcon('q', '#fff') + '질문</button></div>' +
-      '<h2 class="sec">진행 중인 가지 <small>누르면 줄기가 펼쳐져요</small></h2>' + lines.map(lineCard).join('') +
-      '<button type="button" class="fold" data-tab-go="tree">가지 전체 보기 →</button>';
+        '<button type="button" data-new="q" style="background:#6E4FE0">' + svgIcon('q', '#fff') + '질문</button></div></div>' +
+      '<div><h2 class="sec">진행 중인 가지 <small>누르면 줄기가 펼쳐져요</small></h2>' + lines.map(lineCard).join('') +
+      '<button type="button" class="fold" data-tab-go="tree">가지 전체 보기 →</button></div></div>';
   }
 
   /* ---------- 가지 ---------- */
@@ -195,8 +199,8 @@
     let h = '<div class="seg" role="group" aria-label="보기"><button type="button" data-tmode="line" aria-pressed="' + (mode === 'line') + '">줄기별</button><button type="button" data-tmode="date" aria-pressed="' + (mode === 'date') + '">날짜별</button></div>';
     if (mode === 'line') {
       const L = computeLines(), live = L.filter((l) => l.state !== 'done'), done = L.filter((l) => l.state === 'done');
-      h += live.map(lineCard).join('') || '<div class="card empty">아직 가지가 없어요. 홈에서 새 실험이나 아이디어를 올려 보세요.</div>';
-      if (done.length) h += '<button type="button" class="fold" data-fold>' + (prefs.showDone ? '▾' : '▸') + ' 끝난 줄기 ' + done.length + '개</button>' + (prefs.showDone ? done.map(lineCard).join('') : '');
+      h += '<div class="grid2 wide3">' + live.map(lineCard).join('') + '</div>' || '<div class="card empty">아직 가지가 없어요. 홈에서 새 실험이나 아이디어를 올려 보세요.</div>';
+      if (done.length) h += '<button type="button" class="fold" data-fold>' + (prefs.showDone ? '▾' : '▸') + ' 끝난 줄기 ' + done.length + '개</button>' + (prefs.showDone ? '<div class="grid2 wide3">' + done.map(lineCard).join('') + '</div>' : '');
     } else {
       const items = db.nodes.filter(isExpLike).filter((n) => n.status !== '취소').sort((a, b) => a.date.localeCompare(b.date));
       let m = '', t = false; h += '<div class="day-list">';
@@ -332,28 +336,38 @@
     $('#clubName').textContent = st.clubName; $('#clubLogo').innerHTML = logoInner();
     const th = prefs.theme || 'system'; if (th === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', th);
   }
+  const titleOf = (e) => e.s === 'line' ? lineName(e.arg) : e.s === 'item' ? (byId(e.arg) ? TYPE[byId(e.arg).type].label + ' 상세' : '') : TITLES[e.s] || '';
+  function viewFor(e) { return ({ home: viewHome, tree: viewTree, find: viewFind, more: viewMore, line: () => viewLine(e.arg), item: () => viewItem(e.arg), board: viewBoard, map: viewMap, settings: viewSettings, about: viewAbout }[e.s] || (() => ''))(); }
   function render(scrollTop) {
     applyBrand();
-    const c = cur(), root = nav.length === 1;
+    const mi = mainIndex(), main = nav[mi], paneOn = mi < nav.length - 1, root = mi === 0;
     $('#backBtn').hidden = root; $('#brand').hidden = !root; $('#screenTitle').hidden = root;
-    if (!root) $('#screenTitle').textContent = c.s === 'line' ? lineName(c.arg) : c.s === 'item' ? (byId(c.arg) ? TYPE[byId(c.arg).type].label + ' 상세' : '') : TITLES[c.s] || '';
-    const tabKey = nav[0].s;
-    document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === tabKey ? 'page' : 'false'));
-    const v = { home: viewHome, tree: viewTree, find: viewFind, more: viewMore, line: () => viewLine(c.arg), item: () => viewItem(c.arg), board: viewBoard, map: viewMap, settings: viewSettings, about: viewAbout }[c.s];
-    $('#screen').innerHTML = v ? v() : '';
+    if (!root) $('#screenTitle').textContent = titleOf(main);
+    document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === nav[0].s ? 'page' : 'false'));
+    $('#screen').innerHTML = viewFor(main);
+    $('#pane').hidden = !paneOn;
+    if (paneOn) {
+      const p = cur(); $('#paneTitle').textContent = titleOf(p); $('#paneBack').hidden = nav.length - 1 - mi <= 1;
+      $('#paneBody').innerHTML = viewFor(p);
+      const sel = p.s === 'item' ? '[data-item="' + p.arg + '"]' : '[data-line="' + p.arg + '"]';
+      document.querySelectorAll('#screen ' + sel).forEach((el) => el.classList.add('sel-ring'));
+    }
     if (scrollTop) window.scrollTo(0, 0);
   }
 
   /* ---------- 이벤트 ---------- */
   document.querySelector('.tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) tab(b.dataset.tab); });
   $('#backBtn').addEventListener('click', back);
+  $('#paneBack').addEventListener('click', () => { nav.pop(); render(); });
+  $('#paneClose').addEventListener('click', () => { nav = nav.slice(0, mainIndex() + 1); render(); });
+  let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => render(), 150); });
   $('#sheetBg').addEventListener('click', closeSheet);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#sheet').hidden) closeSheet(); });
 
-  $('#screen').addEventListener('click', (e) => {
+  function onClick(e, src) {
     const t = e.target;
-    const it = t.closest('[data-item],[data-go]'); if (it) return go('item', it.dataset.item || it.dataset.go);
-    const ln = t.closest('[data-line]'); if (ln) return go('line', ln.dataset.line);
+    const it = t.closest('[data-item],[data-go]'); if (it) return go('item', it.dataset.item || it.dataset.go, src);
+    const ln = t.closest('[data-line]'); if (ln) return go('line', ln.dataset.line, src);
     const nw = t.closest('[data-new]'); if (nw) return newForm(nw.dataset.new);
     const tg = t.closest('[data-tab-go]'); if (tg) return tab(tg.dataset.tabGo);
     const gs = t.closest('[data-go-screen]'); if (gs) return go(gs.dataset.goScreen);
@@ -377,8 +391,12 @@
     if (act === 'branch') { save(); return newForm('idea', n); }
     if (act === 'toIdea') { save(); return newForm('idea', n); }
     save(); render();
-  });
-  $('#screen').addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('g[data-go]')) { e.preventDefault(); go('item', e.target.closest('g[data-go]').dataset.go); } });
+  }
+  $('#screen').addEventListener('click', (e) => onClick(e, 'main'));
+  $('#paneBody').addEventListener('click', (e) => onClick(e, 'pane'));
+  const onKey = (src) => (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('g[data-go]')) { e.preventDefault(); go('item', e.target.closest('g[data-go]').dataset.go, src); } };
+  $('#screen').addEventListener('keydown', onKey('main'));
+  $('#paneBody').addEventListener('keydown', onKey('pane'));
   $('#screen').addEventListener('input', (e) => {
     if (e.target.id === 'q') { prefs.q = e.target.value; savePrefs(); const pos = e.target.selectionStart; render(); const q = $('#q'); q.focus(); q.setSelectionRange(pos, pos); }
     if (e.target.id === 'clubInput') { db.settings.clubName = e.target.value.trim() || '실험 동아리'; save(); applyBrand(); }
@@ -400,7 +418,7 @@
     if (type === 'exp') Object.assign(f, { status: '계획 작성', owner: '나', signal: 0, review: 0 });
     if (type === 'idea') Object.assign(f, { status: '아이디어', fans: 1, volunteer: '', equip: false });
     if (type === 'q') f.status = '미해결';
-    const n = create(f, parent); closeSheet(); toast(TYPE[type].label + '를 만들었어요 · ' + code(n)); go('item', n.id);
+    const n = create(f, parent); closeSheet(); toast(TYPE[type].label + '를 만들었어요 · ' + code(n)); go('item', n.id, 'main');
   });
 
   render();
