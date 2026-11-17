@@ -722,31 +722,76 @@
   }
   const kindOf = (r) => r.kind || 'rep';
 
-  function gridHTML(t) {
-    return '<div class="grid-ed"><table><thead><tr>' + t.cols.map((c, j) => '<th><input data-h="' + j + '" value="' + esc(c) + '" aria-label="열 이름"></th>').join('') +
+  function gridHTML(t, kind) {
+    const ph = t.photos || [], obs = kind === 'obs';
+    return '<div class="grid-ed"><table><thead><tr>' + t.cols.map((c, j) => '<th><input data-h="' + j + '" value="' + esc(c) + '" aria-label="열 이름"></th>').join('') + (obs ? '<th class="ge-ph">사진</th>' : '') +
       '<th class="ge-add"><button type="button" class="chipbtn" data-act="gCol" aria-label="열 추가">+ 열</button></th></tr></thead><tbody>' +
-      t.rows.map((row) => '<tr>' + t.cols.map((_, j) => '<td><input value="' + esc(row[j] ?? '') + '"' + (j ? ' inputmode="text"' : '') + '></td>').join('') + '<td></td></tr>').join('') +
+      t.rows.map((row, i) => '<tr data-photo="' + esc(ph[i] || '') + '">' + t.cols.map((_, j) => '<td><input value="' + esc(row[j] ?? '') + '"' + (j ? ' inputmode="text"' : '') + '></td>').join('') + (obs ? '<td class="ge-ph">' + rowPhotoBtn(ph[i], i) + '</td>' : '') + '<td></td></tr>').join('') +
       '</tbody></table></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="chipbtn" data-act="gRow">+ 줄 추가</button><button type="button" class="chipbtn" data-act="gDelRow">마지막 줄 빼기</button><button type="button" class="chipbtn" data-act="gDelCol">마지막 열 빼기</button></div>';
+  }
+  function recPhotosHTML(n) {
+    const list = filesOf(n.id);
+    return '<span>사진 · 그래프 <span class="muted" style="font-weight:400">실험 장면이나 엑셀 그래프를 바로 올려요 · 보고서에 그림으로 들어가요</span></span>' +
+      (list.length ? '<div class="ph-strip">' + list.map((f) => f.mime === 'application/pdf' ? '<span class="ph-pdf">PDF</span>' : thumbSrc(f) ? '<img src="' + thumbSrc(f) + '" alt="' + esc(f.caption || '') + '">' : '<img data-fid="' + esc(f.id) + '" alt="">').join('') + '</div>' : '') +
+      '<label class="btn upl"><input type="file" accept="image/*,application/pdf" multiple data-upload-quick="' + esc(n.id) + '" hidden>사진 · 그래프 올리기</label>';
+  }
+  // 창을 닫지 않고 바로 올리기 (결과 기록 창 · 관찰 줄 사진)
+  async function quickUpload(nodeId, file, caption, kind) {
+    if (!/^image\//.test(file.type) && file.type !== 'application/pdf') { toast('사진(JPG · PNG)과 PDF만 올릴 수 있어요'); return null; }
+    if (file.size > 15e6) { toast('15MB보다 큰 파일은 올릴 수 없어요'); return null; }
+    let it;
+    try { it = file.type === 'application/pdf' ? { name: file.name, mime: file.type, data: await readB64(file), thumb: '', preview: '' }
+      : await (async () => { const full = await shrink(file, 1600, 0.82), th = await shrink(file, 480, 0.72); return { name: file.name, mime: 'image/jpeg', data: full.split(',')[1], thumb: th.split(',')[1], preview: th }; })(); }
+    catch (e) { toast('사진을 읽지 못했어요'); return null; }
+    if (PF.mode === 'live') {
+      try { const r = await rpc('upload', { node: nodeId, name: it.name, mime: it.mime, data: it.data, thumb: it.thumb, caption, kind: kind || (it.mime === 'application/pdf' ? 'doc' : 'photo') });
+        (db.files = db.files || []).push(r.file); if (it.preview) PF.thumbs[r.file.id] = it.preview; return r.file; }
+      catch (e) { if (!deviceLost(e)) toast(e.message); return null; }
+    }
+    const f = { id: newCid(), node: nodeId, name: it.name, mime: it.mime, caption, kind: kind || 'photo', by: meName(), at: nowIso(), _data: it.preview || '' };
+    (db.files = db.files || []).push(f); save(); return f;
+  }
+  async function quickMany(nodeId, files) {
+    const list = Array.from(files).slice(0, 10); let k = 0;
+    for (const f of list) { toast('올리는 중 ' + (k + 1) + '/' + list.length + '…'); if (await quickUpload(nodeId, f, '', '')) k++; }
+    const box = $('#recPhotos'); const n = byId(nodeId); if (box && n) box.innerHTML = recPhotosHTML(n);
+    if (k) toast(k + '개 올렸어요'); loadThumbs();
+  }
+  function rowPhoto(btn) {
+    const fm = btn.closest('form'), tr = btn.closest('tr'), n = byId(fm.dataset.id); if (!n) return;
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+    inp.onchange = async () => {
+      if (!inp.files[0]) return; btn.innerHTML = SPIN; btn.disabled = true;
+      const cond = (tr.querySelector('input') || {}).value || '', i = Array.from(tr.parentNode.children).indexOf(tr);
+      const f = await quickUpload(n.id, inp.files[0], (cond ? cond + ' · ' : '') + '관찰 사진', 'photo');
+      btn.disabled = false; if (f) { tr.dataset.photo = f.id; btn.outerHTML = rowPhotoBtn(f.id, i); const box = $('#recPhotos'); if (box) box.innerHTML = recPhotosHTML(n); toast('사진을 붙였어요'); } else btn.innerHTML = '+ 사진';
+    };
+    inp.click();
+  }
+  function rowPhotoBtn(fid, i) {
+    const f = fid && (db.files || []).find((x) => x.id === fid), src = f ? thumbSrc(f) : '';
+    return '<button type="button" class="rp-btn" data-act="rowPhoto" data-r="' + i + '">' + (f ? (src ? '<img src="' + src + '" alt="">' : '<img data-fid="' + esc(fid) + '" alt="">') : '+ 사진') + '</button>';
   }
   function readGrid(fm) {
     const cols = Array.from(fm.querySelectorAll('.grid-ed thead input')).map((i) => i.value.trim().slice(0, 30));
-    const rows = Array.from(fm.querySelectorAll('.grid-ed tbody tr')).map((tr) => Array.from(tr.querySelectorAll('input')).map((i) => i.value.trim().slice(0, 60))).filter((r) => r.some((x) => x !== ''));
-    return { cols, rows };
+    const all = Array.from(fm.querySelectorAll('.grid-ed tbody tr')).map((tr) => ({ r: Array.from(tr.querySelectorAll('input')).map((i) => i.value.trim().slice(0, 60)), p: tr.dataset.photo || '' })).filter((x) => x.r.some((v) => v !== '') || x.p);
+    const t = { cols, rows: all.map((x) => x.r) }; if (all.some((x) => x.p)) t.photos = all.map((x) => x.p); return t;
   }
   function recordForm(n) {
     const r = n.report || {}, kind = kindOf(r), t = r.table || r.rows ? tableOf(r) : { cols: KINDS[kind].cols.slice(), rows: Array.from({ length: KINDS[kind].n }, () => KINDS[kind].cols.map(() => '')) };
-    openSheet('<h3>결과 기록 · ' + esc(code(n)) + '</h3><form id="recordForm" data-id="' + esc(n.id) + '" style="display:flex;flex-direction:column;gap:12px">' +
+    openSheet('<h3>결과 기록 · ' + esc(code(n)) + '</h3><form id="recordForm" class="fgrid" data-id="' + esc(n.id) + '" style="display:flex;flex-direction:column;gap:12px">' +
       '<label class="field">무엇을 했나요 (실험 요약)<textarea name="summary" maxlength="600" placeholder="예: 소금 농도 0 · 5 · 10%에서 물이 끓는 온도를 3번씩 쟀어요.">' + esc(r.summary || '') + '</textarea></label>' +
       '<div class="field">측정 방식<div class="kind-pick">' + Object.entries(KINDS).map(([k, v]) => '<button type="button" data-kind="' + k + '" aria-pressed="' + (k === kind) + '">' + v.label + '</button>').join('') + '</div>' +
         '<small class="muted" id="kindHint" style="font-weight:400">' + KINDS[kind].hint + '</small><input type="hidden" name="kind" value="' + kind + '"></div>' +
-      '<div class="field">측정값 <span class="muted" style="font-weight:400">열 이름도 바꿀 수 있어요. 단위는 괄호 안에: 온도(℃)</span><div id="gridBox">' + gridHTML(t) + '</div>' +
+      '<div class="field">측정값 <span class="muted" style="font-weight:400">열 이름도 바꿀 수 있어요. 단위는 괄호 안에: 온도(℃)</span><div id="gridBox">' + gridHTML(t, kind) + '</div>' +
         '<label id="unitBox" style="display:' + (kind === 'rep' ? 'flex' : 'none') + ';gap:6px;align-items:center;font-weight:400">값의 단위<input name="unit" maxlength="12" value="' + esc(r.unit || '') + '" placeholder="예: ℃" style="width:100px;min-height:36px"></label></div>' +
-      '<label class="field">관찰한 것<textarea name="observe" maxlength="800" placeholder="예: 농도가 높을수록 끓는점이 올라갔어요.">' + esc(r.observe || '') + '</textarea></label>' +
-      '<div class="field">결론 <span class="muted" style="font-weight:400">최종 판정은 관리자가 해요</span><div class="seg" style="grid-template-columns:repeat(3,1fr)">' + CLAIMS.map((c) => '<button type="button" data-claim="' + c + '" aria-pressed="' + (r.claim === c) + '">' + c + '</button>').join('') + '</div><input type="hidden" name="claim" value="' + esc(r.claim || '') + '"></div>' +
+      '<div class="field" id="recPhotos">' + recPhotosHTML(n) + '</div>' +
+      '<label class="field half">관찰한 것<textarea rows="4" name="observe" maxlength="800" placeholder="예: 농도가 높을수록 끓는점이 올라갔어요.">' + esc(r.observe || '') + '</textarea></label>' +
+      '<div class="field half">결론 <span class="muted" style="font-weight:400">최종 판정은 관리자가 해요</span><div class="seg" style="grid-template-columns:repeat(3,1fr)">' + CLAIMS.map((c) => '<button type="button" data-claim="' + c + '" aria-pressed="' + (r.claim === c) + '">' + c + '</button>').join('') + '</div><input type="hidden" name="claim" value="' + esc(r.claim || '') + '"></div>' +
       '<label class="field">고찰 <span class="muted" style="font-weight:400">결과가 왜 이렇게 나왔는지 · 오차 원인 · 고칠 점</span><textarea name="discuss" rows="4" maxlength="2000" placeholder="예: 구리-아연 조합이 가장 높았던 것은 두 금속의 반응성 차이가 가장 크기 때문이다. 3회째 값이 낮은 것은 레몬 즙이 줄었기 때문으로 보인다.">' + esc(r.discuss || '') + '</textarea></label>' +
-      '<label class="field">결론 (한두 문장)<textarea name="conclusion" rows="2" maxlength="600" placeholder="예: 전극 금속의 반응성 차이가 클수록 레몬 전지의 전압이 높았다.">' + esc(r.conclusion || '') + '</textarea></label>' +
-      '<label class="field">다음에 해 볼 것<textarea name="next" maxlength="400" placeholder="예: 설탕으로도 같은 실험">' + esc(r.next || '') + '</textarea></label>' +
-      '<div class="btn-row"><button type="submit" class="btn" name="mode" value="draft">임시 저장</button><button type="submit" class="btn primary" name="mode" value="done">' + (n.status === '기록 완료' ? '고친 기록 저장' : '기록 완료로 제출') + '</button></div></form>');
+      '<label class="field half">결론 (한두 문장)<textarea name="conclusion" rows="2" maxlength="600" placeholder="예: 전극 금속의 반응성 차이가 클수록 레몬 전지의 전압이 높았다.">' + esc(r.conclusion || '') + '</textarea></label>' +
+      '<label class="field half">다음에 해 볼 것<textarea rows="2" name="next" maxlength="400" placeholder="예: 설탕으로도 같은 실험">' + esc(r.next || '') + '</textarea></label>' +
+      '<div class="btn-row"><button type="submit" class="btn" name="mode" value="draft">임시 저장</button><button type="submit" class="btn primary" name="mode" value="done">' + (n.status === '기록 완료' ? '고친 기록 저장' : '기록 완료로 제출') + '</button></div></form>', true);
   }
   // 측정 방식 바꾸기: 표가 비어 있으면 그 방식의 기본 표로, 값이 있으면 그대로 두고 그래프만 바뀜
   function pickKind(k) {
@@ -754,15 +799,15 @@
     fm.querySelector('[name=kind]').value = k; $('#kindHint').textContent = KINDS[k].hint; $('#unitBox').style.display = k === 'rep' ? 'flex' : 'none';
     fm.querySelectorAll('[data-kind]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.kind === k)));
     const t = readGrid(fm);
-    if (!t.rows.length) $('#gridBox').innerHTML = gridHTML({ cols: KINDS[k].cols.slice(), rows: Array.from({ length: KINDS[k].n }, () => KINDS[k].cols.map(() => '')) });
+    $('#gridBox').innerHTML = t.rows.length ? gridHTML(t, k) : gridHTML({ cols: KINDS[k].cols.slice(), rows: Array.from({ length: KINDS[k].n }, () => KINDS[k].cols.map(() => '')) }, k);
   }
   function gridAct(act) {
-    const fm = $('#recordForm'); if (!fm) return; const t = readGrid(fm), all = Array.from(fm.querySelectorAll('.grid-ed tbody tr')).map((tr) => Array.from(tr.querySelectorAll('input')).map((i) => i.value));
-    if (act === 'gRow') all.push(t.cols.map(() => ''));
-    if (act === 'gDelRow' && all.length > 1) all.pop();
+    const fm = $('#recordForm'); if (!fm) return; const t = readGrid(fm), trs = Array.from(fm.querySelectorAll('.grid-ed tbody tr')), all = trs.map((tr) => Array.from(tr.querySelectorAll('input')).map((i) => i.value)), photos = trs.map((tr) => tr.dataset.photo || '');
+    if (act === 'gRow') { all.push(t.cols.map(() => '')); photos.push(''); }
+    if (act === 'gDelRow' && all.length > 1) { all.pop(); photos.pop(); }
     if (act === 'gCol' && t.cols.length < 12) { const k = fm.querySelector('[name=kind]').value; t.cols.push(k === 'rep' ? t.cols.length + '회' : '열 ' + (t.cols.length + 1)); all.forEach((r) => r.push('')); }
     if (act === 'gDelCol' && t.cols.length > 1) { t.cols.pop(); all.forEach((r) => r.pop()); }
-    $('#gridBox').innerHTML = gridHTML({ cols: t.cols, rows: all });
+    $('#gridBox').innerHTML = gridHTML({ cols: t.cols, rows: all, photos }, fm.querySelector('[name=kind]').value);
   }
   function saveRecord(fm, submitter) {
     const n = byId(fm.dataset.id); if (!n) return;
@@ -788,7 +833,7 @@
         h += tableHTML(t.cols.concat(['평균', '표준편차']), t.rows.map((row, i) => row.concat([st[i].s ? '<b>' + r3(st[i].s.m) + '</b>' + (r.unit ? ' ' + esc(r.unit) : '') : '-', st[i].s && st[i].s.n > 1 ? '±' + r3(st[i].s.sd) : '-'])), 2);
       } else {
         if (kind === 'line') h += lineChart(t); else if (kind === 'xy') h += xyChart(t);
-        h += tableHTML(t.cols, t.rows, 0);
+        h += tableHTML(t.cols, t.rows, 0, t.photos);
       }
     }
     if (r.observe) h += '<div><small class="muted">관찰한 것</small><p>' + esc(r.observe) + '</p></div>';
@@ -800,9 +845,12 @@
     return h + '</div>';
   }
   // 표: rawTail = 끝에서 몇 열은 이미 HTML (평균 · 표준편차)
-  function tableHTML(cols, rows, rawTail) {
-    return '<div style="overflow-x:auto"><table class="rec-table"><thead><tr>' + cols.map((c) => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>' +
-      rows.map((row) => '<tr>' + row.map((v, j) => '<td' + (num(v) !== null || j >= row.length - rawTail ? ' class="code"' : '') + '>' + (j >= row.length - rawTail ? v : esc(v)) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>';
+  function tableHTML(cols, rows, rawTail, photos) {
+    const ph = photos && photos.some(Boolean) ? photos : null;
+    const pc = (fid) => { const f = fid && (db.files || []).find((x) => x.id === fid); if (!f) return '<td></td>'; const src = thumbSrc(f);
+      return '<td class="t-ph"><button type="button" class="ph-mini" data-act="fileView" data-fid="' + esc(f.id) + '">' + (src ? '<img src="' + src + '" alt="' + esc(f.caption || '') + '">' : '<img data-fid="' + esc(f.id) + '" alt="">') + '</button></td>'; };
+    return '<div style="overflow-x:auto"><table class="rec-table"><thead><tr>' + cols.map((c) => '<th>' + esc(c) + '</th>').join('') + (ph ? '<th>사진</th>' : '') + '</tr></thead><tbody>' +
+      rows.map((row, i) => '<tr>' + row.map((v, j) => '<td' + (num(v) !== null || j >= row.length - rawTail ? ' class="code"' : '') + '>' + (j >= row.length - rawTail ? v : esc(v)) + '</td>').join('') + (ph ? pc(ph[i]) : '') + '</tr>').join('') + '</tbody></table></div>';
   }
 
   /* ---------- 그래프 ---------- */
@@ -965,9 +1013,9 @@
   }
   function planForm(n) {
     const p = n.plan || {};
-    openSheet('<h3>계획서 · ' + esc(code(n)) + '</h3><form id="planForm" data-id="' + esc(n.id) + '" style="display:flex;flex-direction:column;gap:12px">' +
-      PLAN.map(([k, label, ph]) => '<label class="field">' + label + '<textarea name="' + k + '" rows="' + (LISTS[k] ? 5 : 3) + '" maxlength="1500" placeholder="' + esc(ph) + '">' + esc(LISTS[k] ? (p[k] || []).join('\n') : p[k] || '') + '</textarea></label>').join('') +
-      '<div class="btn-row"><button type="button" class="btn" data-act="closeSheet">닫기</button><button type="submit" class="btn primary">저장</button></div></form>');
+    openSheet('<h3>계획서 · ' + esc(code(n)) + '</h3><form id="planForm" class="fgrid" data-id="' + esc(n.id) + '" style="display:flex;flex-direction:column;gap:12px">' +
+      PLAN.map(([k, label, ph]) => '<label class="field ' + ({ purpose: 'full', hypo: 'full', ind: 'third', dep: 'third', ctrl: 'third' }[k] || 'half') + '">' + label + '<textarea name="' + k + '" rows="' + (LISTS[k] ? 5 : 3) + '" maxlength="1500" placeholder="' + esc(ph) + '">' + esc(LISTS[k] ? (p[k] || []).join('\n') : p[k] || '') + '</textarea></label>').join('') +
+      '<div class="btn-row"><button type="button" class="btn" data-act="closeSheet">닫기</button><button type="submit" class="btn primary">저장</button></div></form>', true);
   }
   function savePlan(fm) {
     const n = byId(fm.dataset.id); if (!n) return; const fd = new FormData(fm), p = {};
@@ -1171,7 +1219,7 @@
     const r = n.report, kind = kindOf(r), t = tableOf(r); if (!t.rows.length) return '';
     if (kind === 'rep') { const st = t.rows.map((row) => ({ cond: row[0], v: row.slice(1).filter((x) => x !== ''), s: stats(row.slice(1)) }));
       return (st.some((x) => x.s) ? barChart(st.filter((x) => x.s), r.unit) : '') + tableHTML(t.cols.concat(['평균', '표준편차']), t.rows.map((row, i) => row.concat([st[i].s ? '<b>' + r3(st[i].s.m) + '</b>' + (r.unit ? ' ' + esc(r.unit) : '') : '-', st[i].s && st[i].s.n > 1 ? '±' + r3(st[i].s.sd) : '-'])), 2); }
-    return (kind === 'line' ? lineChart(t) : kind === 'xy' ? xyChart(t) : '') + tableHTML(t.cols, t.rows, 0);
+    return (kind === 'line' ? lineChart(t) : kind === 'xy' ? xyChart(t) : '') + tableHTML(t.cols, t.rows, 0, t.photos);
   }
 
 
@@ -1269,11 +1317,11 @@
     }
     if (!items.length) return closeSheet();
     PF.pendingUp = { node: nodeId, items };
-    openSheet('<h3>사진 · 파일 올리기 · ' + items.length + '개</h3><form id="uploadForm" style="display:flex;flex-direction:column;gap:12px">' +
-      items.map((it, i) => '<div class="up-row">' + (it.preview ? '<img src="' + it.preview + '" alt="">' : '<span class="ph-pdf">PDF</span>') +
+    openSheet('<h3>사진 · 파일 올리기 · ' + items.length + '개</h3><form id="uploadForm" class="fgrid" style="display:flex;flex-direction:column;gap:12px">' +
+      items.map((it, i) => '<div class="up-row half">' + (it.preview ? '<img src="' + it.preview + '" alt="">' : '<span class="ph-pdf">PDF</span>') +
         '<div><input name="cap' + i + '" maxlength="200" placeholder="설명 (예: 구리-아연 레몬 전지 연결)"><div class="seg" style="grid-template-columns:repeat(3,1fr)">' +
         Object.entries(FKIND).map(([k, l]) => '<button type="button" data-ukind="' + k + '" data-i="' + i + '" aria-pressed="' + ((it.mime === 'application/pdf' ? 'doc' : 'photo') === k) + '">' + l + '</button>').join('') + '</div><input type="hidden" name="kind' + i + '" value="' + (it.mime === 'application/pdf' ? 'doc' : 'photo') + '"></div></div>').join('') +
-      '<div class="btn-row"><button type="button" class="btn" data-act="closeSheet">취소</button><button type="submit" class="btn primary">올리기</button></div></form>');
+      '<div class="btn-row"><button type="button" class="btn" data-act="closeSheet">취소</button><button type="submit" class="btn primary">올리기</button></div></form>', items.length > 1);
   }
   function readB64(f) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(f); }); }
   async function shrink(file, max, q) {
@@ -1465,7 +1513,7 @@
   }
 
   /* ---------- 새로 만들기 (아래에서 올라오는 창) ---------- */
-  function openSheet(html) { $('#sheet').innerHTML = html; $('#sheet').hidden = false; $('#sheetBg').hidden = false; const f = $('#sheet input,#sheet select'); if (f) f.focus(); }
+  function openSheet(html, wide) { $('#sheet').classList.toggle('wide', !!wide); $('#sheet').innerHTML = html; $('#sheet').hidden = false; $('#sheetBg').hidden = false; const f = $('#sheet input,#sheet select'); if (f) f.focus(); }
   function closeSheet() { $('#sheet').hidden = true; $('#sheetBg').hidden = true; }
   function newForm(type, parent) {
     const lines = [...new Set(alive().map((n) => n.line).filter(Boolean))];
@@ -1681,6 +1729,7 @@
     const a = e.target.closest('[data-act]'); if (!a) return; const act = a.dataset.act;
     if (act === 'closeSheet') return closeSheet();
     if (['gRow', 'gCol', 'gDelRow', 'gDelCol'].includes(act)) return gridAct(act);
+    if (act === 'rowPhoto') return rowPhoto(a);
     if (act === 'approveDev' || act === 'denyDev') return devAction(act, a.dataset.id);
     if (['resetCode', 'setRole', 'setStatus'].includes(act)) return peopleAction(a);
     if (['fileFull', 'fileCap', 'fileDel'].includes(act)) return fileAct(act, a.dataset.fid);
@@ -1691,7 +1740,8 @@
     const id = e.target.id; if (!['joinForm', 'masterJoinForm', 'connectForm'].includes(id)) return;
     e.preventDefault(); if (id === 'joinForm') submitJoin(e.target); else if (id === 'masterJoinForm') submitMasterJoin(e.target); else submitConnect(e.target);
   });
-  document.addEventListener('change', (e) => { const u = e.target.closest && e.target.closest('input[data-upload]'); if (u && u.files && u.files.length) { pickFiles(u.dataset.upload, u.files); u.value = ''; } });
+  document.addEventListener('change', (e) => { const q = e.target.closest && e.target.closest('input[data-upload-quick]'); if (q && q.files && q.files.length) { quickMany(q.dataset.uploadQuick, q.files); q.value = ''; return; }
+    const u = e.target.closest && e.target.closest('input[data-upload]'); if (u && u.files && u.files.length) { pickFiles(u.dataset.upload, u.files); u.value = ''; } });
   $('#sheet').addEventListener('change', (e) => {
     if (e.target.matches('[data-line-pick]')) { const f = e.target.form, box = f.querySelector('[data-new-line]'); box.hidden = e.target.value !== '__new'; if (!box.hidden) { const i = box.querySelector('input'); if (!i.value) i.value = suggestLine((f.querySelector('[name=title]') || {}).value); i.focus(); } }
   });

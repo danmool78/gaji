@@ -1,4 +1,4 @@
-// 체험 모드에서 레몬 전지 실험 전 과정 + 사진 + 줄기 + 찾기. 실행: node tests/flow.check.cjs 390
+// 체험 모드에서 레몬 전지 실험 전 과정 + 사진 + 줄기 + 찾기. 실행: node tests/flow.check.cjs 390 (또는 1440)
 // 고등학생 한 명이 레몬 전지 실험을 처음부터 끝까지 (체험 모드, 휴대폰 390)
 const { chromium } = require('playwright'); const http = require('http'), fs = require('fs'), path = require('path'); const P = require('path').join(__dirname, '../public');
 const srv = http.createServer((q, r) => { let f = path.join(P, q.url.split('?')[0]); if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) f = P + '/index.html'; r.writeHead(200, { 'content-type': f.endsWith('.js') ? 'text/javascript' : f.endsWith('.css') ? 'text/css' : f.endsWith('.html') ? 'text/html' : 'text/plain' }); fs.createReadStream(f).pipe(r); }).listen(5087);
@@ -110,7 +110,7 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) process
   // 9. 휴지통 → 되살리기
   await click('[data-act=itemMenu]'); await click('#sheet [data-act=trashItem]'); await p.waitForTimeout(80);
   await click('.tabs [data-tab="more"]'); await click('[data-go-screen="trash"]'); t = await body(); ok(t.includes('레몬 직렬 연결로 LED 켜기'), '휴지통에 있음');
-  await click('[data-act=restore]'); t = await body(); ok(!t.includes('레몬 직렬 연결로 LED 켜기'), '되살리기');
+  await click('[data-act=restore]'); t = await p.textContent('#screen'); ok(!t.includes('레몬 직렬 연결로 LED 켜기'), '되살리기');
   await shot('10-trash');
   // 9-1. 새 뿌리 실험을 같은 줄기로 → 줄기 바꾸기
   await click('.tabs [data-tab="home"]'); await click('[data-new="exp"]'); await p.fill('#newForm [name=title]', '건전지 방전 곡선');

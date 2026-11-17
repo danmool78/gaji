@@ -410,6 +410,27 @@ mark { background: var(--warn-bg); color: var(--fg); border-radius: 3px; padding
 .rp-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 6px; } .rp-figs .ph { cursor: default; background: none; border: 0; } .rp-figs .ph img { border-radius: 6px; border: 1px solid var(--line); }
 @media print { .rp-figs { break-inside: avoid; } .rp-figs .ph-cap { font-size: 10pt; -webkit-line-clamp: unset; } .btn.upl { display: none; } }
 
+/* 관찰 줄 사진 · 결과 기록 창 사진 띠 */
+.grid-ed .ge-ph { width: 76px; text-align: center; background: var(--surface-2); font-size: 12px; color: var(--muted); }
+.rp-btn { width: 64px; height: 44px; margin: 3px; border: 1px dashed var(--edge); border-radius: 8px; background: var(--surface); color: var(--muted); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; padding: 0; overflow: hidden; display: grid; place-items: center; }
+.rp-btn img { width: 100%; height: 100%; object-fit: cover; display: block; } .rp-btn .spin { margin: 0; }
+.ph-strip { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; } .ph-strip img, .ph-strip .ph-pdf { width: 84px; height: 63px; flex: none; object-fit: cover; border-radius: 8px; background: var(--surface-2); }
+.ph-strip .ph-pdf { aspect-ratio: auto; font-size: 12px; }
+.t-ph { width: 92px; padding: 4px !important; } .ph-mini { border: 0; padding: 0; background: none; cursor: pointer; display: block; } .ph-mini img { width: 84px; height: 63px; object-fit: cover; border-radius: 6px; display: block; background: var(--surface-2); }
+
+/* 넓은 창 (결과 기록 · 계획서 · 사진 여러 장): PC · 태블릿 가로에서 넓게, 칸을 나란히 */
+@media (min-width: 900px) {
+  .sheet.wide { width: min(1000px, calc(100vw - 150px)); max-width: none; padding: 24px 28px; }
+  .sheet.wide form.fgrid { display: grid !important; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px 20px !important; align-items: start; }
+  .sheet.wide form.fgrid > * { grid-column: span 6; min-width: 0; }
+  .sheet.wide form.fgrid > .half { grid-column: span 3; }
+  .sheet.wide form.fgrid > .third { grid-column: span 2; }
+  .sheet.wide form.fgrid > .btn-row { justify-content: flex-end; } .sheet.wide form.fgrid > .btn-row > .btn { flex: 0 1 220px; }
+  .sheet.wide .grid-ed input { min-width: 90px; }
+  .sheet.wide h3 { font-size: 20px; }
+}
+@media (min-width: 1400px) { .sheet.wide { width: 1100px; } }
+
 /* 인쇄는 화면 밝기와 상관없이 언제나 흰 바탕 (어둡게 모드여도) */
 @media print {
   :root, :root[data-theme], :root[data-theme="dark"], :root:not([data-theme="light"]) {
