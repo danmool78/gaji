@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.6.2';
+var GAJI_CONNECTOR_VERSION = '2.7.0';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
@@ -246,16 +246,62 @@ function GajiCore(store, util, drive) {
     store.update('nodes', old._row, u);
     return store.rows('nodes').filter(function (x) { return x.id === old.id; })[0];
   }
+  /* ---------- 자동 백업 ----------
+     일주일이 지났고 그동안 바뀐 것이 있으면: ① 시트 사본을 '가지 백업' 폴더에 ② 엑셀 첨부 + 한 주 요약을 마스터 메일로.
+     최근 8개 + 달마다 1개(12달)만 남김. 실패해도 가지 쓰기에는 영향 없음 (오류는 설정 탭에 남김). */
+  function weekSummary() {
+    var nodes = store.rows('nodes'), wk = function (iso) { return days(iso) <= 7; };
+    var made = nodes.filter(function (n) { return wk(n.created ? n.created + 'T00:00:00Z' : '') && !util.bool(n.deleted); });
+    var done = nodes.filter(function (n) { return n.status === '기록 완료' && wk(n.updatedAt); });
+    var logs = store.rows('log').filter(function (l) { return wk(l.at); }), who = {};
+    logs.forEach(function (l) { if (l.member) who[l.member] = (who[l.member] || 0) + 1; });
+    var top = Object.keys(who).sort(function (a, b) { return who[b] - who[a]; }).slice(0, 5).map(function (k) { return k + ' ' + who[k]; });
+    return { total: nodes.filter(function (n) { return !util.bool(n.deleted); }).length, made: made.map(function (n) { return n.title; }), done: done.map(function (n) { return n.title; }), acts: logs.length, top: top };
+  }
+  function doBackup(me, why) {
+    if (!util.backup) return { ok: false, error: '백업을 할 수 없는 환경이에요' };
+    var sum = weekSummary(), mail = setting('backupMail', 'on') !== 'off', slug = setting('slug', '');
+    var esc = function (t) { return String(t).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); };
+    var li = function (a) { return a.length ? '<ul>' + a.slice(0, 15).map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>' : '<p style="color:#666">없음</p>'; };
+    var html = '<div style="font-family:sans-serif;line-height:1.6"><h2 style="margin:0 0 8px">가지 주간 백업 · ' + esc(slug) + '</h2>' +
+      '<p>동아리 데이터 시트 사본을 드라이브 \'가지 백업\' 폴더에 만들었고, 같은 내용을 엑셀 파일로 첨부했어요.</p>' +
+      '<p><b>전체 항목</b> ' + sum.total + '개 · <b>이번 주 활동</b> ' + sum.acts + '번</p>' +
+      '<h3 style="margin:14px 0 4px">이번 주 새로 만든 것</h3>' + li(sum.made) + '<h3 style="margin:14px 0 4px">이번 주 기록을 마친 실험</h3>' + li(sum.done) +
+      '<h3 style="margin:14px 0 4px">많이 참여한 사람</h3>' + li(sum.top) +
+      '<p style="color:#888;font-size:12px;margin-top:18px">이 메일은 가지 연결기가 일주일에 한 번 보내요. 끄려면 가지 → 설정 → 자동 백업에서 메일을 끄세요.</p></div>';
+    var r;
+    try { r = util.backup({ mail: mail, to: setting('backupTo', ''), subject: '[가지] ' + slug + ' 주간 백업 · ' + util.today(), html: html, keep: 8, months: 12 }); }
+    catch (e) { setSetting('backupErr', util.now() + ' ' + String(e.message || e).slice(0, 200)); log(me, '백업 실패', String(e.message || e).slice(0, 120)); return { ok: false, error: String(e.message || e).slice(0, 200) }; }
+    setSetting('backupAt', util.now()); setSetting('backupRev', setting('rev', '0')); setSetting('backupErr', '');
+    if (r && r.folder) setSetting('backupFolder', r.folder);
+    if (r && r.mailError) setSetting('backupErr', util.now() + ' 메일: ' + String(r.mailError).slice(0, 160));
+    log(me, '백업', (why || '') + (r && r.mailed ? ' · 메일 ' + r.mailed : ''));
+    return { ok: true, at: setting('backupAt', ''), folder: r && r.folder, mailed: r && r.mailed, kept: r && r.kept };
+  }
+  function backupDue() { return days(setting('backupAt', '')) >= 7 && setting('backupRev', '') !== setting('rev', '0'); }
+  A.backupInfo = function (q) {
+    var me = deviceOf(q); needAdmin(me);
+    return { at: setting('backupAt', ''), folder: setting('backupFolder', ''), mail: setting('backupMail', 'on') !== 'off', to: setting('backupTo', ''), err: setting('backupErr', ''), due: backupDue() };
+  };
+  A.backupNow = function (q) { var me = deviceOf(q); needAdmin(me); return util.lock(function () { return doBackup(me, '지금 백업'); }); };
+  A.backupSet = function (q) {
+    var me = deviceOf(q); needAdmin(me);
+    if ('mail' in q) setSetting('backupMail', q.mail ? 'on' : 'off');
+    if ('to' in q) { var to = String(q.to || '').trim(); if (to && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) err('bad', '메일 주소를 확인해 주세요'); setSetting('backupTo', to.slice(0, 120)); }
+    log(me, '백업 설정', ''); return A.backupInfo(q);
+  };
+
   A.tidy = function (q) {
     var me = deviceOf(q); var today = util.today();
     if (setting('tidyAt', '') === today && !q.force) return { done: false, reason: 'today' };
     return util.lock(function () {
       setSetting('tidyAt', today);
+      var bk = backupDue() ? doBackup(me, '주간 자동') : null;
       var limit = Number(setting('archLimit', 300000)), size = heavySize(), moved = 0, logs = 0;
       // 기록 탭: 1년 지난 것은 '기록 보관'으로
       var oldLogs = store.rows('log').filter(function (l) { return days(l.at) > 365; });
       if (oldLogs.length > 200) { oldLogs.forEach(function (l) { store.append('logArchive', l); }); store.remove('log', oldLogs.map(function (l) { return l._row; })); logs = oldLogs.length; }
-      if (size <= limit && !q.force) return { done: true, moved: 0, logs: logs, size: size };
+      if (size <= limit && !q.force) return { done: true, moved: 0, logs: logs, size: size, backup: bk };
       var nodes = store.rows('nodes'), links = store.rows('links').filter(function (l) { return !util.bool(l.off); }), byId = {}, adj = {};
       nodes.forEach(function (n) { byId[n.id] = n; adj[n.id] = []; });
       links.forEach(function (l) { if (adj[l.s] && adj[l.t]) { adj[l.s].push(l.t); adj[l.t].push(l.s); } });
@@ -282,7 +328,7 @@ function GajiCore(store, util, drive) {
         size = heavySize();
       }
       if (moved) { bump(); log(me, '자동 보관', moved + '개'); }
-      return { done: true, moved: moved, logs: logs, size: size };
+      return { done: true, moved: moved, logs: logs, size: size, backup: bk };
     });
   };
   // 보관된 항목 내용 받기 (열 때)
@@ -554,6 +600,31 @@ function gajiUtil() {
     sha256: function (s) { return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, s, Utilities.Charset.UTF_8).map(function (b) { return ('0' + (b & 255).toString(16)).slice(-2); }).join(''); },
     bool: function (v) { return v === true || String(v).toLowerCase() === 'true'; },
     secret: function () { var p = PropertiesService.getScriptProperties(), v = p.getProperty('GAJI_SECRET'); if (!v) { v = Utilities.getUuid() + Utilities.getUuid(); p.setProperty('GAJI_SECRET', v); } return v; },
+    backup: function (o) {
+      var ss = SpreadsheetApp.getActiveSpreadsheet(), file = DriveApp.getFileById(ss.getId()), ps = file.getParents(), par = ps.hasNext() ? ps.next() : DriveApp.getRootFolder();
+      var it = par.getFoldersByName('가지 백업'), dir = it.hasNext() ? it.next() : par.createFolder('가지 백업');
+      var name = '가지 데이터 백업 ' + Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HHmm');
+      SpreadsheetApp.flush();
+      var copy = file.makeCopy(name, dir), out = { id: copy.getId(), folder: dir.getUrl() };
+      // 정리: 최근 o.keep개 + 달마다 가장 최근 1개(o.months달)
+      var list = [], fi = dir.getFiles(); while (fi.hasNext()) { var f = fi.next(); if (f.getName().indexOf('가지 데이터 백업 ') === 0) list.push(f); }
+      list.sort(function (a, b) { return b.getDateCreated() - a.getDateCreated(); });
+      var keep = {}, months = {};
+      list.forEach(function (f, i) { var m = Utilities.formatDate(f.getDateCreated(), 'Asia/Seoul', 'yyyy-MM');
+        if (i < o.keep) keep[f.getId()] = 1; else if (!months[m] && Object.keys(months).length < o.months) { months[m] = 1; keep[f.getId()] = 1; } });
+      list.forEach(function (f) { if (!keep[f.getId()]) { try { f.setTrashed(true); } catch (e) {} } });
+      out.kept = Object.keys(keep).length;
+      if (o.mail) {
+        try {
+          var to = o.to || Session.getEffectiveUser().getEmail();
+          var x = UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + ss.getId() + '/export?format=xlsx', { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+          var att = x.getResponseCode() === 200 ? [x.getBlob().setName(name + '.xlsx')] : [];
+          MailApp.sendEmail({ to: to, subject: o.subject, htmlBody: o.html, attachments: att, name: '가지' });
+          out.mailed = to.replace(/^(.{2}).*(@.*)$/, '$1…$2');
+        } catch (e) { out.mailError = String(e.message || e); }
+      }
+      return out;
+    },
     links: function () {
       var ss = SpreadsheetApp.getActiveSpreadsheet(), o = { sheet: ss.getUrl() };
       try { o.script = 'https://script.google.com/home/projects/' + ScriptApp.getScriptId() + '/edit'; } catch (e) {}

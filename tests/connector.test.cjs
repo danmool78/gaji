@@ -4,6 +4,7 @@ const ctx = {}; vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/core.js'), 'utf8'), ctx);
 
 let clock = Date.parse('2026-11-17T00:00:00Z');
+const BK = [];
 function memStore() {
   const t = {};
   const tab = (k) => (t[k] = t[k] || []);
@@ -20,7 +21,7 @@ const util = {
   now: () => new Date(clock).toISOString(), today: () => new Date(clock).toISOString().slice(0, 10),
   random: Math.random, token: (n) => crypto.randomBytes(n).toString('base64url').slice(0, n),
   sha256: (s) => crypto.createHash('sha256').update(s).digest('hex'),
-  bool: (v) => v === true || v === 'true', lock: (fn) => fn(), secret: () => 'test-secret-123', links: () => ({ sheet: 'https://docs.google.com/spreadsheets/d/X/edit', script: 'https://script.google.com/home/projects/S/edit' })
+  bool: (v) => v === true || v === 'true', lock: (fn) => fn(), secret: () => 'test-secret-123', links: () => ({ sheet: 'https://docs.google.com/spreadsheets/d/X/edit', script: 'https://script.google.com/home/projects/S/edit' }), backup: (o) => { BK.push(o); if (BK.fail) throw new Error('drive 꽉 참'); return { folder: 'https://drive/backup', kept: 3, mailed: o.mail ? 'ki…@x.kr' : undefined }; }
 };
 // 가짜 드라이브: 폴더 · 파일을 메모리에
 const DRIVE = { files: {}, folders: {}, perm: true, n: 0 };
@@ -177,7 +178,7 @@ const mc2 = call({ action: 'myCode', device: r9b.data.device });
 ok('old code renewed', mc2.ok && mc2.data.renewed && /^\d{4}$/.test(mc2.data.code), mc2);
 ok('device kept after renew', call({ action: 'load', device: r9b.data.device }).ok);
 ok('new code works', call({ action: 'register', studentId: '20399', code: mc2.data.code }).ok);
-ok('ping version', call({ action: 'ping' }).data.version === '2.6.2');
+ok('ping version', call({ action: 'ping' }).data.version === '2.7.0');
 
 // 실수 되돌리기: 내가 10분 안에 옮긴 단계는 한 단계 되돌리기 가능
 call({ action: 'sync', device: M, nodes: [{ id: 'u1', type: 'exp', title: '되돌리기 시험', status: '검토 중', owner: '정다온' }] });
@@ -362,6 +363,27 @@ ok('non-team can still comment on public', call({ action: 'comment', device: r5.
 
 ok('links: admin gets sheet · script', call({ action: 'links', device: ADM }).data.sheet.includes('spreadsheets'));
 ok('links: member refused', call({ action: 'links', device: OTH }).code === 'not_admin');
+
+
+// ===== 2.7.0: 자동 백업 =====
+store._t.settings = store._t.settings.filter((x) => !/^backup/.test(x.key));
+store._t.settings.forEach((x) => { if (x.key === 'tidyAt') x.value = ''; });
+const b0 = BK.length; let tb = call({ action: 'tidy', device: OTH });
+ok('first tidy backs up (never backed up, data changed)', tb.data.backup && tb.data.backup.ok && BK.length === b0 + 1 && BK[BK.length - 1].mail === true, tb);
+ok('mail has summary html', /주간 백업/.test(BK[BK.length - 1].html) && /이번 주 새로 만든 것/.test(BK[BK.length - 1].html));
+store._t.settings.forEach((x) => { if (x.key === 'tidyAt') x.value = ''; });
+tb = call({ action: 'tidy', device: OTH }); ok('no backup again within a week', !tb.data.backup && BK.length === b0 + 1);
+clock += 8 * 864e5; store._t.settings.forEach((x) => { if (x.key === 'tidyAt') x.value = ''; });
+tb = call({ action: 'tidy', device: OTH }); ok('no backup after a week if nothing changed', !tb.data.backup);
+call({ action: 'sync', device: MEM, nodes: [{ id: 'k1', type: 'exp', title: '백업 시험 실험', owner: '정다온' }] });
+store._t.settings.forEach((x) => { if (x.key === 'tidyAt') x.value = ''; });
+tb = call({ action: 'tidy', device: OTH }); ok('backup after a week with changes', tb.data.backup && tb.data.backup.ok && BK.length === b0 + 2);
+ok('backupInfo admin only', call({ action: 'backupInfo', device: OTH }).code === 'not_admin' && call({ action: 'backupInfo', device: ADM }).data.mail === true);
+let bs = call({ action: 'backupSet', device: ADM, mail: false, to: 'kim@school.kr' }); ok('backupSet mail off + to', bs.data.mail === false && bs.data.to === 'kim@school.kr');
+ok('bad email rejected', call({ action: 'backupSet', device: ADM, to: 'not-an-email' }).code === 'bad');
+let bn = call({ action: 'backupNow', device: ADM }); ok('backupNow (no mail when off)', bn.data.ok && BK[BK.length - 1].mail === false && BK[BK.length - 1].to === 'kim@school.kr');
+BK.fail = true; bn = call({ action: 'backupNow', device: ADM }); BK.fail = false;
+ok('backup failure recorded, not thrown', bn.ok && bn.data.ok === false && call({ action: 'backupInfo', device: ADM }).data.err.includes('꽉 참'));
 
 console.log(`connector: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

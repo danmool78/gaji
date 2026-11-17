@@ -28,7 +28,7 @@ const post = (q) => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify
 const get = () => JSON.parse(ctx.doGet().t);
 const clearCache = () => Object.keys(cache).forEach((k) => delete cache[k]);
 
-ok('doGet version', get().data.version === '2.6.2' && get().data.shell === '6', get());
+ok('doGet version', get().data.version === '2.7.0' && get().data.shell === '6', get());
 ok('core stored in chunks', Number(props.gaji_core_n) >= 3);
 const init = post({ action: 'init', slug: 't', name: '김', studentId: '1', label: 'PC', masterKey: 'K'.repeat(40) });
 ok('init via shell', init.ok, init);
@@ -39,7 +39,7 @@ const f0 = fetches; post({ action: 'rev', device: M }); ok('cached (no refetch w
 clearCache(); site = 'down'; ok('site down still works', post({ action: 'load', device: M }).ok);
 clearCache(); site = '500'; ok('site 500 still works', post({ action: 'load', device: M }).ok);
 // 새 판 자동 적용
-site = 'up'; CORE = CORE.replace("GAJI_CONNECTOR_VERSION = '2.6.2'", "GAJI_CONNECTOR_VERSION = '2.1.1'"); clearCache();
+site = 'up'; CORE = CORE.replace("GAJI_CONNECTOR_VERSION = '2.7.0'", "GAJI_CONNECTOR_VERSION = '2.1.1'"); clearCache();
 ok('auto update', post({ action: 'ping' }).data.version === '2.1.1');
 // 자동 업데이트 멈춤
 const st = ss.getSheetByName('설정'); st.d.push(['autoUpdate', 'off']);

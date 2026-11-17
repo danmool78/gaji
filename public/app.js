@@ -1579,8 +1579,8 @@
   function driveCard() {
     const box = (badge, body) => '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">드라이브 연결</b>' + badge + '</div>' + body + '</div>';
     if (!PF.club) return box('<span class="badge t-neutral">체험</span>', '<span class="muted" style="font-size:13px;line-height:1.7">지금은 <b>체험용 가상 동아리(북일고등학교 실험 동아리)</b>예요. 드라이브 연결 없이 바로 써 볼 수 있어요. 바꾼 내용은 이 브라우저에만 저장되고 <b>매일 처음 상태로 돌아가요.</b></span><button type="button" class="btn" data-act="demoWho" style="align-self:flex-start">누구로 체험할지 바꾸기 · 처음 상태로</button>');
-    if (PF.isMaster) { fetchGs(); return linksCard() + connectCard(); }
-    return linksCard();   // 관리자: 바로 열기만 · 부원에게는 보이지 않음
+    if (PF.isMaster) { fetchGs(); return linksCard() + backupCard() + connectCard(); }
+    return linksCard() + backupCard();   // 관리자: 바로 열기만 · 부원에게는 보이지 않음
   }
   // 관리자: 동아리 데이터 바로 열기 (주소는 연결기가 알려 줌)
   function linksCard() {
@@ -1595,6 +1595,35 @@
        PF.links ? '<div class="btn-row">' + a(L.sheet, '가지 데이터 시트 열기') + a(L.script, '연결기(Apps Script) 열기') + a(L.folder || L.home, L.folder ? '사진 폴더 열기' : '동아리 폴더 열기') + '</div>' +
         '<span class="muted" style="font-size:12px;line-height:1.6">구글 계정에 이 시트 · 폴더의 편집 권한이 있어야 열려요. 시트를 직접 고치면 가지가 헷갈릴 수 있으니 보기만 하세요.</span>'
         : '<span class="muted loading-line">' + SPIN + '주소를 받는 중…</span>') + '</div>';
+  }
+  // 관리자: 자동 백업 (일주일에 한 번 '가지 백업' 폴더 + 메일)
+  function backupCard() {
+    if (PF.mode !== 'live' || !isAdmin()) return '';
+    if ((!PF.bk || (PF.bk.err0 && Date.now() - PF.bk.t > 60000)) && !PF.bkLoading) {
+      PF.bkLoading = true;
+      rpc('backupInfo', null, null, { quiet: true }).then((b) => { PF.bk = b || {}; }, () => { PF.bk = { err0: true, t: Date.now() }; }).finally(() => { PF.bkLoading = false; render(); });
+    }
+    const B = PF.bk, head = '<div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">자동 백업</b><span class="badge t-info">관리자</span></div>';
+    const wrap = (b) => '<div class="card" style="display:flex;flex-direction:column;gap:10px">' + head + b + '</div>';
+    if (!B) return wrap('<span class="muted loading-line">' + SPIN + '백업 상태를 보는 중…</span>');
+    if (B.err0 || !('mail' in B)) return wrap('<span class="muted" style="font-size:13px;line-height:1.6">연결기가 아직 이 기능을 몰라요. 새 본체는 10분 안에 저절로 들어와요. 잠시 뒤 다시 열어 보세요.</span>');
+    let when = '아직 없어요 · 오늘 안에 첫 백업을 해요';
+    if (B.at) { const d = new Date(B.at), n = Math.floor((Date.now() - d) / 864e5); when = (d.getMonth() + 1) + '월 ' + d.getDate() + '일 ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ' (' + (n < 1 ? '오늘' : n + '일 전') + ')'; }
+    return wrap('<span style="font-size:14px;line-height:1.7">마지막 백업: <b>' + esc(when) + '</b></span>' +
+      (B.err ? '<span class="badge t-warn" style="align-self:flex-start;white-space:normal;line-height:1.5">지난번 문제: ' + esc(B.err.replace(/^\S+\s/, '')) + '</span>' : '') +
+      '<span class="muted" style="font-size:13px;line-height:1.7">일주일에 한 번, 바뀐 것이 있으면 저절로 시트 옆 <b>‘가지 백업’ 폴더</b>에 사본을 저장해요. 최근 8개와 달마다 1개(1년)만 남기고 오래된 건 알아서 지워요.</span>' +
+      '<label class="check-line" style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" data-bk-mail' + (B.mail ? ' checked' : '') + '> 백업할 때 엑셀 파일과 한 주 요약을 메일로도 받기</label>' +
+      (B.mail ? '<span class="muted" style="font-size:13px">받는 곳: <b>' + esc(B.to || '연결기를 만든 구글 계정') + '</b> <button type="button" class="chipbtn" data-act="backupTo">바꾸기</button></span>' : '') +
+      '<div class="btn-row"><button type="button" class="btn primary" data-act="backupNow">지금 백업</button>' + (B.folder ? '<a class="btn" href="' + esc(B.folder) + '" target="_blank" rel="noopener">백업 폴더 열기</a>' : '') + '</div>');
+  }
+  async function backupNow() {
+    try { const r = await rpc('backupNow'); if (r.ok) { toast('백업했어요' + (r.mailed ? ' · 메일도 보냈어요' : '')); } else toast('백업하지 못했어요: ' + (r.error || '')); }
+    catch (e) { if (!deviceLost(e)) toast(e.message); }
+    PF.bk = null; render();
+  }
+  async function backupSet(o) {
+    try { PF.bk = await rpc('backupSet', o); toast('바꿨어요'); } catch (e) { if (!deviceLost(e)) toast(e.message); PF.bk = null; }
+    render();
   }
   function viewClub() {
     if (!PF.isMaster) return '<div class="card empty">동아리 마스터만 볼 수 있어요.</div>';
@@ -1748,6 +1777,8 @@
     if (act === 'pfLogin') return PF.api && PF.api.login();
     if (act === 'askApprove') return askApprove();
     if (act === 'myCode') return myCode();
+    if (act === 'backupNow') return backupNow();
+    if (act === 'backupTo') return openSheet('<h3>백업 메일 받는 곳</h3><form id="backupToForm" style="display:flex;flex-direction:column;gap:12px"><label class="field">메일 주소<input name="to" type="email" maxlength="120" value="' + esc((PF.bk && PF.bk.to) || '') + '" placeholder="비우면 연결기를 만든 구글 계정"></label><div class="btn-row"><button type="button" class="btn" data-act="closeSheet">취소</button><button type="submit" class="btn primary">저장</button></div></form>');
     if (act === 'restartJoin') { dropDev(); PF.mode = 'join'; return render(); }
     if (act === 'leaveDevice') { if (!confirm('이 기기에서 나갈까요? 다시 들어오려면 학번 · 개인 코드와 승인이 필요해요.')) return; rpc('block', { id: PF.dev.id }).catch(() => {}); dropDev(); PF.mode = 'join'; nav = [{ s: 'home' }]; return render(true); }
     if (act === 'openApprove') return openApprove(did);
@@ -1850,7 +1881,8 @@
     const id = e.target.id; if (!['joinForm', 'masterJoinForm', 'connectForm'].includes(id)) return;
     e.preventDefault(); if (id === 'joinForm') submitJoin(e.target); else if (id === 'masterJoinForm') submitMasterJoin(e.target); else submitConnect(e.target);
   });
-  document.addEventListener('change', (e) => { const q = e.target.closest && e.target.closest('input[data-upload-quick]'); if (q && q.files && q.files.length) { quickMany(q.dataset.uploadQuick, q.files); q.value = ''; return; }
+  document.addEventListener('change', (e) => { if (e.target.matches && e.target.matches('[data-bk-mail]')) return backupSet({ mail: e.target.checked });
+    const q = e.target.closest && e.target.closest('input[data-upload-quick]'); if (q && q.files && q.files.length) { quickMany(q.dataset.uploadQuick, q.files); q.value = ''; return; }
     const u = e.target.closest && e.target.closest('input[data-upload]'); if (u && u.files && u.files.length) { pickFiles(u.dataset.upload, u.files); u.value = ''; } });
   $('#sheet').addEventListener('change', (e) => {
     if (e.target.matches('[data-line-pick]')) { const f = e.target.form, box = f.querySelector('[data-new-line]'); box.hidden = e.target.value !== '__new'; if (!box.hidden) { const i = box.querySelector('input'); if (!i.value) i.value = suggestLine((f.querySelector('[name=title]') || {}).value); i.focus(); } }
@@ -1863,6 +1895,7 @@
     if (e.target.id === 'uploadForm') { e.preventDefault(); return doUpload(e.target); }
     if (flowSubmit(e)) return;
     if (e.target.id === 'recordForm') { e.preventDefault(); return saveRecord(e.target, e.submitter); }
+    if (e.target.id === 'backupToForm') { e.preventDefault(); closeSheet(); return backupSet({ to: String(new FormData(e.target).get('to') || '').trim() }); }
     if (e.target.id === 'addMemberForm') {
       e.preventDefault(); const fd = new FormData(e.target), name = String(fd.get('name')).trim(), btn = e.target.querySelector('[type=submit]'); btn.disabled = true;
       rpc('addMember', { studentId: String(fd.get('sid')).trim(), name }).then((r) => { PF.people = null; showCode(name, r.code); render(); }, (er) => { btn.disabled = false; if (!deviceLost(er)) toast(er.message); });
