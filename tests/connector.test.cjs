@@ -1,7 +1,7 @@
 // 연결기(public/connector.gs) 핵심 로직 시험 — 구글 시트 대신 메모리 저장소 사용
 const fs = require('fs'), vm = require('vm'), crypto = require('crypto'), path = require('path');
 const ctx = {}; vm.createContext(ctx);
-vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/connector.gs'), 'utf8'), ctx);
+vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/core.js'), 'utf8'), ctx);
 
 let clock = Date.parse('2026-11-17T00:00:00Z');
 function memStore() {
@@ -169,7 +169,7 @@ const mc2 = call({ action: 'myCode', device: r9b.data.device });
 ok('old code renewed', mc2.ok && mc2.data.renewed && /^\d{4}$/.test(mc2.data.code), mc2);
 ok('device kept after renew', call({ action: 'load', device: r9b.data.device }).ok);
 ok('new code works', call({ action: 'register', studentId: '20399', code: mc2.data.code }).ok);
-ok('ping version', call({ action: 'ping' }).data.version === '1.2.0');
+ok('ping version', call({ action: 'ping' }).data.version === '2.0.0');
 
 console.log(`connector: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

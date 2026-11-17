@@ -7,3 +7,6 @@ window.GAJI_FIREBASE = {
   messagingSenderId: "708366212993",
   appId: "1:708366212993:web:729dc887832b9b854b5280"
 };
+
+// 연결기가 들어 있는 '가지 데이터' 원본 시트 (사본 만들기용). 비어 있으면 코드 붙여 넣기 방식으로 안내
+window.GAJI_TEMPLATE_ID = '';

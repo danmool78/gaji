@@ -67,7 +67,7 @@
    * mode: demo(체험) · preview(마스터, 연결 전 · 예시 데이터) · closed(부원, 연결 전)
    *       join(학번 + 개인 코드) · pending(승인 기다림) · loading · error · live(연결됨) */
   const NEED_VER = '1.1.0';   // 이 화면에 꼭 필요한 연결기 판 (이보다 낮을 때만 업데이트 안내)
-  const LATEST_VER = '1.2.0';
+  const LATEST_VER = '2.0.0';   // 2.0.0부터 자동 업데이트 연결기
   const verOld = (v, need) => { const a = String(v || '0').split('.').map(Number), b = (need || NEED_VER).split('.').map(Number); for (let i = 0; i < 3; i++) { if ((a[i] || 0) !== b[i]) return (a[i] || 0) < b[i]; } return false; };
   const GATE = new Set(['closed', 'join', 'pending', 'loading', 'error']);
   const devKey = () => 'gaji-dev:' + PF.slug;
@@ -321,24 +321,39 @@
       (PF.connAuth ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기가 응답하지 않아요 · 권한 허용이 필요할 수 있어요</span><span style="font-weight:400;line-height:1.7">① <b>연결기 권한 확인</b>을 눌러 새 창 열기<br>② ‘권한 필요’ 또는 ‘액세스 승인’이 나오면 → <b>권한 검토</b> → 내 계정 → <b>고급 → 이동 → 허용</b><br>③ 새 창에 <b>"gaji":true</b> 글자가 보이면 성공 → 여기서 <b>연결 시험</b></span></div>' : '') +
       (PF.connVer ? (verOld(PF.connVer)
         ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기 업데이트 필요 · 지금 ' + esc(PF.connVer) + ' → 새 판 ' + NEED_VER + '</span><span style="font-weight:400;line-height:1.7">① 아래 <b>연결기 코드 복사</b> → Apps Script에 덮어쓰고 저장<br>② <b>배포 → 배포 관리</b> → 연필 모양(수정) → 버전: <b>새 버전</b> → 배포<br>③ 여기서 <b>연결 시험</b> → ' + NEED_VER + ' 확인</span></div>'
-        : '<span class="muted" style="font-size:12px">● 연결기 ' + esc(PF.connVer) + ' · 정상' + (verOld(PF.connVer, LATEST_VER) ? ' (새 판 ' + LATEST_VER + '은 급하지 않아요)' : '') + '</span>') : '') +
+        : verOld(PF.connVer, LATEST_VER)
+          ? '<div class="card" style="display:flex;flex-direction:column;gap:6px;background:var(--info-bg);border-color:transparent;font-size:13px;line-height:1.7"><b style="color:var(--info)">마지막 한 번만: 자동 업데이트 연결기로 바꾸기 (권장)</b><span>지금 연결기 ' + esc(PF.connVer) + '는 정상이에요. 한 번만 바꿔 두면 앞으로 기능이 추가돼도 <b>다시 배포할 일이 없어요.</b></span><span>① 아래 <b>연결기 코드 복사</b> (짧아졌어요) → Apps Script에서 전체 지우고 붙여 넣기 → 저장<br>② <b>배포 → 배포 관리</b> → 연필 모양 → 버전: <b>새 버전</b> → 배포<br>③ <b>연결기 권한 확인</b> → ‘권한 필요’가 나오면 권한 검토 → 고급 → 이동 → 허용 (외부 연결 권한이 하나 늘어요)<br>④ <b>연결 시험</b> → 연결기 ' + LATEST_VER + ' 확인</span></div>'
+          : '<span class="muted" style="font-size:12px">● 연결기 ' + esc(PF.connVer) + ' · 자동 업데이트 중</span>') : '') +
       '<div class="btn-row"><button type="button" class="btn" data-act="testConn">연결 시험</button><a class="btn" href="' + esc(c.connector) + '" target="_blank" rel="noopener">연결기 권한 확인</a><button type="button" class="btn" data-act="copyGs">연결기 코드 복사</button></div>' +
+      '<span class="muted" style="font-size:12px;line-height:1.6">새 기능은 가지에서 자동으로 받아요. 받는 본체는 <a href="/core.js" target="_blank" rel="noopener">누구나 볼 수 있게 공개</a>돼 있고, 멈추려면 시트 ‘설정’ 탭에 <span class="code">autoUpdate</span> · <span class="code">off</span> 를 넣으면 돼요.</span>' +
       '<span class="muted" style="font-size:12px;line-height:1.6">연결기를 새로 배포했거나 다른 시트로 옮길 때만 주소를 바꿔요.</span><button type="button" class="chipbtn" data-act="rewire">연결기 주소 바꾸기</button></div>';
     const step = (n, t, d, extra) => '<li class="wstep"><span class="wnum">' + n + '</span><div><b>' + t + '</b><span class="muted">' + d + '</span>' + (extra || '') + '</div></li>';
+    const tpl = window.GAJI_TEMPLATE_ID || '';
+    const codeBox = '<textarea id="gsCode" class="gs-code" readonly spellcheck="false" aria-label="연결기 코드">' + esc(PF.gs || '불러오는 중…') + '</textarea>' +
+      '<span class="muted" style="font-size:12px">버튼이 안 되면 상자를 한 번 누르고 <b>Ctrl+C</b> (맥은 ⌘+C)</span>' +
+      '<div class="btn-row"><button type="button" class="btn primary" data-act="copyGs">코드 전체 복사</button><a class="btn" href="/connector.gs" target="_blank" rel="noopener">새 창에서 보기</a></div>';
     return '<div class="card" style="display:flex;flex-direction:column;gap:12px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">드라이브 연결</b><span class="badge t-warn">● 연결 전</span></div>' +
-      '<span class="muted" style="font-size:13px;line-height:1.6">동아리 기록은 우리 드라이브의 시트에 저장돼요. 한 번만 하면 되고, 컴퓨터에서 하는 게 편해요 (10분).</span>' +
+      '<span class="muted" style="font-size:13px;line-height:1.6">동아리 기록은 우리 드라이브의 시트에 저장돼요. <b>동아리마다 한 번만</b> 하면 되고, 부원들은 할 일이 없어요. 한 번 연결하면 새 기능은 자동으로 들어와요. 컴퓨터에서 하는 게 편해요 (5분).</span>' +
       '<ol class="wizard">' +
-      step(1, '가지 데이터 시트 만들기', '학교 공유 드라이브(권장)나 내 드라이브에 새 구글 시트를 만들고 이름을 <b>가지 데이터</b>로 바꿔요.', '<a class="btn" href="https://docs.google.com/spreadsheets/create" target="_blank" rel="noopener">새 시트 열기</a>') +
-      step(2, '연결기 코드 붙여 넣기', '시트 메뉴 <b>확장 프로그램 → Apps Script</b>. 원래 있던 코드를 모두 지우고 붙여 넣은 뒤 저장해요.', '<textarea id="gsCode" class="gs-code" readonly spellcheck="false" aria-label="연결기 코드">' + esc(PF.gs || '불러오는 중…') + '</textarea>' +
-        '<span class="muted" style="font-size:12px">버튼이 안 되면 상자를 한 번 누르고 <b>Ctrl+C</b> (맥은 ⌘+C)</span>' +
-        '<div class="btn-row"><button type="button" class="btn primary" data-act="copyGs">코드 전체 복사</button><a class="btn" href="/connector.gs" target="_blank" rel="noopener">새 창에서 보기</a></div>') +
-      step(3, '웹 앱으로 배포', '<b>배포 → 새 배포 → 유형: 웹 앱</b> · 실행: <b>나</b> · 액세스: <b>모든 사용자</b> → 배포 → 권한 허용. ‘확인되지 않은 앱’이 나오면 고급 → 이동을 눌러요.') +
-      step(4, '웹 앱 주소 붙여 넣기', '배포가 끝나면 나오는 웹 앱 URL을 복사해 아래에 넣어요.',
+      (tpl
+        ? step(1, '가지 데이터 시트 만들기', '버튼을 누르면 구글이 ‘사본을 만드시겠어요?’라고 물어요. <b>사본 만들기</b>를 눌러요. 연결기가 이미 들어 있는 시트가 내 드라이브에 생겨요.',
+            '<a class="btn primary" href="https://docs.google.com/spreadsheets/d/' + esc(tpl) + '/copy?title=' + encodeURIComponent('가지 데이터') + '" target="_blank" rel="noopener">가지 데이터 시트 만들기</a>' +
+            '<span class="muted" style="font-size:12px">학교 공유 드라이브에 두고 싶으면, 만든 뒤 드라이브에서 그 공유 드라이브로 옮기면 돼요.</span>') +
+          step(2, 'Apps Script 열기', '방금 만든 시트에서 메뉴 <b>확장 프로그램 → Apps Script</b>. 코드가 이미 들어 있으니 <b>아무것도 고치지 않아요.</b>')
+        : step(1, '가지 데이터 시트 만들기', '새 구글 시트를 만들고 이름을 <b>가지 데이터</b>로 바꿔요.', '<a class="btn" href="https://docs.google.com/spreadsheets/create" target="_blank" rel="noopener">새 시트 열기</a>') +
+          step(2, '연결기 코드 붙여 넣기', '시트 메뉴 <b>확장 프로그램 → Apps Script</b>. 원래 있던 코드를 모두 지우고 붙여 넣은 뒤 <b>저장</b>(Ctrl+S)해요.', codeBox)) +
+      step(3, '배포 → 새 배포', 'Apps Script 화면 오른쪽 위 파란 <b>배포</b> 버튼 → <b>새 배포</b>.') +
+      step(4, '유형: 웹 앱', '‘유형 선택’ 옆 <b>톱니바퀴</b> → <b>웹 앱</b>.') +
+      step(5, '실행: 나 · 액세스: 모든 사용자', '두 칸을 그림처럼 고르고 <b>배포</b>. ‘모든 사용자’여야 부원 기기가 연결돼요 (로그인 없이 부원 기기용 · 코드와 승인으로 보호돼요).') +
+      step(6, '권한 허용', '<b>액세스 승인</b> → 내 계정 → ‘확인하지 않은 앱’이 나오면 <b>고급</b> → <b>…(으)로 이동</b> → <b>허용</b>. 직접 만든 연결기라 나오는 정상 경고예요.') +
+      step(7, '웹 앱 URL 복사해서 붙여 넣기', '마지막 창의 <b>웹 앱 URL</b> 옆 <b>복사</b>를 누르고 아래에 붙여 넣어요.',
         '<form id="connectForm" style="display:flex;flex-direction:column;gap:10px;margin-top:6px"><label class="field">웹 앱 URL<input name="url" required placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" spellcheck="false"></label>' +
         '<div class="grid2"><label class="field">내 학번<input name="sid" inputmode="numeric" maxlength="12" required></label><label class="field">내 이름<input name="name" maxlength="20" required></label></div>' +
         '<button type="submit" class="btn primary">연결하기</button>' + (PF.rewire ? '<button type="button" class="chipbtn" data-act="rewireCancel">취소</button>' : '') + '</form>') +
-      '</ol></div>';
+      '</ol>' + (tpl ? '<details class="wmore"><summary>코드를 직접 붙여 넣을래요 (원본 시트를 쓸 수 없을 때)</summary><span class="muted" style="font-size:13px">새 구글 시트 → 확장 프로그램 → Apps Script → 원래 코드를 지우고 붙여 넣기 → 저장. 그다음 3단계부터 똑같아요.</span>' + codeBox + '</details>' : '') + '</div>';
   }
+
+
   function fetchGs() {
     if (PF.gs || fetchGs.busy) return; fetchGs.busy = true;
     fetch('/connector.gs', { cache: 'no-cache' }).then((r) => r.text()).then((t) => { PF.gs = t; const ta = $('#gsCode'); if (ta) ta.value = t; }).catch(() => {}).finally(() => { fetchGs.busy = false; });
