@@ -145,9 +145,9 @@ mark { background: #E3F6C8; color: inherit; border-radius: 6px; padding: 0 4px; 
   <!-- 1. 시작: 씨앗 → 가지 (0~7초) -->
   <section class="scene" id="s1" style="--at:0s;--len:7.2s">
     <svg viewBox="0 0 512 512">
-      <circle cx="164" cy="432" r="18" fill="#fff" class="pop" style="--d:.3s;transform-origin:164px 432px"/>
+      <circle cx="164" cy="432" r="18" fill="#fff" class="pop" style="--d:0.3s;transform-origin:164px 432px"/>
       <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
-        <path pathLength="1" class="draw" style="--d:.9s;--dur:1.6s" d="M164 432C190 356 228 304 284 254C326 216 356 176 368 128" stroke-width="42"/>
+        <path pathLength="1" class="draw" style="--d:0.9s;--dur:1.6s" d="M164 432C190 356 228 304 284 254C326 216 356 176 368 128" stroke-width="42"/>
         <path pathLength="1" class="draw" style="--d:1.9s;--dur:.9s" d="M232 318C196 292 164 262 140 222" stroke-width="30"/>
         <path pathLength="1" class="draw" style="--d:2.3s;--dur:.9s" d="M298 240C334 246 368 262 400 288" stroke-width="28"/>
       </g>
@@ -196,66 +196,82 @@ mark { background: #E3F6C8; color: inherit; border-radius: 6px; padding: 0 4px; 
     </div>
   </section>
 
-  <!-- 5. 보고서 · 그래프 (45~56초): 실제 가지 화면 (가로형 태블릿) -->
-  <section class="scene" id="s5" style="--at:45s;--len:11.2s">
-    <div class="cap top up" style="--d:45.3s;font-size:58px">측정값만 넣으면, 그래프와 보고서가 자동으로</div>
+  <!-- 4-2. 진행 도우미 (45~55.5초): 실험하는 날, 계획서의 방법을 한 단계씩 -->
+  <section class="scene" id="s4b" style="--at:45s;--len:10.7s">
+    <div class="cap top up" style="--d:45.3s;font-size:58px">실험하는 날엔, 진행 도우미가 한 단계씩</div>
     <div class="tablet up" style="--d:45.8s;left:110px;top:240px"><div class="scr">
-      <img src="shots/item.png" alt="">
-      <img src="shots/report.png" alt="" class="fade" style="--d:49.6s">
-      <img src="shots/report-chart.png" alt="" class="fade" style="--d:52.4s">
+      <img src="shots/run0.png" alt="">
+      <img src="shots/run1.png" alt="" class="fade" style="--d:49.4s">
     </div></div>
     <div class="auto">
-      <div class="up" style="--d:47.2s"><b>1</b>계획서 · 가설 · 변인</div>
-      <div class="up" style="--d:48.1s"><b>2</b>준비물 · 실험 방법</div>
-      <div class="up" style="--d:49s"><b>3</b>진행 기록 · 사진</div>
-      <div class="up" style="--d:49.9s"><b>4</b>측정값 · 그래프</div>
-      <div class="up" style="--d:50.8s"><b>5</b>고찰 · 결론 · 다음 실험</div>
-      <p class="fade" style="--d:52s">한 실험의 모든 기록이<br><strong>보고서 한 편</strong>으로 이어져요</p>
+      <div class="up" style="--d:47s"><b>1</b>계획서의 방법이 체크리스트로</div>
+      <div class="up" style="--d:47.9s"><b>2</b>단계마다 시각이 저절로</div>
+      <div class="up" style="--d:48.8s"><b>3</b>관찰 · 바꾼 점 · 문제 메모</div>
+      <div class="up" style="--d:49.7s"><b>4</b>사진은 그 자리에서 바로 찍기</div>
+      <p class="fade" style="--d:51.2s">순서를 빠뜨리지 않는<br><strong>실수 없는 실험</strong></p>
     </div>
   </section>
 
-  <!-- 6. 10년 검색 (56~65초) -->
-  <section class="scene" id="s6" style="--at:56s;--len:9.2s">
-    <div class="cap top up" style="--d:56.3s">10년 뒤의 후배도, 검색 한 번으로</div>
-    <div class="search up" style="--d:56.8s"><svg viewBox="0 0 24 24" fill="none" stroke="#1F8F5A" stroke-width="2.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="typed" style="--d:57.6s">레몬 전지</span><span class="caret"></span></div>
-    <div class="years fade" style="--d:58.6s"><div class="ax"></div></div>
+  <!-- 5. 보고서 · 그래프 (55.5~66.5초): 실제 가지 화면 (가로형 태블릿) -->
+  <section class="scene" id="s5" style="--at:55.5s;--len:11.2s">
+    <div class="cap top up" style="--d:55.8s;font-size:58px">측정값만 넣으면, 그래프와 보고서가 자동으로</div>
+    <div class="tablet up" style="--d:56.3s;left:110px;top:240px"><div class="scr">
+      <img src="shots/item.png" alt="">
+      <img src="shots/report.png" alt="" class="fade" style="--d:60.1s">
+      <img src="shots/report-chart.png" alt="" class="fade" style="--d:62.9s">
+    </div></div>
+    <div class="auto">
+      <div class="up" style="--d:57.7s"><b>1</b>계획서 · 가설 · 변인</div>
+      <div class="up" style="--d:58.6s"><b>2</b>준비물 · 실험 방법</div>
+      <div class="up" style="--d:59.5s"><b>3</b>진행 기록 · 사진</div>
+      <div class="up" style="--d:60.4s"><b>4</b>측정값 · 그래프</div>
+      <div class="up" style="--d:61.3s"><b>5</b>고찰 · 결론 · 다음 실험</div>
+      <p class="fade" style="--d:62.5s">한 실험의 모든 기록이<br><strong>보고서 한 편</strong>으로 이어져요</p>
+    </div>
+  </section>
+
+  <!-- 6. 10년 검색 (66.5~75.5초) -->
+  <section class="scene" id="s6" style="--at:66.5s;--len:9.2s">
+    <div class="cap top up" style="--d:66.8s">10년 뒤의 후배도, 검색 한 번으로</div>
+    <div class="search up" style="--d:67.3s"><svg viewBox="0 0 24 24" fill="none" stroke="#1F8F5A" stroke-width="2.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="typed" style="--d:68.1s">레몬 전지</span><span class="caret"></span></div>
+    <div class="years fade" style="--d:69.1s"><div class="ax"></div></div>
     <div class="res">
-      <div class="up" style="--d:59.8s"><i>2025 · 김기장</i>동전 전지: 구리 동전과 알루미늄 호일</div>
-      <div class="up" style="--d:60.2s"><i>2026 · 정다온</i><mark>레몬 전지</mark>: 전극 금속에 따라 전압이 달라질까?</div>
-      <div class="up" style="--d:60.6s"><i>2026 · 이하늘</i><mark>레몬 전지</mark> 병렬 연결: LED가 더 밝아질까?</div>
-      <div class="up" style="--d:61s"><i>2036 · 10년 뒤의 후배</i>선배의 실험에서 이어서, 나의 첫 실험</div>
+      <div class="up" style="--d:70.3s"><i>2025 · 김기장</i>동전 전지: 구리 동전과 알루미늄 호일</div>
+      <div class="up" style="--d:70.7s"><i>2026 · 정다온</i><mark>레몬 전지</mark>: 전극 금속에 따라 전압이 달라질까?</div>
+      <div class="up" style="--d:71.1s"><i>2026 · 이하늘</i><mark>레몬 전지</mark> 병렬 연결: LED가 더 밝아질까?</div>
+      <div class="up" style="--d:71.5s"><i>2036 · 10년 뒤의 후배</i>선배의 실험에서 이어서, 나의 첫 실험</div>
     </div>
   </section>
 
-  <!-- 7. 안전 (65~73초) -->
-  <section class="scene" id="s7" style="--at:65s;--len:8.2s">
-    <div class="cap top up" style="--d:65.3s">우리 기록은, 우리가 지킵니다</div>
+  <!-- 7. 안전 (75.5~83.5초) -->
+  <section class="scene" id="s7" style="--at:75.5s;--len:8.2s">
+    <div class="cap top up" style="--d:75.8s">우리 기록은, 우리가 지킵니다</div>
     <div class="safe">
-      <div class="pop" style="--d:66.2s"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="56" fill="#E6F4EC"/><path d="M30 52a10 10 0 0 1 10-10h14l7 8h19a10 10 0 0 1 10 10v24a10 10 0 0 1-10 10H40a10 10 0 0 1-10-10z" fill="#1F8F5A"/><path d="m50 70 8 8 14-16" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><b>우리 드라이브에만</b><span>동아리 구글 드라이브에 저장되고<br>밖으로 나가지 않아요</span></div>
-      <div class="pop" style="--d:66.8s"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="56" fill="#E6F4EC"/><path d="M84 52a26 26 0 1 0 2 18" stroke="#1F8F5A" stroke-width="9" fill="none" stroke-linecap="round"/><path d="M88 34v20H68" stroke="#1F8F5A" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><b>매주 자동 백업</b><span>실수로 지워도<br>백업에서 되살려요</span></div>
-      <div class="pop" style="--d:67.4s"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="56" fill="#E6F4EC"/><rect x="40" y="24" width="40" height="72" rx="9" fill="#1F8F5A"/><path d="m50 60 7 7 14-15" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><b>기기 승인</b><span>처음 쓰는 기기는<br>기장 · 선생님이 승인해요</span></div>
+      <div class="pop" style="--d:76.7s"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="56" fill="#E6F4EC"/><path d="M30 52a10 10 0 0 1 10-10h14l7 8h19a10 10 0 0 1 10 10v24a10 10 0 0 1-10 10H40a10 10 0 0 1-10-10z" fill="#1F8F5A"/><path d="m50 70 8 8 14-16" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><b>우리 드라이브에만</b><span>동아리 구글 드라이브에 저장되고<br>밖으로 나가지 않아요</span></div>
+      <div class="pop" style="--d:77.3s"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="56" fill="#E6F4EC"/><path d="M84 52a26 26 0 1 0 2 18" stroke="#1F8F5A" stroke-width="9" fill="none" stroke-linecap="round"/><path d="M88 34v20H68" stroke="#1F8F5A" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><b>매주 자동 백업</b><span>실수로 지워도<br>백업에서 되살려요</span></div>
+      <div class="pop" style="--d:77.9s"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="56" fill="#E6F4EC"/><rect x="40" y="24" width="40" height="72" rx="9" fill="#1F8F5A"/><path d="m50 60 7 7 14-15" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><b>기기 승인</b><span>처음 쓰는 기기는<br>기장 · 선생님이 승인해요</span></div>
     </div>
   </section>
 
-  <!-- 8. 마무리 (73~84초) -->
-  <section class="scene last" id="s8" style="--at:73s;--len:11s">
+  <!-- 8. 마무리 (83.5~94.5초) -->
+  <section class="scene last" id="s8" style="--at:83.5s;--len:11s">
     <svg viewBox="0 0 512 512">
       <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
-        <path pathLength="1" class="draw" style="--d:73.4s;--dur:1.2s" d="M164 432C190 356 228 304 284 254C326 216 356 176 368 128" stroke-width="42"/>
-        <path pathLength="1" class="draw" style="--d:74.1s;--dur:.7s" d="M232 318C196 292 164 262 140 222" stroke-width="30"/>
-        <path pathLength="1" class="draw" style="--d:74.4s;--dur:.7s" d="M298 240C334 246 368 262 400 288" stroke-width="28"/>
+        <path pathLength="1" class="draw" style="--d:83.9s;--dur:1.2s" d="M164 432C190 356 228 304 284 254C326 216 356 176 368 128" stroke-width="42"/>
+        <path pathLength="1" class="draw" style="--d:84.6s;--dur:.7s" d="M232 318C196 292 164 262 140 222" stroke-width="30"/>
+        <path pathLength="1" class="draw" style="--d:84.9s;--dur:.7s" d="M298 240C334 246 368 262 400 288" stroke-width="28"/>
       </g>
       <g fill="#CDF59E">
-        <g class="pop" style="--d:74.8s;transform-origin:138px 222px"><path d="M0 0C26-30 74-34 104-6C74 22 28 26 0 0Z" transform="translate(138 222) rotate(-132)"/></g>
-        <g class="pop" style="--d:75s;transform-origin:402px 290px"><path d="M0 0C26-30 74-34 104-6C74 22 28 26 0 0Z" transform="translate(402 290) rotate(28)"/></g>
-        <g class="pop" style="--d:75.2s;transform-origin:330px 182px"><path d="M0 0C22-26 62-28 88-6C62 18 24 22 0 0Z" transform="translate(330 182) rotate(-12)"/></g>
+        <g class="pop" style="--d:85.3s;transform-origin:138px 222px"><path d="M0 0C26-30 74-34 104-6C74 22 28 26 0 0Z" transform="translate(138 222) rotate(-132)"/></g>
+        <g class="pop" style="--d:85.5s;transform-origin:402px 290px"><path d="M0 0C26-30 74-34 104-6C74 22 28 26 0 0Z" transform="translate(402 290) rotate(28)"/></g>
+        <g class="pop" style="--d:85.7s;transform-origin:330px 182px"><path d="M0 0C22-26 62-28 88-6C62 18 24 22 0 0Z" transform="translate(330 182) rotate(-12)"/></g>
       </g>
-      <g fill="#E9FF8F" class="pop" style="--d:75.5s;transform-origin:368px 122px"><g class="breathe" style="--d:76.5s"><path d="M0 0C16-20 48-24 68-6C48 12 18 16 0 0Z" transform="translate(366 122) rotate(-128)"/><path d="M0 0C16-20 48-24 68-6C48 12 18 16 0 0Z" transform="translate(370 122) rotate(-58)"/></g></g>
+      <g fill="#E9FF8F" class="pop" style="--d:86s;transform-origin:368px 122px"><g class="breathe" style="--d:87s"><path d="M0 0C16-20 48-24 68-6C48 12 18 16 0 0Z" transform="translate(366 122) rotate(-128)"/><path d="M0 0C16-20 48-24 68-6C48 12 18 16 0 0Z" transform="translate(370 122) rotate(-58)"/></g></g>
     </svg>
-    <div class="epec up" style="--d:75.6s;top:470px">동아리 연구 관리 · 가지</div>
-    <div class="q up" style="--d:76s;top:560px">한 번 하고 끝나는 실험 말고,<br><span>가지를 치며 자라는 연구</span></div>
-    <div class="u up" style="--d:77.4s">gaji-lab.web.app</div>
-    <div class="by up" id="by" style="--d:78.2s"></div>
+    <div class="epec up" style="--d:86.1s;top:470px">동아리 연구 관리 · 가지</div>
+    <div class="q up" style="--d:86.5s;top:560px">한 번 하고 끝나는 실험 말고,<br><span>가지를 치며 자라는 연구</span></div>
+    <div class="u up" style="--d:87.9s">gaji-lab.web.app</div>
+    <div class="by up" id="by" style="--d:88.7s"></div>
   </section>
 </div>
 <button id="replay" type="button">↻ 처음부터</button>
@@ -303,7 +319,7 @@ mark { background: #E3F6C8; color: inherit; border-radius: 6px; padding: 0 4px; 
   document.querySelector('.steps').innerHTML = h;
 
   /* 6장: 연도 */
-  var Y = '<div class="ax"></div>', hits = { 2025: 59.6, 2026: 59.9, 2036: 60.8 };
+  var Y = '<div class="ax"></div>', hits = { 2025: 70.1, 2026: 70.4, 2036: 71.3 };
   for (var y = 2025; y <= 2036; y++) Y += '<div class="y' + (hits[y] ? ' hit' : '') + '" style="--d:' + (hits[y] || 0) + 's;left:' + ((y - 2025) / 11 * 100) + '%">' + (y % 1 === 0 && (y - 2025) % (y === 2036 ? 1 : 1) === 0 ? y : '') + '</div>';
   document.querySelector('.years').innerHTML = Y;
 
@@ -315,7 +331,7 @@ mark { background: #E3F6C8; color: inherit; border-radius: 6px; padding: 0 4px; 
   addEventListener('resize', fit); fit();
 
   /* 녹화용: window.seek(초) 로 그 시각 화면으로 멈춤 */
-  window.LENGTH = 84;
+  window.LENGTH = 94.5;
   window.seek = function (t) { document.getAnimations().forEach(function (a) { a.pause(); a.currentTime = t * 1000; }); };
   if (q.has('record')) { document.documentElement.classList.add('rec'); window.seek(0); }
   if (q.has('t')) window.seek(Number(q.get('t')));
