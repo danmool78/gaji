@@ -27,7 +27,7 @@
           },
           {
             "key": "Content-Security-Policy",
-            "value": "default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://*.googleapis.com https://www.gstatic.com https://apis.google.com https://gaji-lab.firebaseapp.com; frame-src https://gaji-lab.firebaseapp.com https://accounts.google.com https://apis.google.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests"
+            "value": "default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://*.googleapis.com https://www.gstatic.com https://apis.google.com https://gaji-lab.firebaseapp.com; frame-src https://player.vimeo.com https://gaji-lab.firebaseapp.com https://accounts.google.com https://apis.google.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests"
           },
           {
             "key": "X-Frame-Options",
@@ -53,19 +53,6 @@
           {
             "key": "Cache-Control",
             "value": "no-cache"
-          }
-        ]
-      },
-      {
-        "source": "/intro/**",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "public, max-age=86400"
-          },
-          {
-            "key": "Accept-Ranges",
-            "value": "bytes"
           }
         ]
       }
