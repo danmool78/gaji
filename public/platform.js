@@ -88,7 +88,7 @@ async function clubPage(slug) {
   const snap = await getDoc(doc(db, 'clubs', slug)).catch(() => null);
   if (!snap || !snap.exists()) return portal(head() + '<div class="card p-form"><b style="font-size:18px">동아리를 찾을 수 없어요</b><p class="muted">주소 <span class="code">/c/' + esc(slug) + '</span> 를 다시 확인해 주세요.</p><a class="btn" href="/">처음으로</a></div>');
   const club = Object.assign({}, snap.data());
-  try { localStorage.setItem('gaji-club:' + slug, JSON.stringify({ name: club.name, color: club.color, logo: club.logo || '', connector: club.connector || '' })); } catch (e) {}
+  try { localStorage.setItem('gaji-club:' + slug, JSON.stringify({ name: club.name, color: club.color, color2: club.color2 || '', logo: club.logo || '', connector: club.connector || '' })); } catch (e) {}
   const code = params.get('handover');
   if (code) return handoverPage(slug, club, code);
   let isMaster = false;
@@ -100,7 +100,7 @@ async function clubPage(slug) {
       club.masterKey = k && k.exists() ? k.data().masterKey : ''; }
   }
   const api = {
-    savePublic: (patch) => { const p = {}; if ('name' in patch) p.name = patch.name; if ('color' in patch) p.color = patch.color; if ('logo' in patch) p.logo = patch.logo; return updateDoc(doc(db, 'clubs', slug), p); },
+    savePublic: (patch) => { const p = {}; if ('name' in patch) p.name = patch.name; if ('color' in patch) p.color = patch.color; if ('color2' in patch) p.color2 = patch.color2; if ('logo' in patch) p.logo = patch.logo; return updateDoc(doc(db, 'clubs', slug), p); },
     saveInfo: (patch) => updateDoc(doc(db, 'clubs', slug, 'private', 'info'), patch.domain ? { domain: patch.domain } : { domain: '' }),
     newKey: () => randomCode(40),
     saveConnector: async (url, key) => {

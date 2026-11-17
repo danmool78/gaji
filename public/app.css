@@ -43,7 +43,7 @@ svg { display: block; }
   padding: calc(8px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 8px max(16px, env(safe-area-inset-left, 0px));
   background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); }
 .brand { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
-.logo { width: 36px; height: 36px; border-radius: 10px; background: var(--brand); display: grid; place-items: center; flex: none; overflow: hidden; }
+.logo { width: 36px; height: 36px; border-radius: 10px; background: var(--brand); color: var(--on-brand, #fff); display: grid; place-items: center; flex: none; overflow: hidden; }
 .logo svg { width: 22px; height: 22px; stroke: #fff; fill: none; stroke-width: 2.2; stroke-linecap: round; }
 .logo svg.gaji-mark { width: 74%; height: 74%; }
 .logo img { width: 100%; height: 100%; object-fit: cover; }
@@ -80,7 +80,7 @@ h2.sec small { font-size: 12px; color: var(--muted); font-weight: 500; }
 
 .btn { min-height: 48px; padding: 0 18px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+.btn.primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand, #fff); }
 .btn.blue { background: var(--exp); border-color: var(--exp); color: #fff; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 .btn-row { display: flex; flex-wrap: wrap; gap: 10px; }
@@ -205,7 +205,7 @@ html.loading body::before { content: ''; position: fixed; top: 0; left: 0; width
 .rec-row input { font: inherit; font-size: 15px; min-height: 42px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 0 10px; min-width: 0; }
 .kind-pick { display: flex; flex-wrap: wrap; gap: 6px; }
 .kind-pick button { min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-weight: 700; font-size: 13px; cursor: pointer; white-space: nowrap; }
-.kind-pick button[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: #fff; }
+.kind-pick button[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: var(--on-brand, #fff); }
 .grid-ed { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
 .grid-ed table { border-collapse: collapse; min-width: 100%; }
 .grid-ed th, .grid-ed td { padding: 0; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); }
@@ -245,7 +245,7 @@ html.loading body::before { content: ''; position: fixed; top: 0; left: 0; width
 .wmore { border-top: 1px solid var(--line); padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
 .wmore summary { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--muted); }
 .wmore[open] { gap: 10px; }
-.wnum { width: 30px; height: 30px; border-radius: 50%; background: var(--brand); color: #fff; display: grid; place-items: center; font-family: var(--f-num); font-weight: 700; }
+.wnum { width: 30px; height: 30px; border-radius: 50%; background: var(--brand); color: var(--on-brand, #fff); display: grid; place-items: center; font-family: var(--f-num); font-weight: 700; }
 .card.notice { display: flex; flex-direction: column; gap: 8px; border-color: var(--bad); margin-bottom: 12px; }
 @media (min-width: 768px) { .app.gated { padding-left: 0; } }
 
@@ -459,3 +459,31 @@ mark { background: var(--warn-bg); color: var(--fg); border-radius: 3px; padding
   html, body, .report, .rp-sec, .rec-table, .rp-t { background: #fff !important; color: #111 !important; }
   .rec-chart text { fill: #333; }
 }
+
+/* 가지 소개 */
+.about-hero { display: flex; flex-direction: column; gap: 14px; padding: 12px; }
+.about-video { width: 100%; aspect-ratio: 16 / 9; border-radius: 12px; background: #0E5133; display: block; }
+.about-tag { display: flex; flex-direction: column; gap: 8px; padding: 2px 6px 6px; line-height: 1.7; }
+.about-tag b { font-size: 18px; }
+.about-card { display: flex; flex-direction: column; gap: 12px; }
+.about-h { font-size: 17px; }
+.about-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.about-steps li { display: flex; gap: 10px; align-items: flex-start; background: var(--surface-2); border-radius: 12px; padding: 10px 12px; }
+.about-steps b, .about-grid b { display: block; font-size: 15px; }
+.about-steps small, .about-grid small { display: block; font-size: 13px; color: var(--muted); line-height: 1.5; margin-top: 2px; }
+.about-n { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--done); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 13px; }
+.about-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.about-grid > div { background: var(--surface-2); border-radius: 12px; padding: 12px 14px; }
+
+/* 동아리 색 두 가지 */
+.pair-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.pair { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface); font: inherit; font-size: 14px; font-weight: 600; color: var(--fg); cursor: pointer; white-space: nowrap; }
+.pair[aria-pressed="true"] { border-color: var(--fg); box-shadow: 0 0 0 1px var(--fg); }
+.pair-dot { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 900; font-size: 13px; }
+.color-own { display: inline-flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.color-own input[type=color] { width: 44px; height: 36px; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: none; cursor: pointer; }
+.color-preview { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px; border-radius: 14px; background: var(--surface-2); }
+.color-preview .cp-btn { background: var(--p-main); color: var(--p-on); padding: 8px 14px; border-radius: 10px; font-weight: 700; font-size: 14px; white-space: nowrap; }
+.color-preview .cp-tab { background: var(--p-soft); color: var(--p-main); padding: 8px 14px; border-radius: 10px; font-weight: 700; font-size: 14px; white-space: nowrap; }
+.color-preview .cp-text { color: var(--p-main); font-weight: 800; font-size: 14px; }
+.color-warn { font-size: 13px; color: #B42318; line-height: 1.5; }

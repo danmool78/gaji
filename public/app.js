@@ -69,7 +69,7 @@
     refresh() { render(); }, toast: (m) => toast(m), dbg: (k, v) => dbg(k, v),
     open(sc) { nav = [{ s: 'more' }, { s: sc }]; render(true); }
   };
-  const brand = () => PF.club ? { clubName: PF.club.name, color: PF.club.color, logo: PF.club.logo || '' } : db.settings;
+  const brand = () => PF.club ? { clubName: PF.club.name, color: PF.club.color, color2: PF.club.color2 || '', logo: PF.club.logo || '' } : db.settings;
   const canEditBrand = () => !PF.club || PF.isMaster;
   function saveBrand(patch) {
     if (PF.club) { if (!PF.isMaster) return toast('동아리 마스터만 바꿀 수 있어요'); Object.assign(PF.club, patch); render(); PF.api.savePublic(patch).catch(() => toast('저장하지 못했어요 · 다시 시도해 주세요')); return; }
@@ -1584,7 +1584,7 @@
       mi('board', 'var(--exp)', 'M3 4h5v16H3zM10 4h5v11h-5zM17 4h4v7h-4z', '보드', '단계별로 실험 카드 보기 (관리자용)') +
       mi('map', 'var(--q)', 'M12 12m-2.5 0a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0 -5 0M5 5m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M19 6m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M6 19m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M10.2 10.2L6.4 6.4M13.8 11l3.6-3.6M10.3 13.8L7.4 17.4', '전체 지도', '동아리 연구 전체를 한 장으로 (발표용)') +
       (db.nodes.some(isDel) ? mi('trash', 'var(--muted)', 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13', '휴지통', '지운 항목 ' + db.nodes.filter(isDel).length + '개 · 되살리기') : '') +
-      mi('about', 'var(--idea)', 'M6 7v10M18 11c0 4-6 3-12 6', '가지 소개', '체험 모드 · 드라이브 연결 안내') +
+      mi('about', 'var(--idea)', 'M6 7v10M18 11c0 4-6 3-12 6', '가지 소개', '소개 영상 · 기능 · 기록을 지키는 방법') +
       '</div>';
   }
   function viewBoard() {
@@ -1607,14 +1607,26 @@
       s += '<g data-go="' + n.id + '" style="cursor:pointer"><circle cx="' + p.x + '" cy="' + p.y + '" r="14" fill="' + (n.type === 'idea' ? 'var(--surface)' : c) + '" stroke="' + c + '" stroke-width="3"' + (n.type === 'idea' ? ' stroke-dasharray="4 3"' : '') + '/><text x="' + p.x + '" y="' + (p.y + 30) + '" text-anchor="middle" font-size="12" font-weight="700" style="paint-order:stroke;stroke:var(--surface);stroke-width:4px">' + esc(t) + '</text></g>'; });
     return '<p class="muted" style="margin:0 2px;font-size:13px">동아리 연구 전체가 어떻게 이어졌는지 보는 발표용 화면이에요. 원을 누르면 상세로 들어가요.</p><div class="mapbox"><svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;min-width:560px;height:auto">' + s + '</svg></div>';
   }
-  const COLORS = ['#C26A00', '#2F6FDB', '#1F8F5A', '#6E4FE0', '#D2394B', '#475467'];
+  const COLORS = ['#1F8F5A', '#7D1029', '#2F6FDB', '#1D3A8A', '#C26A00', '#6E4FE0', '#D2394B', '#0E7C7B', '#475467'];
+  const LIGHTS = ['#FFFFFF', '#FFFFCC', '#E6F4EC', '#E8F0FD', '#FFF3E3', '#F6E8F0', '#EEE9FD', '#E0F5F2'];
+  const PAIRS = [['녹색 & 흰색', '#1F8F5A', '#FFFFFF'], ['버건디 & 연노랑', '#7D1029', '#FFFFCC'], ['남색 & 하늘', '#1D3A8A', '#E8F0FD'], ['주황 & 크림', '#C26A00', '#FFF3E3'], ['보라 & 연보라', '#6E4FE0', '#EEE9FD'], ['청록 & 민트', '#0E7C7B', '#E0F5F2']];
+  function colorFields(st, dis) {
+    const main = (st.color || '#C26A00').toUpperCase(), light = (st.color2 || '').toUpperCase(), C = brandColors(main, light);
+    const sw = (list, key, cur) => list.map((c) => '<button type="button" data-' + key + '="' + c + '" aria-label="색 ' + c + '" aria-pressed="' + (cur === c) + '" style="background:' + c + (c === '#FFFFFF' ? ';box-shadow:inset 0 0 0 1px var(--line)' : '') + '"' + dis + '></button>').join('');
+    const pick = (key, cur) => '<label class="color-own"><input type="color" data-color-input="' + key + '" value="' + (cur || '#FFFFFF').toLowerCase() + '"' + dis + '><span>직접 고르기</span><span class="code muted">' + esc(cur || '없음') + '</span></label>';
+    const warn = contrast(main, '#FFFFFF') < 3 ? '<span class="color-warn">주도 색이 너무 밝아 흰 글자가 잘 안 보여요. 더 진한 색을 골라 주세요.</span>' : light && lum(light) < 0.55 ? '<span class="color-warn">밝은 색은 연한 색이 좋아요. 지금은 너무 진해서 글자 · 바탕으로 쓰지 않아요.</span>' : '';
+    return '<div class="field">추천 조합<div class="pair-row">' + PAIRS.map((p) => '<button type="button" class="pair" data-pair="' + p[1] + ',' + p[2] + '" aria-pressed="' + (main === p[1] && light === p[2]) + '"' + dis + '><span class="pair-dot" style="background:' + p[1] + ';color:' + p[2] + '">가</span>' + p[0] + '</button>').join('') + '</div></div>' +
+      '<div class="field">주도 색 <span class="muted" style="font-weight:400">버튼 · 로고 · 강조</span><div class="swatches">' + sw(COLORS, 'color', main) + '</div>' + pick('color', main) + '</div>' +
+      '<div class="field">밝은 색 <span class="muted" style="font-weight:400">주도 색 위의 글자 · 선택 바탕</span><div class="swatches">' + sw(LIGHTS, 'color2', light) + '</div>' + pick('color2', light) + '</div>' +
+      '<div class="color-preview" style="--p-main:' + C.main + ';--p-on:' + C.on + ';--p-soft:' + C.soft + '"><span class="logo" style="background:' + C.main + ';color:' + C.on + '">' + GAJI_MARK + '</span><span class="cp-btn">주도 색 버튼</span><span class="cp-tab">선택된 탭</span><span class="cp-text">강조 글자</span></div>' + warn;
+  }
   function viewSettings() {
     const st = brand(), th = prefs.theme || 'system', ed = canEditBrand(), dis = ed ? '' : ' disabled';
     return driveCard() + rulesCard() + (ed ? '' : '<div class="card muted" style="font-size:13px">동아리 이름 · 로고 · 색은 동아리 마스터만 바꿀 수 있어요. 화면 밝기는 이 기기에서 바로 바뀝니다.</div>') +
       '<div class="card" style="display:flex;flex-direction:column;gap:16px">' +
       '<div class="logo-edit"><span class="logo" id="logoPreview">' + logoInner() + '</span><div style="display:flex;flex-direction:column;gap:6px">' + (ed ? '<label class="btn" for="logoFile" style="min-height:40px">로고 바꾸기</label><input id="logoFile" type="file" accept="image/*" hidden>' : '') + (ed && st.logo ? '<button type="button" class="chipbtn" data-act="logoClear">기본 로고로</button>' : '') + '</div></div>' +
       '<label class="field">동아리 이름<input id="clubInput" maxlength="30" value="' + esc(st.clubName) + '"' + dis + '></label>' +
-      '<div class="field">대표 색<div class="swatches">' + COLORS.map((c) => '<button type="button" data-color="' + c + '" aria-label="색 ' + c + '" aria-pressed="' + (st.color === c) + '" style="background:' + c + '"' + dis + '></button>').join('') + '</div></div>' +
+      colorFields(st, dis) +
       '<div class="field">화면 밝기<div class="seg" style="grid-template-columns:repeat(3,1fr)">' + [['system', '기기 설정'], ['light', '밝게'], ['dark', '어둡게']].map(([k, l]) => '<button type="button" data-theme="' + k + '" aria-pressed="' + (th === k) + '">' + l + '</button>').join('') + '</div></div>' +
       '</div>' +
       (PF.mode === 'live' ? '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>내 계정</b><span class="muted" style="font-size:13px">' + esc(PF.me.name) + ' · ' + esc(PF.me.role) + ' · 이 기기: ' + esc((PF.dev && PF.dev.label) || deviceLabel()) + '<br>개인 코드는 다른 기기에서 들어갈 때 학번과 함께 써요.</span><div class="btn-row"><button type="button" class="btn primary" data-act="myCode">내 개인 코드 보기</button><button type="button" class="btn" data-act="leaveDevice">이 기기에서 나가기</button></div></div>' :
@@ -1741,10 +1753,19 @@
       '<div class="card muted" style="font-size:12px;line-height:1.7">가지 서버(Firebase)에는 이 동아리의 이름 · 로고 · 색과 <b>마스터 계정 ID 하나</b>, 사용 현황 숫자만 저장돼요. 부원 이름 · 학번 · 실험 내용은 동아리 드라이브에만 있어요.</div>';
   }
   function viewAbout() {
-    return '<div class="card" style="display:flex;flex-direction:column;gap:12px;line-height:1.7"><b style="font-size:18px">가지 · 실험이 가지를 치며 이어지는 곳</b>' +
-      '<span>계획서, 준비, 측정, 결과, 그리고 다음 실험까지 한 줄기로 이어서 기록하는 동아리 연구 관리 도구입니다.</span>' +
-      '<span><b>데이터는 각 동아리의 구글 드라이브에만</b> 저장됩니다. 가지 제작자도 동아리 기록을 볼 수 없습니다.</span>' +
-      '<span class="muted" style="font-size:13px">지금 보는 화면은 체험 모드예요. 바꾼 내용은 이 기기 브라우저에만 남습니다.</span></div>';
+    const card = (title, body) => '<div class="card about-card"><b class="about-h">' + title + '</b>' + body + '</div>';
+    const steps = [['계획서', '목적 · 가설 · 변인 · 준비물 · 방법'], ['교차 검토', '다른 부원이 읽고 승인하거나 고칠 곳을 남겨요'], ['선생님 승인', '동아리 규칙에 따라 지도 선생님이 최종 승인'], ['준비', '준비물 · 안전 점검표'], ['실험', '진행 도우미로 단계마다 체크 · 메모 · 사진'], ['결과 기록', '측정값 · 관찰 · 결론, 그래프는 저절로'], ['보고서', '모든 기록이 보고서 한 편으로 · 인쇄 · PDF'], ['다음 실험', '결과에서 나온 질문이 새 가지가 돼요']];
+    const feats = [['연구 가지', '실험이 어디서 시작해 어디로 이어졌는지 계보로 보여요'], ['내가 할 일', '홈에 지금 챙길 실험 · 검토 요청이 모여요'], ['아이디어 · 같이 해요', '누구나 제안하고, 관심 있는 사람끼리 팀을 꾸려요'], ['자동 보고서', '측정값을 넣으면 표 · 그래프 · 보고서가 완성돼요'], ['10년 검색', '제목 · 내용 · 사람 · 연도로 선배의 실험을 찾아요'], ['사진 · 관찰', '실험 사진과 관찰 기록을 바로 올려요']];
+    const safe = [['우리 드라이브에만', '기록은 동아리 구글 드라이브에만 저장돼요. 가지 제작자도 볼 수 없어요.'], ['매주 자동 백업', '바뀐 것이 있으면 일주일에 한 번 저절로 백업하고, 실수하면 백업에서 되살려요.'], ['기기 승인', '처음 쓰는 기기는 기장 · 선생님이 승인해야 들어올 수 있어요.'], ['오래 써도 가볍게', '오래된 기록은 저절로 정리돼서 몇 년이 지나도 빨라요.']];
+    return '<div class="card about-hero"><video class="about-video" controls playsinline preload="metadata" poster="/intro/gaji-intro.jpg"><source src="/intro/gaji-intro.mp4" type="video/mp4"></video>' +
+      '<div class="about-tag"><b>가지 · 실험이 가지를 치며 자라는 곳</b><span class="muted">한 번 하고 끝나는 실험 말고, 가지를 치며 자라는 연구. 계획부터 보고서, 그리고 다음 실험까지 한 줄기로 이어서 기록하는 동아리 연구 관리 도구예요.</span>' +
+      '<a class="chipbtn" href="/intro/gaji-shorts.mp4" target="_blank" rel="noopener" style="align-self:flex-start">세로 영상(쇼츠) 보기</a></div></div>' +
+      card('실험이 자라는 과정', '<ol class="about-steps">' + steps.map((x, i) => '<li><span class="about-n">' + (i + 1) + '</span><span><b>' + x[0] + '</b><small>' + x[1] + '</small></span></li>').join('') + '</ol>' +
+        '<span class="muted" style="font-size:13px;line-height:1.6">계획서 없이는 검토를 요청할 수 없고, 결과 · 결론 없이는 기록 완료가 되지 않아요. 몇 명이 승인할지, 선생님 승인이 필요한지는 <b>동아리마다 설정</b>에서 정해요.</span>') +
+      card('할 수 있는 것', '<div class="about-grid">' + feats.map((x) => '<div><b>' + x[0] + '</b><small>' + x[1] + '</small></div>').join('') + '</div>') +
+      card('기록을 지키는 방법', '<div class="about-grid">' + safe.map((x) => '<div><b>' + x[0] + '</b><small>' + x[1] + '</small></div>').join('') + '</div>') +
+      (PF.mode === 'live' ? '' : card('시작하기', '<span style="line-height:1.7">' + (PF.club ? '드라이브를 연결하면 실제 동아리 기록으로 바뀌어요. 설정 → 드라이브 연결에서 할 수 있어요.' : '지금은 <b>체험용 가상 동아리</b>예요. 마음껏 눌러 보고 고쳐 보세요. 매일 처음 상태로 돌아가요.') + '</span>' +
+        (PF.club ? '' : '<a class="btn primary" href="/new" style="align-self:flex-start">우리 동아리 만들기</a>')));
   }
 
   /* ---------- 새로 만들기 (아래에서 올라오는 창) ---------- */
@@ -1785,15 +1806,31 @@
 
   /* ---------- 그리기 ---------- */
   const TITLES = { line: '', item: '', board: '보드', map: '전체 지도', settings: '설정', about: '가지 소개', club: '동아리 관리', people: '부원 · 기기', run: '진행 도우미', report: '보고서', trash: '휴지통' };
-  const GAJI_MARK = '<svg viewBox="96 56 340 396" class="gaji-mark"><g fill="#fff" fill-opacity=".72" stroke="none"><path d="M0 0C26-30 74-34 104-6C74 22 28 26 0 0Z" transform="translate(138 222) rotate(-132)"/><path d="M0 0C26-30 74-34 104-6C74 22 28 26 0 0Z" transform="translate(402 290) rotate(28)"/><path d="M0 0C22-26 62-28 88-6C62 18 24 22 0 0Z" transform="translate(330 182) rotate(-12)"/></g><g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"><path d="M164 432C190 356 228 304 284 254C326 216 356 176 368 128" stroke-width="42"/><path d="M232 318C196 292 164 262 140 222" stroke-width="30"/><path d="M298 240C334 246 368 262 400 288" stroke-width="28"/></g><g fill="#E9FF8F" stroke="none"><path d="M0 0C16-20 48-24 68-6C48 12 18 16 0 0Z" transform="translate(366 122) rotate(-128)"/><path d="M0 0C16-20 48-24 68-6C48 12 18 16 0 0Z" transform="translate(370 122) rotate(-58)"/></g></svg>';
+  const GAJI_MARK = '<svg viewBox="96 56 340 396" class="gaji-mark"><g fill="currentColor" fill-opacity=".72" stroke="none"><path d="M0 0C26-30 74-34 104-6C74 22 28 26 0 0Z" transform="translate(138 222) rotate(-132)"/><path d="M0 0C26-30 74-34 104-6C74 22 28 26 0 0Z" transform="translate(402 290) rotate(28)"/><path d="M0 0C22-26 62-28 88-6C62 18 24 22 0 0Z" transform="translate(330 182) rotate(-12)"/></g><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M164 432C190 356 228 304 284 254C326 216 356 176 368 128" stroke-width="42"/><path d="M232 318C196 292 164 262 140 222" stroke-width="30"/><path d="M298 240C334 246 368 262 400 288" stroke-width="28"/></g><g fill="#E9FF8F" stroke="none"><path d="M0 0C16-20 48-24 68-6C48 12 18 16 0 0Z" transform="translate(366 122) rotate(-128)"/><path d="M0 0C16-20 48-24 68-6C48 12 18 16 0 0Z" transform="translate(370 122) rotate(-58)"/></g></svg>';
   function logoInner() { const st = brand(); return st.logo ? '<img src="' + esc(st.logo) + '" alt="">' : GAJI_MARK; }
+  /* 동아리 색 두 가지: 주도 색(main) + 밝은 색(light). 예: 녹색 & 흰색, 버건디 & 연노랑
+     on = 주도 색 위의 글자 · 아이콘 (밝은 색이 충분히 대비되면 그 색, 아니면 흰색), soft = 선택된 탭 · 칩 바탕 */
+  const hexRgb = (h) => { const m = /^#?([0-9a-f]{6})$/i.exec(h || ''); if (!m) return null; const n = parseInt(m[1], 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
+  const rgbHex = (c) => '#' + c.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('').toUpperCase();
+  const lum = (h) => { const c = hexRgb(h) || [0, 0, 0]; const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
+  const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  const mix = (a, b, t) => { const x = hexRgb(a), y = hexRgb(b); return rgbHex(x.map((v, i) => v + (y[i] - v) * t)); };
+  const isDark = () => (prefs.theme || 'system') === 'dark' || ((prefs.theme || 'system') === 'system' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+  function brandColors(main, light) {
+    main = hexRgb(main) ? main.toUpperCase() : '#C26A00';
+    light = hexRgb(light) ? light.toUpperCase() : '';
+    const on = light && contrast(light, main) >= 3 ? light : '#FFFFFF';
+    const soft = light && lum(light) > 0.55 && lum(light) < 0.995 ? (lum(light) < 0.85 ? mix(light, '#FFFFFF', 0.4) : light) : mix(main, '#FFFFFF', 0.88);
+    return { main, light: light || '#FFFFFF', on, soft, softDark: mix(main, '#14171C', 0.72) };
+  }
   function applyBrand() {
     const st = brand();
     const pill = $('#demoPill');
     pill.hidden = GATE.has(PF.mode);
     pill.textContent = PF.mode === 'live' ? (PF.busy ? '저장 중…' : PF.refreshing ? '최신으로 맞추는 중…' : PF.me.name + (PF.me.role !== '부원' ? ' · ' + PF.me.role : '')) : PF.club ? '드라이브 연결 전' : '체험 · ' + meName() + ' ▾';
     pill.classList.toggle('live', PF.mode === 'live');
-    document.documentElement.style.setProperty('--brand', st.color || '#C26A00');
+    const C = brandColors(st.color || '#C26A00', st.color2 || ''), R = document.documentElement.style, dark = isDark();
+    R.setProperty('--brand', C.main); R.setProperty('--on-brand', C.on); R.setProperty('--brand-soft', dark ? C.softDark : C.soft); R.setProperty('--brand-2', C.light);
     $('#clubName').textContent = st.clubName; $('#clubLogo').innerHTML = logoInner();
     const th = prefs.theme || 'system'; if (th === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', th);
   }
@@ -1867,6 +1904,8 @@
     const vd = t.closest('[data-verdict]'); if (vd) { const it2 = cur().s === 'item' ? byId(cur().arg) : null; if (it2) { it2.verdict = vd.dataset.verdict; save(); render(); toast('판정: ' + it2.verdict); } return; }
     const ty = t.closest('[data-ty]'); if (ty) { prefs.ty = ty.dataset.ty; savePrefs(); return render(); }
     const col = t.closest('[data-color]'); if (col) return saveBrand({ color: col.dataset.color });
+    const col2 = t.closest('[data-color2]'); if (col2) return saveBrand({ color2: col2.dataset.color2 });
+    const pr = t.closest('[data-pair]'); if (pr) { const [m, l] = pr.dataset.pair.split(','); return saveBrand({ color: m, color2: l }); }
     const rp = t.closest('[data-rule-peers]'); if (rp) return setRule({ peers: +rp.dataset.rulePeers });
     const nkb = t.closest('[data-nk]'); if (nkb) { const fm = nkb.closest('form'); fm.querySelector('[name=kind]').value = nkb.dataset.nk; fm.querySelectorAll('[data-nk]').forEach((x) => x.setAttribute('aria-pressed', String(x === nkb))); return; }
     const th = t.closest('button[data-theme]'); if (th) { prefs.theme = th.dataset.theme; savePrefs(); return render(); }
@@ -1990,6 +2029,7 @@
     e.preventDefault(); if (id === 'joinForm') submitJoin(e.target); else if (id === 'masterJoinForm') submitMasterJoin(e.target); else submitConnect(e.target);
   });
   document.addEventListener('change', (e) => { if (e.target.matches && e.target.matches('[data-bk-mail]')) return backupSet({ mail: e.target.checked });
+    if (e.target.matches && e.target.matches('[data-color-input]')) return saveBrand({ [e.target.dataset.colorInput]: e.target.value.toUpperCase() });
     if (e.target.matches && e.target.matches('[data-rule]')) { const k = e.target.dataset.rule, on = e.target.checked; return setRule(k === 'teacher' ? { teacher: on ? 'final' : 'none' } : { [k]: on }); }
     const q = e.target.closest && e.target.closest('input[data-upload-quick]'); if (q && q.files && q.files.length) { quickMany(q.dataset.uploadQuick, q.files); q.value = ''; return; }
     const u = e.target.closest && e.target.closest('input[data-upload]'); if (u && u.files && u.files.length) { pickFiles(u.dataset.upload, u.files); u.value = ''; } });
