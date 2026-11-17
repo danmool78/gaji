@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.10.0';
+var GAJI_CONNECTOR_VERSION = '2.12.0';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
@@ -66,12 +66,14 @@ function GajiCore(store, util, drive) {
 
   A.register = function (q) {
     if (!initialized()) err('not_initialized', '연결기가 아직 준비되지 않았어요');
-    var sid = String(q.studentId || '').trim(), lockKey = 'lock_' + sid, lk = setting(lockKey, '');
+    var sid = String(q.studentId || '').trim().slice(0, 12); limit('reg', 60, 600); limit('reg_' + sid, 8, 600);
+    if (!/^[0-9A-Za-z-]{2,12}$/.test(sid)) err('wrong', '학번 또는 개인 코드가 맞지 않아요');
+    var lockKey = 'lock_' + sid, lk = setting(lockKey, '');
     var fails = 0;
     if (lk) { var p = lk.split('|'); fails = days(p[1]) * 1440 < LOCK_MIN ? Number(p[0]) : 0; if (fails >= LOCK_FAILS) err('locked', '여러 번 틀려서 30분 동안 잠겼어요'); }
     var mem = store.rows('members').filter(function (m) { return m.studentId === sid && m.status === '활동'; })[0];
     if (!mem || mem.codeHash !== hash(mem.id, String(q.code || ''))) {
-      setSetting(lockKey, (fails + 1) + '|' + util.now());
+      if (mem) setSetting(lockKey, (fails + 1) + '|' + util.now());   // 있는 학번만 잠금 기록 (없는 학번을 마구 넣어도 시트가 늘지 않게)
       err('wrong', '학번 또는 개인 코드가 맞지 않아요');
     }
     if (lk) setSetting(lockKey, '');
@@ -88,6 +90,7 @@ function GajiCore(store, util, drive) {
      키를 잃어버리면 시트 '설정' 탭의 masterKeyHash 값을 지우면 다음 키로 다시 맞춰짐 (시트 편집 권한 = 드라이브 주인만). */
   A.masterRegister = function (q) {
     if (!initialized()) err('not_initialized', '연결기가 아직 준비되지 않았어요');
+    limit('mreg', 20, 600);
     var kh = setting('masterKeyHash', ''), key = String(q.masterKey || '');
     if (key.length < 20) err('bad', '마스터 키가 없어요');
     if (kh && kh !== hash('master', key)) err('wrong_key', '이 동아리의 연결기가 아니에요');
@@ -195,13 +198,80 @@ function GajiCore(store, util, drive) {
     return '';
   }
 
-  A.sync = function (q) {
+  /* ---------- 변경 기록: 무엇을 · 누가 · 언제 · 전 → 후 ----------
+     같은 사람이 같은 칸을 10분 안에 또 고치면 한 줄로 합침 (처음 값은 그대로). 되돌리기도 기록됨 */
+  var HIST_FIELDS = ['title', 'field', 'status', 'line', 'date', 'owner', 'verdict', 'desc', 'private', 'report', 'plan', 'prep', 'run', 'deleted', 'team'];
+  function recordHistory(old, u, me) {
+    var rows = null;
+    HIST_FIELDS.forEach(function (f) {
+      var a = val(old[f]), b = val(u[f]); if (a === b) return;
+      rows = rows || store.rows('history');
+      var lastI = -1; for (var i = rows.length - 1; i >= 0 && i >= rows.length - 400; i--) if (rows[i].node === old.id && rows[i].field === f) { lastI = i; break; }
+      var last = lastI >= 0 ? rows[lastI] : null;
+      if (last && last.byId === me.id && (Date.parse(util.now()) - Date.parse(last.at)) < 10 * 60000) {
+        if (last.before === b) { store.remove('history', [last._row]); rows = store.rows('history'); return; }   // 원래대로 돌아오면 지움
+        last.after = b.slice(0, 45000); last.at = util.now(); store.update('history', last._row, last); return;
+      }
+      store.append('history', { id: newId('h'), node: old.id, field: f, by: me.name, byId: me.id, at: util.now(), before: a.slice(0, 45000), after: b.slice(0, 45000) });
+      rows = store.rows('history');
+    });
+  }
+  A.history = function (q) {
     var me = deviceOf(q), admin = !!ADMIN[me.role];
+    var n = store.rows('nodes').filter(function (x) { return x.id === q.node; })[0]; if (!n) err('bad', '항목을 찾을 수 없어요');
+    if (util.bool(n.private) && !admin && !inTeam(n, me)) err('bad', '항목을 찾을 수 없어요');
+    return { list: store.rows('history').filter(function (h) { return h.node === n.id; }).reverse().slice(0, 150).map(function (h) { return { id: h.id, field: h.field, by: h.by, at: h.at, before: h.before, after: h.after }; }) };
+  };
+  // 되돌리기: 그 칸을 바꿀 수 있는 사람만 (저장 규칙을 그대로 거침)
+  A.revert = function (q) {
+    var me = deviceOf(q), h = store.rows('history').filter(function (x) { return x.id === q.id; })[0]; if (!h) err('bad', '기록을 찾을 수 없어요');
+    var n = store.rows('nodes').filter(function (x) { return x.id === h.node; })[0]; if (!n) err('bad', '항목을 찾을 수 없어요');
+    var v = h.before; if (GAJI_JSON[h.field]) { try { v = v ? JSON.parse(v) : null; } catch (e) { v = null; } }
+    var c = { id: n.id, title: h.field === 'title' ? v : n.title }; c[h.field] = v;
+    var r = A.sync({ device: q.device, nodes: [c] });
+    if (r.rejected && r.rejected.length) err('not_allowed', '이 칸은 되돌릴 수 없어요 (담당 · 함께하는 사람 · 관리자만, 확정된 보고서는 확정을 푼 뒤)');
+    log(me, '되돌리기', n.title + ' · ' + h.field);
+    return { ok: true, rev: r.rev };
+  };
+
+  /* ---------- 보안: 들어오는 값 검사 ----------
+     번호(id)는 영문 · 숫자 · _ - 만 (화면에 끼워 넣는 공격 막기), 정해진 값만 (분야 · 단계 · 판정), 글자 수 · 크기 제한 */
+  var ID_RE = /^[A-Za-z0-9_-]{1,40}$/, DATE_RE = /^\d{4}-\d\d-\d\d$/;
+  var TYPES = { exp: 1, idea: 1, q: 1, res: 1 }, FIELDS = { '물리': 1, '화학': 1, '생명': 1, '지구': 1, '공통': 1, '융합': 1 };
+  var VERDICTS = { '': 1, '가설 지지': 1, '가설 기각': 1, '추가 실험 필요': 1 };
+  var JSON_MAX = 40000;   // 시트 한 칸은 5만 자까지
+  var plain = function (v, n) { return String(v == null ? '' : v).replace(/[<>]/g, '').trim().slice(0, n); };
+  function cleanIn(c, bad) {
+    if (!c || typeof c !== 'object' || !ID_RE.test(String(c.id || ''))) return null;
+    var o = { id: String(c.id) };
+    Object.keys(c).forEach(function (k) {
+      var v = c[k];
+      if (k === 'title') o.title = plain(v, 100);
+      else if (k === 'type') { if (TYPES[v]) o.type = v; }
+      else if (k === 'field') { if (FIELDS[v]) o.field = v; }
+      else if (k === 'status') { var st = plain(v, 20); if (STAGES.indexOf(st) >= 0 || /^(취소|미해결|해결|도움 \d{1,4})$/.test(st)) o.status = st; }
+      else if (k === 'verdict') { if (VERDICTS[v] != null) o.verdict = v; }
+      else if (k === 'date') { if (DATE_RE.test(String(v))) o.date = String(v); }
+      else if (k === 'line') o.line = String(v == null ? '' : v).replace(/[^\w가-힣 ·-]/g, '').slice(0, 40);
+      else if (k === 'owner' || k === 'volunteer') o[k] = plain(v, 20);
+      else if (k === 'desc') o.desc = plain(v, 3000);
+      else if (k === 'private' || k === 'deleted' || k === 'equip' || k === 'arch') o[k] = v === true || v === 'true' ? 'true' : v === '보관' ? '보관' : '';
+      else if (k === 'signal' || k === 'review' || k === 'fans') o[k] = Math.max(0, Math.min(999, Math.round(Number(v) || 0)));
+      else if (k === 'team') o.team = Array.isArray(v) ? v.slice(0, 12).map(function (x) { return plain(x, 20); }).filter(Boolean) : [];
+      else if (GAJI_JSON[k]) { if (v == null || v === '') o[k] = v; else { var sv = typeof v === 'string' ? v : JSON.stringify(v); if (sv.length > JSON_MAX) { if (bad) bad.push(c.id + ':big'); } else o[k] = v; } }
+    });
+    return o.title === undefined ? null : o;
+  }
+  // 너무 잦은 요청 막기 (기기 · 학번마다 일정 시간에 몇 번까지)
+  function limit(key, n, sec) { if (util.hit && !util.hit(key, n, sec)) err('slow', '요청이 너무 많아요. 잠시 뒤 다시 해 주세요'); }
+
+  A.sync = function (q) {
+    var me = deviceOf(q), admin = !!ADMIN[me.role]; limit('sy_' + me.id, 120, 60);
     return util.lock(function () {
       var rows = store.rows('nodes'), byId = {}, assigned = {}, rejected = [];
       rows.forEach(function (r) { byId[r.id] = r; });
-      (q.nodes || []).slice(0, 50).forEach(function (c) {
-        if (!c || !c.id || !c.title) return;
+      (q.nodes || []).slice(0, 50).forEach(function (c0) {
+        var c = cleanIn(c0, rejected); if (!c || !c.title) return;
         var old = byId[c.id];
         var wasArch = !!(old && old.arch);
         if (wasArch) { old = unarchive(old); byId[c.id] = old; }
@@ -241,13 +311,13 @@ function GajiCore(store, util, drive) {
         });
         var sb = changed ? stageBlock(old, u, admin) : '';
         if (sb) { u.status = old.status; rejected.push(old.id + ':stage:' + sb); changed = NODE_FIELDS.some(function (f) { return val(u[f]) !== val(old[f]); }); }
-        if (changed) { u.updatedAt = util.now(); u.updatedBy = me.name; store.update('nodes', old._row, u); log(me, '수정', old.title); }
+        if (changed) { recordHistory(old, u, me); u.updatedAt = util.now(); u.updatedBy = me.name; store.update('nodes', old._row, u); log(me, '수정', old.title); }
       });
       var links = store.rows('links'), key = {}, nodesNow = {};
       store.rows('nodes').forEach(function (r) { nodesNow[r.id] = r; });
       links.forEach(function (l) { key[l.s + '|' + l.t + '|' + l.k] = l; });
       (q.links || []).slice(0, 50).forEach(function (l) {
-        if (!l || !l.s || !l.t || l.s === l.t) return;
+        if (!l || !ID_RE.test(String(l.s || '')) || !ID_RE.test(String(l.t || '')) || l.s === l.t) return;
         if (['follow', 'next', 'q', 'res', 'rel'].indexOf(l.k) < 0) return;
         var old = key[l.s + '|' + l.t + '|' + l.k];
         if (l.off) {   // 연결 끊기 (가지 옮기기): 관리자, 연결을 만든 사람, 도착 항목을 만든 사람 · 담당
@@ -263,7 +333,7 @@ function GajiCore(store, util, drive) {
       });
       var lines = store.rows('lines'), lk = {};
       lines.forEach(function (l) { lk[l.key] = l; });
-      Object.keys(q.lines || {}).slice(0, 50).forEach(function (k) { var name = String(q.lines[k]).slice(0, 20); if (!lk[k]) store.append('lines', { key: k, name: name }); else if (lk[k].name !== name && admin) store.update('lines', lk[k]._row, { key: k, name: name }); });
+      Object.keys(q.lines || {}).slice(0, 50).forEach(function (k) { if (!/^[\w가-힣 ·-]{1,40}$/.test(k)) return; var name = plain(q.lines[k], 20); if (!lk[k]) store.append('lines', { key: k, name: name }); else if (lk[k].name !== name && admin) store.update('lines', lk[k]._row, { key: k, name: name }); });
       bump();
       return { ok: true, assigned: assigned, rejected: rejected, rev: Number(setting('rev', '0')) };
     });
@@ -321,7 +391,7 @@ function GajiCore(store, util, drive) {
     var me = deviceOf(q); needAdmin(me);
     return { at: setting('backupAt', ''), folder: setting('backupFolder', ''), mail: setting('backupMail', 'on') !== 'off', to: setting('backupTo', ''), err: setting('backupErr', ''), due: backupDue() };
   };
-  A.backupNow = function (q) { var me = deviceOf(q); needAdmin(me); return util.lock(function () { return doBackup(me, '지금 백업'); }); };
+  A.backupNow = function (q) { var me = deviceOf(q); needAdmin(me); limit('bk', 4, 3600); return util.lock(function () { return doBackup(me, '지금 백업'); }); };
   A.backupSet = function (q) {
     var me = deviceOf(q); needAdmin(me);
     if ('mail' in q) setSetting('backupMail', q.mail ? 'on' : 'off');
@@ -346,7 +416,7 @@ function GajiCore(store, util, drive) {
     return c.slice(0, 4) + '-' + c.slice(4);
   }
   A.restorePrep = function (q) {
-    var me = deviceOf(q); needAdmin(me);
+    var me = deviceOf(q); needAdmin(me); limit('rp_' + me.id, 6, 600);
     var b = backupFiles().filter(function (f) { return f.id === q.id; })[0];
     if (!b) err('no_backup', '그 백업을 찾을 수 없어요');
     var peek = util.backupPeek(b.id), code = restoreCode();
@@ -458,7 +528,7 @@ function GajiCore(store, util, drive) {
      sec: 어느 부분에 대한 것인지 (plan.purpose, report.discuss 등, 비우면 전체) */
   var KINDS = { note: 1, fix: 1, approve: 1, change: 1, answer: 1 };
   A.comment = function (q) {
-    var me = deviceOf(q), admin = !!ADMIN[me.role], op = q.op || 'add';
+    var me = deviceOf(q), admin = !!ADMIN[me.role], op = q.op || 'add'; limit('cm_' + me.id, 40, 300);
     return util.lock(function () {
       var rows = store.rows('comments');
       if (op === 'add') {
@@ -474,7 +544,7 @@ function GajiCore(store, util, drive) {
           if (n.status !== '검토 중' || !planOk(n.plan)) err('not_ready', '계획서를 다 쓰고 검토를 요청한 실험만 승인할 수 있어요');
           rows.forEach(function (c) { if (c.node === n.id && c.kind === 'approve' && c.byId === me.id && !util.bool(c.off)) { c.off = 'true'; store.update('comments', c._row, c); } });
         }
-        var c = { id: newId('c'), node: n.id, sec: String(q.sec || '').slice(0, 40), kind: kind, text: text, by: me.name, byId: me.id, role: me.role, at: util.now(), editedAt: '', resolved: '', off: '' };
+        var c = { id: newId('c'), node: n.id, sec: String(q.sec || '').replace(/[^\w.]/g, '').slice(0, 40), kind: kind, text: text, by: me.name, byId: me.id, role: me.role, at: util.now(), editedAt: '', resolved: '', off: '' };
         store.append('comments', c); bump(); log(me, { note: '댓글', fix: '첨삭', approve: '검토 승인', change: '수정 요청', answer: '답변' }[kind], n.title);
         delete c.off; c.resolved = false; return { comment: c };
       }
@@ -507,7 +577,7 @@ function GajiCore(store, util, drive) {
     return n;
   }
   A.upload = function (q) {
-    var me = deviceOf(q), admin = !!ADMIN[me.role], n = visibleNode(q.node, me, admin);
+    var me = deviceOf(q), admin = !!ADMIN[me.role], n = visibleNode(q.node, me, admin); limit('up_' + me.id, 40, 600);
     var mime = String(q.mime || ''), data = String(q.data || '');
     if (!MIMES[mime]) err('bad', '사진(JPG · PNG) 또는 PDF만 올릴 수 있어요');
     if (!data || data.length > 14e6) err('big', '파일이 너무 커요 (10MB까지)');
@@ -640,7 +710,8 @@ var GAJI_TABS = {
   files: { name: '파일', cols: ['id', 'node', 'fileId', 'thumbId', 'folderId', 'name', 'mime', 'size', 'caption', 'kind', 'by', 'at', 'off'] },
   comments: { name: '댓글', cols: ['id', 'node', 'sec', 'kind', 'text', 'by', 'byId', 'role', 'at', 'editedAt', 'resolved', 'off'] },
   lines: { name: '줄기', cols: ['key', 'name'] },
-  log: { name: '기록', cols: ['at', 'member', 'device', 'action', 'detail'] }
+  log: { name: '기록', cols: ['at', 'member', 'device', 'action', 'detail'] },
+  history: { name: '변경 기록', cols: ['id', 'node', 'field', 'by', 'byId', 'at', 'before', 'after'] }
 };
 var GAJI_NUM = { no: 1, signal: 1, review: 1, fans: 1, size: 1 };
 var GAJI_JSON = { report: 1, plan: 1, prep: 1, run: 1, data: 1, comments: 1, team: 1 };
@@ -759,6 +830,7 @@ function gajiUtil() {
       try { var ps = DriveApp.getFileById(ss.getId()).getParents(); if (ps.hasNext()) { var par = ps.next(), it = par.getFoldersByName('가지 실험 파일'); o.home = par.getUrl(); if (it.hasNext()) o.folder = it.next().getUrl(); } } catch (e) {}
       return o;
     },
+    hit: function (key, n, sec) { var c = CacheService.getScriptCache(), k = 'rl_' + key, v = Number(c.get(k) || 0) + 1; c.put(k, String(v), sec); return v <= n; },
     lock: function (fn) { var l = LockService.getScriptLock(); l.waitLock(20000); try { return fn(); } finally { l.releaseLock(); } }
   };
 }

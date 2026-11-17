@@ -30,6 +30,9 @@
     window.addEventListener('error', (e) => dbg('오류', e.message));
     setInterval(() => dbg(), 1000);
   }
+  // 휴대폰에서 두 손가락 확대 막기 (아이폰 사파리는 화면 설정을 무시해서 따로 막음). 3D 지도 · 전체 가지는 자기 확대를 씀
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach((ev) => document.addEventListener(ev, (e) => { if (!(e.target.closest && e.target.closest('#map3d, #tlScroll'))) e.preventDefault(); }, { passive: false }));
+  document.addEventListener('touchmove', (e) => { if (e.touches.length > 1 && !(e.target.closest && e.target.closest('#map3d, #tlScroll'))) e.preventDefault(); }, { passive: false });
   function toast(msg, action) {
     const t = $('#toast'); t.textContent = msg;
     if (action) { const b = document.createElement('button'); b.type = 'button'; b.className = 'toast-act'; b.textContent = action.label; b.onclick = () => { t.hidden = true; action.fn(); }; t.appendChild(b); }
@@ -45,19 +48,20 @@
     // 'YYYY-MM-DD' 또는 'YYYY-MM-DDT…' 글자를 모두 오늘 기준으로 옮김 (계획서 · 진행 노트 · 댓글 · 사진 시각까지)
     const mv = (v) => { const d = new Date(String(v).slice(0, 10) + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + shiftDays); const ymd = d.toISOString().slice(0, 10); return String(v).length > 10 ? ymd + String(v).slice(10) : ymd; };
     const walk = (o) => { if (Array.isArray(o)) return o.map(walk); if (o && typeof o === 'object') { const r = {}; Object.keys(o).forEach((k) => { const nk = /^\d{4}-\d\d-\d\d/.test(k) ? k : k; r[nk] = walk(o[k]); }); return r; } return typeof o === 'string' && /^\d{4}-\d\d-\d\d(T[\d:.]+Z)?$/.test(o) ? mv(o) : o; };
-    const out = walk({ nodes: S.nodes, comments: S.comments || [], files: S.files || [] });
-    S.nodes = out.nodes; S.comments = out.comments; S.files = out.files;
+    const out = walk({ nodes: S.nodes, comments: S.comments || [], files: S.files || [], history: S.history || [] });
+    S.nodes = out.nodes; S.comments = out.comments; S.files = out.files; S.history = out.history;
     S.lastNo = { exp: Math.max(27, ...S.nodes.filter((n) => n.type !== 'q' && n.type !== 'res').map((n) => n.no || 0)), q: Math.max(7, ...S.nodes.filter((n) => n.type === 'q').map((n) => n.no || 0)), res: 6 };
     S.day = dstr(new Date());
     return S;
   }
   // 날짜가 바뀌거나 예시 데이터가 새 판(ver)이면 처음 상태로
   function load() { try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && s.day === dstr(new Date()) && s.ver === (window.GAJI_SAMPLE.ver || '')) return s; } catch (e) {} return freshSample(); }
-  function save() { if (PF.mode === 'live') return scheduleSync(); try { db.day = db.day || dstr(new Date()); localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { toast('이 브라우저 저장 공간이 꽉 찼어요'); } }
+  function save() { if (PF.mode === 'live') return scheduleSync(); demoHistory(); try { db.day = db.day || dstr(new Date()); localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { toast('이 브라우저 저장 공간이 꽉 찼어요'); } }
   let db = load();
   /* 실제 동아리 주소(/c/주소)로 열렸을 때 platform.js 가 채워 줌 */
   const PF = { club: null, isMaster: false, api: null, slug: null, handover: null, mode: 'demo', me: null, dev: null, rev: 0, base: null, busy: false, newDevices: [], people: null, myMoves: {},
     approveId: new URLSearchParams(location.search).get('approve') };
+  if (!db.histSnap) setTimeout(() => { if (PF.mode !== 'live' && !db.histSnap) demoHistory(); }, 0);   // 체험: 처음 상태를 기억해 두어야 첫 수정부터 기록됨
   window.GAJI_APP = {
     setClub(club, isMaster, api, slug) {
       dbg('동아리설정');
@@ -814,7 +818,7 @@
     else if (st === '실험 완료') h += runCard(n) + rec + F('prep', '준비 점검 ' + prepState(n).k + '/' + prepState(n).total, prepCard(n)) + F('plan', planSum(n), planCard(n));
     else h += rec + F('run', runSum(n), runCard(n)) + F('prep', '준비 점검 ' + prepState(n).k + '/' + prepState(n).total, prepCard(n)) + F('plan', planSum(n), planCard(n));
     h += filesCard(n);
-    h += commentsCard(n);
+    h += commentsCard(n) + histCard(n);
     h += '<div class="card"><dl class="kv"><dt>고유번호</dt><dd><span class="code">' + esc(uid(n)) + '</span> <span class="muted" style="font-size:12px">바뀌지 않음</span></dd>' + (n.owner ? '<dt>담당</dt><dd>' + esc(n.owner) + '</dd>' : '') + (n.createdBy ? '<dt>만든 사람</dt><dd>' + esc(n.createdBy) + '</dd>' : '') + '<dt>' + (n.type === 'exp' ? '실험일' : '날짜') + '</dt><dd>' + fmt(n.date) + (isExpLike(n) && days(n.date) >= 0 && n.status !== '기록 완료' ? ' · D-' + days(n.date) : '') + '</dd></dl></div>';
     h += '<div class="card"><div class="panel-title"><span>관련된 것</span><span>누르면 이동</span></div>' + relationSvg(n) + '</div>';
     return h;
@@ -1281,6 +1285,71 @@
       (c.kind !== 'approve' && c.kind !== 'note' && c.kind !== 'answer' && canRes ? '<button type="button" class="chipbtn" data-act="cmResolve" data-cid="' + esc(c.id) + '">' + (c.resolved ? '다시 열기' : '고쳤어요') + '</button>' : '') +
       (mine && c.kind !== 'approve' ? '<button type="button" class="chipbtn" data-act="cmEdit" data-cid="' + esc(c.id) + '">고치기</button>' : '') +
       (mine || isAdmin() ? '<button type="button" class="chipbtn" data-act="cmDel" data-cid="' + esc(c.id) + '">지우기</button>' : '') + '</div></div>';
+  }
+  /* ---------- 변경 기록 (누가 · 언제 · 무엇을 · 전 → 후, 되돌리기) ---------- */
+  const HIST_LABEL = { title: '제목', field: '분야', status: '단계', line: '연구 줄기', date: '실험일', owner: '담당', verdict: '판정', desc: '설명', private: '공개 범위', report: '결과 · 보고서', plan: '계획서', prep: '준비 점검', run: '진행 기록', deleted: '휴지통', team: '함께하는 사람' };
+  const HIST_FIELDS = Object.keys(HIST_LABEL);
+  const hv = (v) => v && typeof v === 'object' ? JSON.stringify(v) : v == null ? '' : String(v);
+  function histCard(n) {
+    return '<div class="card hist-card no-print"><div class="sec-head"><b>변경 기록</b><span class="muted" style="font-size:12px">누가 · 언제 · 무엇을 바꿨는지</span></div><span class="muted" style="font-size:13px;line-height:1.6">계획서 · 결과 · 판정을 바꾸면 전과 후가 모두 남아요. 잘못 바뀌었으면 예전 값으로 되돌릴 수 있어요.</span><button type="button" class="btn" data-act="history" style="align-self:flex-start">변경 기록 보기</button></div>';
+  }
+  // 전 → 후를 사람이 읽는 줄로 (표는 칸 단위까지)
+  function histLines(field, before, after) {
+    const P = (x) => { try { return x ? JSON.parse(x) : {}; } catch (e) { return {}; } }, cut = (x) => { x = Array.isArray(x) ? x.join(' / ') : hv(x); return x.length > 70 ? x.slice(0, 69) + '…' : x || '(없음)'; }, out = [];
+    if (field === 'plan' || field === 'report') {
+      const a = P(before) || {}, b = P(after) || {}, LB = field === 'plan' ? Object.fromEntries(PLAN.map(([k, l]) => [k, l.replace(/ \(.*\)$/, '')])) : { summary: '요약', observe: '관찰', discuss: '고찰', conclusion: '결론', claim: '결론 제안', next: '더 해 볼 것', unit: '단위', kind: '측정 방식' };
+      Object.keys(Object.assign({}, a, b)).forEach((k) => {
+        if (k === 'by' || k === 'at' || k === 'final' || k === 'photos') return;
+        if (k === 'table') { const ta = a.table || { cols: [], rows: [] }, tb = b.table || { cols: [], rows: [] }, R = Math.max(ta.rows.length, tb.rows.length);
+          for (let i = 0; i < R; i++) { const ra = ta.rows[i] || [], rb = tb.rows[i] || [], C = Math.max(ra.length, rb.length);
+            for (let j = 0; j < C; j++) if (hv(ra[j]) !== hv(rb[j])) out.push(['측정값 · ' + (rb[0] || ra[0] || (i + 1) + '행') + (j ? ' · ' + ((tb.cols || ta.cols || [])[j] || (j + 1) + '열') : ''), cut(ra[j]), cut(rb[j])]); }
+          if (hv(ta.cols) !== hv(tb.cols)) out.push(['측정표 머리줄', cut(ta.cols), cut(tb.cols)]); return; }
+        if (hv(a[k]) !== hv(b[k])) out.push([LB[k] || k, cut(a[k]), cut(b[k])]);
+      });
+      if (!out.length && before !== after) out.push([HIST_LABEL[field], '…', '…']);
+    } else if (field === 'run') { const a = P(before), b = P(after), na = (a.notes || []).length, nb = (b.notes || []).length;
+      if (na !== nb) out.push(['진행 메모', na + '개', nb + '개']); (b.notes || []).forEach((x) => { const o = (a.notes || []).find((y) => y.id === x.id); if (o && o.text !== x.text) out.push(['진행 메모 고침', cut(o.text), cut(x.text)]); });
+      if (hv(a.done) !== hv(b.done)) out.push(['방법 단계 체크', Object.keys(a.done || {}).length + '개', Object.keys(b.done || {}).length + '개']); if (a.ended !== b.ended) out.push(['실험 끝', a.ended ? md(a.ended) : '-', b.ended ? md(b.ended) : '-']);
+    } else if (field === 'prep') { const a = P(before), b = P(after); out.push(['준비 점검', Object.keys(a.done || {}).length + '개', Object.keys(b.done || {}).length + '개']); }
+    else if (field === 'deleted') out.push(['휴지통', before === 'true' ? '휴지통' : '제자리', after === 'true' ? '휴지통' : '되살림']);
+    else if (field === 'private') out.push(['공개 범위', before === 'true' ? '비공개' : '공개', after === 'true' ? '비공개' : '공개']);
+    else if (field === 'team') out.push(['함께하는 사람', cut(P(before)), cut(P(after))]);
+    else if (field === 'line') out.push(['연구 줄기', lineName(before) || '-', lineName(after) || '-']);
+    else out.push([HIST_LABEL[field] || field, cut(before), cut(after)]);
+    return out;
+  }
+  async function openHistory(n) {
+    openSheet('<h3>변경 기록 · ' + esc(code(n)) + '</h3><p class="muted loading-line">' + SPIN + '불러오는 중…</p>', true);
+    let list = [];
+    if (PF.mode === 'live') { try { list = (await rpc('history', { node: n.id }, null, { quiet: true })).list; } catch (e) { closeSheet(); if (!deviceLost(e)) toast(e.message); return; } }
+    else list = (db.history || []).filter((h) => h.node === n.id).slice().reverse();
+    const canRev = (h) => (h.field === 'verdict' ? isAdmin() : canWork(n)) && canEdit(n);
+    openSheet('<h3>변경 기록 · ' + esc(code(n)) + '</h3><p class="muted" style="margin:0 0 10px;font-size:13px">' + esc(n.title) + ' · ' + list.length + '개</p>' +
+      (list.length ? '<div class="hist-list">' + list.map((h) => '<div class="hist-row"><div class="hist-meta"><b>' + esc(h.by) + '</b><span class="muted">' + esc(md(h.at)) + ' ' + esc(hm(h.at)) + '</span><span class="badge t-neutral">' + esc(HIST_LABEL[h.field] || h.field) + '</span>' +
+        (canRev(h) ? '<button type="button" class="chipbtn" data-act="revert" data-hid="' + esc(h.id) + '">이 전 값으로 되돌리기</button>' : '') + '</div>' +
+        histLines(h.field, h.before, h.after).map((l) => '<div class="hist-diff"><span class="hist-k">' + esc(l[0]) + '</span><span class="hist-a">' + esc(l[1]) + '</span><span class="hist-arrow">→</span><span class="hist-b">' + esc(l[2]) + '</span></div>').join('') + '</div>').join('') + '</div>'
+        : '<div class="card empty">아직 바뀐 기록이 없어요.</div>') +
+      '<div class="btn-row" style="margin-top:12px"><button type="button" class="btn" data-act="closeSheet">닫기</button></div>', true);
+    PF.histList = list; PF.histNode = n.id;
+  }
+  async function revertHist(hid) {
+    const h = (PF.histList || []).find((x) => x.id === hid), n = byId(PF.histNode); if (!h || !n) return;
+    if (!confirm('‘' + (HIST_LABEL[h.field] || h.field) + '’을(를) ' + md(h.at) + ' ' + hm(h.at) + ' 바뀌기 전 값으로 되돌릴까요? 되돌린 것도 기록에 남아요.')) return;
+    if (PF.mode === 'live') { try { await rpc('revert', { id: hid }); toast('되돌렸어요'); closeSheet(); return liveLoad(); } catch (e) { if (!deviceLost(e)) toast(e.message); return; } }
+    let v = h.before; if (['plan', 'report', 'prep', 'run', 'team'].includes(h.field)) { try { v = v ? JSON.parse(v) : null; } catch (e) { v = null; } }
+    if (v === null || v === '') delete n[h.field]; else n[h.field] = v;
+    save(); closeSheet(); render(); toast('되돌렸어요 · 변경 기록에 남았어요');
+  }
+  // 체험: 저장할 때 바뀐 칸을 찾아 기록 (연결된 동아리는 연결기가 기록)
+  function demoHistory() {
+    if (PF.mode === 'live') return; const snap = db.histSnap = db.histSnap || {}, H = db.history = db.history || [], now = nowIso(), me = meName();
+    db.nodes.forEach((n) => { const cur = {}; HIST_FIELDS.forEach((f) => { cur[f] = hv(n[f]); });
+      const old = snap[n.id]; snap[n.id] = cur; if (!old) return;
+      HIST_FIELDS.forEach((f) => { if (old[f] === cur[f]) return;
+        const last = [...H].reverse().find((x) => x.node === n.id && x.field === f);
+        if (last && last.by === me && Date.now() - Date.parse(last.at) < 10 * 60000) { if (last.before === cur[f]) H.splice(H.indexOf(last), 1); else { last.after = cur[f]; last.at = now; } return; }
+        H.push({ id: 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), node: n.id, field: f, by: me, at: now, before: old[f], after: cur[f] }); }); });
+    if (H.length > 400) H.splice(0, H.length - 400);
   }
   function commentsCard(n) {
     const list = commentsOf(n.id).slice().sort((a, b) => String(a.at).localeCompare(String(b.at)));
@@ -2102,6 +2171,7 @@
     if (act === 'askApprove') return askApprove();
     if (act === 'myCode') return myCode();
     if (act === 'backupNow') return backupNow();
+    if (act === 'history') { const hn = ['item', 'run', 'report'].includes(cur().s) ? byId(cur().arg) : null; if (hn) return openHistory(hn); }
     if (act === 'restoreOpen') return restoreOpen();
     if (act === 'restorePick') return restorePick(did);
     if (act === 'backupTo') return openSheet('<h3>백업 메일 받는 곳</h3><form id="backupToForm" style="display:flex;flex-direction:column;gap:12px"><label class="field">메일 주소<input name="to" type="email" maxlength="120" value="' + esc((PF.bk && PF.bk.to) || '') + '" placeholder="비우면 연결기를 만든 구글 계정"></label><div class="btn-row"><button type="button" class="btn" data-act="closeSheet">취소</button><button type="submit" class="btn primary">저장</button></div></form>');
@@ -2193,6 +2263,7 @@
     const cl = e.target.closest('[data-claim]'); if (cl) { $('#recordForm [name=claim]').value = cl.dataset.claim; cl.parentNode.querySelectorAll('[data-claim]').forEach((b) => b.setAttribute('aria-pressed', String(b === cl))); return; }
     const a = e.target.closest('[data-act]'); if (!a) return; const act = a.dataset.act;
     if (act === 'closeSheet') return closeSheet();
+    if (act === 'revert') return revertHist(a.dataset.hid);
     if (act === 'restorePick') return restorePick(a.dataset.id);
     if (['gRow', 'gCol', 'gDelRow', 'gDelCol'].includes(act)) return gridAct(act);
     if (act === 'rowPhoto') return rowPhoto(a);

@@ -3,7 +3,7 @@
 // 날짜는 2026-11-16 기준으로 적었고, 앱이 오늘 날짜에 맞춰 옮겨서 보여 줍니다.
 window.GAJI_SAMPLE = {
   base: '2026-11-16',
-  ver: '2026-11-17-docs',   // 예시 데이터를 고치면 바꿈 → 체험 중인 브라우저도 바로 새 데이터로
+  ver: '2026-11-17-hist',   // 예시 데이터를 고치면 바꿈 → 체험 중인 브라우저도 바로 새 데이터로
   settings: { clubName: '○○고 실험 동아리', color: '#C26A00', logo: '' },
   lines: {
     enzyme: '효소 연구', plant: '식물 · 빛', antho: '안토시아닌 · pH', precip: '앙금 · 농도',
@@ -342,5 +342,18 @@ window.GAJI_SAMPLE = {
     if (T.length && !ap.some(function (c) { return T.indexOf(c.by) >= 0; }))
       S.comments.push({ id: 'ca' + (++cid), node: n.id, sec: '', kind: 'approve', text: '', by: T[0], role: '교사', at: at(p.at, 22), resolved: false });
   });
+})(window.GAJI_SAMPLE);
+
+// 변경 기록 예시: 레몬 전지 실험에서 측정값 하나를 다시 재서 고치고, 첨삭을 받아 통제 변인을 보탠 기록
+(function (S) {
+  var b1 = S.nodes.filter(function (n) { return n.id === 'b1'; })[0]; if (!b1) return;
+  var J = function (o) { return JSON.stringify(o); }, rep = JSON.parse(J(b1.report)), plan = JSON.parse(J(b1.plan));
+  var oldRep = JSON.parse(J(rep)); oldRep.table.rows[0][2] = '0.89';
+  var oldPlan = JSON.parse(J(plan)); oldPlan.ctrl = plan.ctrl.replace(/, ?금속판은 사포로 닦기/, '').replace(/금속판은 사포로 닦기,? ?/, '');
+  S.history = [
+    { id: 'hs1', node: 'b1', field: 'plan', by: '정다온', at: '2026-10-30T07:20:00.000Z', before: J(oldPlan), after: J(plan) },
+    { id: 'hs2', node: 'b1', field: 'report', by: '박준서', at: '2026-11-11T08:10:00.000Z', before: J(oldRep), after: J(rep) },
+    { id: 'hs3', node: 'b1', field: 'verdict', by: '홍교사', at: '2026-11-14T00:30:00.000Z', before: '', after: b1.verdict || '가설 지지' }
+  ];
 })(window.GAJI_SAMPLE);
 

@@ -4,6 +4,7 @@ const ctx = {}; vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/core.js'), 'utf8'), ctx);
 
 let clock = Date.parse('2026-11-17T00:00:00Z');
+const HITS = {};
 const BK = [], RS = [], BKF = [{ id: 'B1', name: '가지 데이터 백업 2026-11-10 0900', at: '2026-11-10T00:00:00Z' }, { id: 'B2', name: '가지 데이터 백업 2026-11-17 0900', at: '2026-11-17T00:00:00Z' }];
 function memStore() {
   const t = {};
@@ -21,7 +22,7 @@ const util = {
   now: () => new Date(clock).toISOString(), today: () => new Date(clock).toISOString().slice(0, 10),
   random: Math.random, token: (n) => crypto.randomBytes(n).toString('base64url').slice(0, n),
   sha256: (s) => crypto.createHash('sha256').update(s).digest('hex'),
-  bool: (v) => v === true || v === 'true', lock: (fn) => fn(), secret: () => 'test-secret-123', links: () => ({ sheet: 'https://docs.google.com/spreadsheets/d/X/edit', script: 'https://script.google.com/home/projects/S/edit' }), backupList: () => BKF.slice(), backupPeek: (id) => ({ exp: 2, comments: 0, files: 0 }), restore: (id, names) => { RS.push({ id, names }); store._t.nodes = [{ id: 'old1', type: 'exp', title: '되살린 실험', owner: '정다온' }]; return { name: '가지 데이터 백업 X' }; }, backup: (o) => { BK.push(o); if (BK.fail) throw new Error('drive 꽉 참'); return { folder: 'https://drive/backup', kept: 3, mailed: o.mail ? 'ki…@x.kr' : undefined }; }
+  bool: (v) => v === true || v === 'true', lock: (fn) => fn(), hit: (k, n) => { HITS[k] = (HITS[k] || 0) + 1; return !HITS.strict || HITS[k] <= n; }, secret: () => 'test-secret-123', links: () => ({ sheet: 'https://docs.google.com/spreadsheets/d/X/edit', script: 'https://script.google.com/home/projects/S/edit' }), backupList: () => BKF.slice(), backupPeek: (id) => ({ exp: 2, comments: 0, files: 0 }), restore: (id, names) => { RS.push({ id, names }); store._t.nodes = [{ id: 'old1', type: 'exp', title: '되살린 실험', owner: '정다온' }]; return { name: '가지 데이터 백업 X' }; }, backup: (o) => { BK.push(o); if (BK.fail) throw new Error('drive 꽉 참'); return { folder: 'https://drive/backup', kept: 3, mailed: o.mail ? 'ki…@x.kr' : undefined }; }
 };
 // 가짜 드라이브: 폴더 · 파일을 메모리에
 const DRIVE = { files: {}, folders: {}, perm: true, n: 0 };
@@ -70,7 +71,7 @@ ok('member not admin', call({ action: 'people', device: S }).code === 'not_admin
 
 // 동기화: 번호 · 권한
 const PL = { purpose: '목적', steps: ['준비', '측정'] }, RP = { summary: '결과', claim: '가설 지지' };
-const s1 = call({ action: 'sync', device: S, nodes: [{ id: 'n1', type: 'exp', title: '효모 발효', status: '아이디어', verdict: '성공', plan: PL, review: 2 }, { id: 'n2', type: 'q', title: '왜?' }], links: [{ s: 'n2', t: 'n1', k: 'q' }], lines: { yeast: '효모' } });
+const s1 = call({ action: 'sync', device: S, nodes: [{ id: 'n1', type: 'exp', title: '효모 발효', status: '아이디어', verdict: '가설 지지', plan: PL, review: 2 }, { id: 'n2', type: 'q', title: '왜?' }], links: [{ s: 'n2', t: 'n1', k: 'q' }], lines: { yeast: '효모' } });
 ok('sync numbers', s1.ok && s1.data.assigned.n1 === 1 && s1.data.assigned.n2 === 1, s1);
 let L = call({ action: 'load', device: S }).data;
 const n1 = L.nodes.find((n) => n.id === 'n1');
@@ -78,12 +79,12 @@ ok('member verdict stripped on create', n1.verdict === '', n1);
 ok('createdBy', n1.createdBy === '이하늘');
 ok('links saved', L.links.length === 1 && L.lines.yeast === '효모');
 ['계획 작성', '검토 중', '준비 중'].forEach((st) => call({ action: 'sync', device: S, nodes: [{ id: 'n1', title: '효모 발효', status: st }] }));
-const s2 = call({ action: 'sync', device: S, nodes: [{ id: 'n1', title: '효모 발효', status: '계획 작성', verdict: '실패' }] });
+const s2 = call({ action: 'sync', device: S, nodes: [{ id: 'n1', title: '효모 발효', status: '계획 작성', verdict: '가설 기각' }] });
 ok('member backward/verdict rejected', s2.data.rejected.includes('n1:status') && s2.data.rejected.includes('n1:verdict'), s2);
 ok('member cancel rejected', call({ action: 'sync', device: S, nodes: [{ id: 'n1', title: '효모 발효', status: '취소' }] }).data.rejected.includes('n1:cancel'));
-call({ action: 'sync', device: M, nodes: [{ id: 'n1', title: '효모 발효', status: '계획 작성', verdict: '성공' }] });
+call({ action: 'sync', device: M, nodes: [{ id: 'n1', title: '효모 발효', status: '계획 작성', verdict: '가설 지지' }] });
 const n1b = call({ action: 'load', device: M }).data.nodes.find((n) => n.id === 'n1');
-ok('admin backward + verdict', n1b.status === '계획 작성' && n1b.verdict === '성공', n1b);
+ok('admin backward + verdict', n1b.status === '계획 작성' && n1b.verdict === '가설 지지', n1b);
 ok('next exp number', call({ action: 'sync', device: S, nodes: [{ id: 'n3', type: 'exp', title: '두 번째' }] }).data.assigned.n3 === 2);
 ok('dup link ignored', (call({ action: 'sync', device: S, links: [{ s: 'n2', t: 'n1', k: 'q' }, { s: 'n1', t: 'n1', k: 'rel' }, { s: 'n1', t: 'n3', k: 'evil' }] }), call({ action: 'load', device: S }).data.links.length === 1));
 
@@ -179,7 +180,7 @@ const mc2 = call({ action: 'myCode', device: r9b.data.device });
 ok('old code renewed', mc2.ok && mc2.data.renewed && /^\d{4}$/.test(mc2.data.code), mc2);
 ok('device kept after renew', call({ action: 'load', device: r9b.data.device }).ok);
 ok('new code works', call({ action: 'register', studentId: '20399', code: mc2.data.code }).ok);
-ok('ping version', call({ action: 'ping' }).data.version === '2.10.0');
+ok('ping version', call({ action: 'ping' }).data.version === '2.12.0');
 
 // 실수 되돌리기: 내가 10분 안에 옮긴 단계는 한 단계 되돌리기 가능
 call({ action: 'sync', device: M, nodes: [{ id: 'u1', type: 'exp', title: '되돌리기 시험', status: '검토 중', owner: '정다온', plan: PL, review: 2 }] });
@@ -470,6 +471,46 @@ ok('teacher none → 2 peers enough', !call({ action: 'sync', device: MEM, nodes
 call({ action: 'rulesSet', device: MST, teacher: 'final' });
 call({ action: 'sync', device: MEM, nodes: [{ id: 'x4', type: 'exp', title: '처음부터 준비 중', status: '준비 중', owner: '정다온', plan: PL }] });
 ok('member new exp cannot start at 준비 중', call({ action: 'load', device: ADM }).data.nodes.find((n) => n.id === 'x4').status === '검토 중');
+
+
+// ===== 2.11.0: 변경 기록 · 되돌리기 =====
+call({ action: 'sync', device: MEM, nodes: [{ id: 'hx', type: 'exp', title: '기록 시험', status: '계획 작성', owner: '정다온', plan: { purpose: '처음 목적', steps: ['a'] } }] });
+call({ action: 'sync', device: MEM, nodes: [{ id: 'hx', title: '기록 시험', plan: { purpose: '고친 목적', steps: ['a'] } }] });
+let hs = call({ action: 'history', device: OTH, node: 'hx' });
+ok('history recorded (before → after)', hs.ok && hs.data.list.length === 1 && hs.data.list[0].field === 'plan' && /처음 목적/.test(hs.data.list[0].before) && /고친 목적/.test(hs.data.list[0].after) && hs.data.list[0].by === '정다온', hs);
+call({ action: 'sync', device: MEM, nodes: [{ id: 'hx', title: '기록 시험', plan: { purpose: '또 고친 목적', steps: ['a'] } }] });
+hs = call({ action: 'history', device: OTH, node: 'hx' }).data.list;
+ok('same person within 10 min → merged (first before kept)', hs.length === 1 && /처음 목적/.test(hs[0].before) && /또 고친 목적/.test(hs[0].after));
+ok('other member cannot revert', call({ action: 'revert', device: OTH, id: hs[0].id }).code === 'not_allowed' && /또 고친/.test(JSON.stringify(call({ action: 'load', device: ADM }).data.nodes.find((n) => n.id === 'hx').plan)));
+clock += 11 * 60000;
+const rv = call({ action: 'revert', device: MEM, id: hs[0].id });
+ok('owner reverts', rv.ok && call({ action: 'load', device: ADM }).data.nodes.find((n) => n.id === 'hx').plan.purpose === '처음 목적', rv);
+ok('revert is recorded too', call({ action: 'history', device: OTH, node: 'hx' }).data.list.length === 2);
+call({ action: 'sync', device: MEM, nodes: [{ id: 'hp', type: 'exp', title: '비밀', owner: '정다온', private: 'true' }] });
+call({ action: 'sync', device: MEM, nodes: [{ id: 'hp', title: '비밀 2' }] });
+ok('private item history hidden from others', call({ action: 'history', device: OTH, node: 'hp' }).code === 'bad');
+ok('history needs device', call({ action: 'history', node: 'hx' }).ok === false);
+
+
+// ===== 2.12.0: 보안 (공격 흉내) =====
+let sx = call({ action: 'sync', device: MEM, nodes: [{ id: 'x" onmouseover="alert(1)', type: 'exp', title: '나쁜 번호' }] });
+ok('bad id rejected', !call({ action: 'load', device: ADM }).data.nodes.some((n) => n.title === '나쁜 번호'), sx);
+call({ action: 'sync', device: MEM, nodes: [{ id: 'sx1', type: 'exp', title: '<img src=x onerror=alert(1)>제목', field: '해킹', status: '<b>', date: '2026-13-99"', owner: '정다온', verdict: '<script>', desc: '<script>alert(1)</script>' }] });
+let nx = call({ action: 'load', device: ADM }).data.nodes.find((n) => n.id === 'sx1');
+ok('tags stripped · bad enums dropped', nx && !/[<>]/.test(nx.title + nx.desc) && nx.field !== '해킹' && nx.status !== '<b>' && nx.date !== '2026-13-99"' && !nx.verdict, nx);
+sx = call({ action: 'sync', device: MEM, nodes: [{ id: 'sx1', title: 'x', plan: { purpose: 'a'.repeat(50000), steps: ['b'] } }] });
+ok('huge content rejected', sx.data.rejected.includes('sx1:big') && !(call({ action: 'load', device: ADM }).data.nodes.find((n) => n.id === 'sx1').plan || {}).purpose, sx);
+ok('bad link ids ignored', call({ action: 'sync', device: MEM, links: [{ s: 'sx1', t: '"><x', k: 'next' }] }).ok && !call({ action: 'load', device: ADM }).data.links.some((l) => l.t === '"><x'));
+const setN = store._t.settings.length;
+for (let i = 0; i < 5; i++) call({ action: 'register', studentId: '9' + i + '999', code: '0000' });
+ok('wrong codes for unknown student ids do not grow the sheet', store._t.settings.length === setN);
+ok('weird student id refused', call({ action: 'register', studentId: '<script>', code: '1' }).code === 'wrong');
+HITS.strict = true; Object.keys(HITS).forEach((k) => { if (k !== 'strict') delete HITS[k]; });
+let slow = null; for (let i = 0; i < 12; i++) slow = call({ action: 'register', studentId: '20501', code: '0000' });
+ok('too many tries → slowed down', slow.code === 'slow' || slow.code === 'locked', slow);
+let cmf = null; for (let i = 0; i < 45; i++) cmf = call({ action: 'comment', device: OTH, node: 'b1', text: '도배 ' + i });
+ok('comment flood → slowed down', cmf.code === 'slow', cmf);
+HITS.strict = false;
 
 console.log(`connector: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

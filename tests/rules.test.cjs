@@ -62,7 +62,17 @@ async function createClub(db, uid, slug, name) {
   await t('시스템 설정은 아무도 앱에서 못 바꾼다', () => assertFails(setDoc(doc(user('sys'), 'system/config'), { admins: ['sys', 'bob'] })));
   await t('내 동아리 목록은 본인만 읽는다', () => assertFails(getDoc(doc(user('bob'), 'masters', 'alice'))));
 
+  await t('logo must be an image data URL', async () => {
+    const db = user('uLogo'); await createClub(db, 'uLogo', 'logo-club', '로고 시험');
+    await assertFails(updateDoc(doc(db, 'clubs', 'logo-club'), { logo: 'javascript:alert(1)' }));
+    await assertFails(updateDoc(doc(db, 'clubs', 'logo-club'), { logo: 'https://evil.example/x.png' }));
+    await assertSucceeds(updateDoc(doc(db, 'clubs', 'logo-club'), { logo: 'data:image/png;base64,iVBORw0KGgo=' }));
+    await assertSucceeds(updateDoc(doc(db, 'clubs', 'logo-club'), { color2: '#FFFFCC' }));
+    await assertFails(updateDoc(doc(db, 'clubs', 'logo-club'), { color2: 'red' }));
+  });
+
   await env.cleanup();
   let fail = 0; for (const [s, n] of results) { console.log((s === 'ok' ? '  ✓ ' : '  ✗ ') + n); if (s !== 'ok') fail++; }
   console.log(`\n${results.length - fail}/${results.length} passed`); process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
+
