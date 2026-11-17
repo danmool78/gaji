@@ -2201,7 +2201,7 @@
   function brandColors(main, light) {
     main = hexRgb(main) ? main.toUpperCase() : '#C26A00';
     light = hexRgb(light) ? light.toUpperCase() : '';
-    const on = light && contrast(light, main) >= 4.5 ? light : contrast('#FFFFFF', main) >= contrast('#14171C', main) ? '#FFFFFF' : '#14171C';   // 주도 색 위 글자는 늘 잘 보이게
+    const on = light && contrast(light, main) >= 3 ? light : '#FFFFFF';
     const soft = light && lum(light) > 0.55 && lum(light) < 0.995 ? (lum(light) < 0.85 ? mix(light, '#FFFFFF', 0.4) : light) : mix(main, '#FFFFFF', 0.88);
     return { main, light: light || '#FFFFFF', on, soft, softDark: mix(main, '#14171C', 0.72) };
   }
