@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.9.0';
+var GAJI_CONNECTOR_VERSION = '2.9.1';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
@@ -165,7 +165,7 @@ function GajiCore(store, util, drive) {
      검토 중 이상 = 계획서(목적 · 방법) / 준비 중 = 승인 2명 (관리자는 건너뛸 수 있음) / 기록 완료 = 결과(요약 · 측정값 · 관찰 중 하나 + 결론) */
   function planOk(p) { return !!(p && p.purpose && p.steps && p.steps.length); }
   function resultOk(r) { return !!(r && (r.summary || (r.table && r.table.rows && r.table.rows.length) || r.observe) && r.claim); }
-  function approvalsOf(n) { var k = store.rows('comments').filter(function (c) { return c.node === n.id && c.kind === 'approve' && !util.bool(c.off); }).length; return Math.max(k, Number(n.review) || 0); }
+  function approvalsOf(n) { var k = store.rows('comments').filter(function (c) { return c.node === n.id && c.kind === 'approve' && !util.bool(c.off) && !inTeam(n, { name: c.by }); }).length; return Math.max(k, Number(n.review) || 0); }
   function stageBlock(old, u, admin) {
     var a = STAGES.indexOf(old.status), b = STAGES.indexOf(u.status);
     if (u.type !== 'exp' || b < 0 || b <= a) return '';
@@ -436,7 +436,7 @@ function GajiCore(store, util, drive) {
         var kind = KINDS[q.kind] ? q.kind : 'note', text = String(q.text || '').trim().slice(0, 1000);
         if (!text && kind !== 'approve') err('bad', '내용을 써 주세요');
         if (kind === 'approve') {
-          if (mineNode(n, me) && !admin) err('self', '내 실험은 내가 승인할 수 없어요');
+          if (inTeam(n, me)) err('self', '내 실험 · 함께하는 실험은 승인할 수 없어요 · 다른 부원이 검토해야 해요');
           if (n.status !== '검토 중' || !planOk(n.plan)) err('not_ready', '계획서를 다 쓰고 검토를 요청한 실험만 승인할 수 있어요');
           rows.forEach(function (c) { if (c.node === n.id && c.kind === 'approve' && c.byId === me.id && !util.bool(c.off)) { c.off = 'true'; store.update('comments', c._row, c); } });
         }

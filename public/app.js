@@ -969,7 +969,7 @@
   const alive = () => db.nodes.filter((n) => !isDel(n) && !(PF.mode !== 'live' && isPriv(n) && !canWork(n)));   // 체험에서도 비공개는 팀 · 관리자만
   const allComments = () => db.comments || (db.comments = []);
   const commentsOf = (id, sec) => allComments().filter((c) => c.node === id && (sec === undefined || c.sec === sec));
-  const approvals = (n) => commentsOf(n.id).filter((c) => c.kind === 'approve');
+  const approvals = (n) => commentsOf(n.id).filter((c) => c.kind === 'approve' && !teamOf(n).includes(c.by));   // 교차 검토: 팀 사람 승인은 안 셈
   const reviewCount = (n) => Math.max(+n.review || 0, approvals(n).length);
   // 이 실험의 사람들: 담당 · 만든 사람 · 함께하는 사람 (아이디어는 담당 지원자도). 이 사람들과 기장 · 선생님만 고칠 수 있어요
   const teamOf = (n) => [n.owner, n.createdBy].concat(Array.isArray(n.team) ? n.team : []).concat(n.type === 'idea' && n.volunteer ? [n.volunteer] : []).filter(Boolean);
