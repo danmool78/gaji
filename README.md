@@ -52,7 +52,7 @@
 ## 시험
 
 ```
-node tests/connector.test.cjs          # 연결기 로직 (64개)
+node tests/connector.test.cjs          # 연결기 로직 (68개)
 firebase emulators:exec --only firestore "node tests/rules.test.cjs"   # 보안 규칙 (34개)
 ```
 

@@ -66,6 +66,8 @@
   /* ================= 드라이브 연결 (동아리 연결기) =================
    * mode: demo(체험) · preview(마스터, 연결 전 · 예시 데이터) · closed(부원, 연결 전)
    *       join(학번 + 개인 코드) · pending(승인 기다림) · loading · error · live(연결됨) */
+  const NEED_VER = '1.2.0';   // 이 화면에 필요한 연결기 판
+  const verOld = (v) => { const a = String(v || '0').split('.').map(Number), b = NEED_VER.split('.').map(Number); for (let i = 0; i < 3; i++) { if ((a[i] || 0) !== b[i]) return (a[i] || 0) < b[i]; } return false; };
   const GATE = new Set(['closed', 'join', 'pending', 'loading', 'error']);
   const devKey = () => 'gaji-dev:' + PF.slug;
   const getDev = () => { try { return JSON.parse(localStorage.getItem(devKey()) || 'null'); } catch (e) { return null; } };
@@ -87,7 +89,7 @@
       const r = await fetch(url || PF.club.connector, { method: 'POST', body: JSON.stringify(Object.assign({ action, device: PF.dev ? { id: PF.dev.id, secret: PF.dev.secret } : null }, data || {})) });
       j = await r.json();
     } catch (e) { const x = new Error('연결기에 닿지 않아요. 인터넷이나 연결기 주소를 확인해 주세요'); x.code = 'network'; throw x; }
-    if (!j || !j.ok) { const x = new Error((j && j.message) || '연결기에서 문제가 생겼어요'); x.code = (j && j.code) || 'error'; throw x; }
+    if (!j || !j.ok) { const x = new Error(j && j.code === 'unknown' ? '연결기가 예전 판이라 이 기능이 없어요. 마스터가 연결기를 업데이트해야 해요 (설정 → 드라이브 연결)' : (j && j.message) || '연결기에서 문제가 생겼어요'); x.code = (j && j.code) || 'error'; throw x; }
     return j.data;
   }
   // 기기가 끊긴 경우 공통 처리
@@ -129,6 +131,7 @@
       PF.me = d.me; PF.rev = d.rev; PF.newDevices = (d.newDevices || []).filter((x) => !(prefs.seenDev || []).includes(x.id));
       db = { settings: db.settings, nodes: d.nodes.map(fixNode), links: d.links, lines: d.lines || {}, lastNo: d.lastNo || { exp: 0, q: 0, res: 0 } };
       PF.base = snapshot(); PF.mode = 'live'; PF.notice = ''; render(); pollRev();
+      if (PF.isMaster && !PF.connVer) rpc('ping').then((pg) => { PF.connVer = pg.version; render(); }, () => {});
       if (PF.isMaster && PF.api && !PF.statsSent) { PF.statsSent = true; rpc('stats').then((st) => PF.api.saveStats(st)).catch(() => {}); }
       if (PF.approveId) { const id = PF.approveId; PF.approveId = null; history.replaceState(null, '', location.pathname); openApprove(id); }
     } catch (e) { if (!deviceLost(e)) { PF.mode = 'error'; PF.error = e.message; render(); } }
@@ -294,6 +297,9 @@
     const c = PF.club;
     if (c.connector && !PF.rewire) return '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">드라이브 연결</b><span class="badge t-ok">● 연결됨</span></div>' +
       '<span class="code muted" style="font-size:12px;word-break:break-all">' + esc(c.connector) + '</span>' +
+      (PF.connVer ? (verOld(PF.connVer)
+        ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기 업데이트 필요 · 지금 ' + esc(PF.connVer) + ' → 새 판 ' + NEED_VER + '</span><span style="font-weight:400;line-height:1.7">① 아래 <b>연결기 코드 복사</b> → Apps Script에 덮어쓰고 저장<br>② <b>배포 → 배포 관리</b> → 연필 모양(수정) → 버전: <b>새 버전</b> → 배포<br>③ 여기서 <b>연결 시험</b> → ' + NEED_VER + ' 확인</span></div>'
+        : '<span class="muted" style="font-size:12px">연결기 ' + esc(PF.connVer) + ' · 최신</span>') : '') +
       '<div class="btn-row"><button type="button" class="btn" data-act="testConn">연결 시험</button><button type="button" class="btn" data-act="copyGs">연결기 코드 복사</button></div>' +
       '<span class="muted" style="font-size:12px;line-height:1.6">연결기를 새로 배포했거나 다른 시트로 옮길 때만 주소를 바꿔요.</span><button type="button" class="chipbtn" data-act="rewire">연결기 주소 바꾸기</button></div>';
     const step = (n, t, d, extra) => '<li class="wstep"><span class="wnum">' + n + '</span><div><b>' + t + '</b><span class="muted">' + d + '</span>' + (extra || '') + '</div></li>';
@@ -763,7 +769,7 @@
     if (act === 'retry') return startClub();
     if (act === 'pfLogin') return PF.api && PF.api.login();
     if (act === 'askApprove') return askApprove();
-    if (act === 'myCode') { rpc('myCode').then((r) => showCode(r.name, r.code, true), (er) => { if (!deviceLost(er)) toast(er.message); }); return; }
+    if (act === 'myCode') { rpc('myCode').then((r) => { showCode(r.name, r.code, true); if (r.renewed) toast('예전 판 코드라 새 코드를 만들었어요 · 앞으로 이 코드를 써요'); }, (er) => { if (!deviceLost(er)) toast(er.message); }); return; }
     if (act === 'restartJoin') { dropDev(); PF.mode = 'join'; return render(); }
     if (act === 'leaveDevice') { if (!confirm('이 기기에서 나갈까요? 다시 들어오려면 학번 · 개인 코드와 승인이 필요해요.')) return; rpc('block', { id: PF.dev.id }).catch(() => {}); dropDev(); PF.mode = 'join'; nav = [{ s: 'home' }]; return render(true); }
     if (act === 'openApprove') return openApprove(did);
@@ -778,7 +784,7 @@
       return render();
     }
     if (act === 'copyGs') return copyGs();
-    if (act === 'testConn') { rpc('ping').then((p) => toast('연결 정상 · 연결기 ' + p.version), (er) => toast(er.message)); return; }
+    if (act === 'testConn') { rpc('ping').then((p) => { PF.connVer = p.version; render(); toast('연결 정상 · 연결기 ' + p.version + (verOld(p.version) ? ' · 업데이트 필요' : ' · 최신')); }, (er) => toast(er.message)); return; }
     if (act === 'rewire') { PF.rewire = true; return render(); }
     if (act === 'rewireCancel') { PF.rewire = false; return render(); }
     if (act === 'reset') { db = freshSample(); save(); toast('예시 데이터로 되돌렸어요'); return render(); }

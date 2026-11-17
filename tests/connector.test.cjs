@@ -163,5 +163,13 @@ ok('code not plaintext in sheet', !JSON.stringify(store._t.members.find((m) => m
 const r9b = call({ action: 'register', studentId: '20399', code: rc9.data.code }); call({ action: 'approve', device: M, id: r9b.data.device.id });
 ok('myCode after reset', call({ action: 'myCode', device: r9b.data.device }).data.code === rc9.data.code);
 
+// 예전 판 코드 → 새 코드 발급, 기기 유지
+const m9 = store._t.members.find((m) => m.studentId === '20399'); m9.codeEnc = '';
+const mc2 = call({ action: 'myCode', device: r9b.data.device });
+ok('old code renewed', mc2.ok && mc2.data.renewed && /^\d{4}$/.test(mc2.data.code), mc2);
+ok('device kept after renew', call({ action: 'load', device: r9b.data.device }).ok);
+ok('new code works', call({ action: 'register', studentId: '20399', code: mc2.data.code }).ok);
+ok('ping version', call({ action: 'ping' }).data.version === '1.2.0');
+
 console.log(`connector: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

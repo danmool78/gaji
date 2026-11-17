@@ -9,7 +9,7 @@
  *       → 유형: 웹 앱 / 실행: 나 / 액세스 권한: 모든 사용자 → 배포 → 웹 앱 URL을 가지에 붙여넣기
  * ------------------------------------------------------------
  */
-var GAJI_CONNECTOR_VERSION = '1.1.0';
+var GAJI_CONNECTOR_VERSION = '1.2.0';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util) {
@@ -116,9 +116,13 @@ function GajiCore(store, util) {
 
   A.myCode = function (q) {
     var me = deviceOf(q), m = store.rows('members').filter(function (x) { return x.id === me.id; })[0];
-    var code = m ? unseal(m.id, m.codeEnc) : '';
-    if (!code) err('no_code', '예전 방식으로 만든 코드라 보여 줄 수 없어요. 관리자에게 코드 다시 만들기를 부탁해 주세요');
-    return { code: code, name: me.name, studentId: me.studentId };
+    if (!m) err('member_off', '부원 명단에서 빠졌어요');
+    var code = unseal(m.id, m.codeEnc), renewed = false;
+    if (!code) {   // 예전 판에서 만든 코드는 꺼낼 수 없음 → 새 코드를 만들어 줌 (쓰던 기기는 그대로)
+      code = digits(4); m.codeHash = hash(m.id, code); m.codeEnc = seal(m.id, code); store.update('members', m._row, m);
+      renewed = true; log(me, '내 코드 새로 만듦', '');
+    }
+    return { code: code, name: me.name, studentId: me.studentId, renewed: renewed };
   };
 
   A.rev = function (q) { deviceOf(q); return { rev: Number(setting('rev', '0')) }; };
