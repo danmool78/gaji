@@ -12,7 +12,7 @@
  *       → 유형: 웹 앱 / 실행: 나 / 액세스: 모든 사용자 → 배포 → 권한 허용 → 웹 앱 URL을 가지에 붙여넣기
  * ------------------------------------------------------------
  */
-var GAJI_SHELL_VERSION = '3';
+var GAJI_SHELL_VERSION = '4';
 var GAJI_CORE_URL = 'https://gaji-lab.web.app/core.js';
 
 function gajiCore_() {
@@ -64,4 +64,13 @@ function 권한허용() {
   CacheService.getScriptCache().remove('gaji_core');
   var g = gajiCore_().get();
   Logger.log('가지 연결기 준비 완료 · 본체 ' + g.data.version);
+}
+
+/* 권한 목록 (실행하지 않음). 구글은 이 코드에 적힌 기능만 보고 권한을 묻기 때문에,
+   본체가 앞으로 쓸 기능을 여기 적어 두면 처음 한 번 허용으로 끝나요.
+   시트 읽기 · 쓰기, 가지 사이트에서 본체 받기, 실험 폴더 · 사진 · 보고서 파일(드라이브),
+   보고서 문서(구글 문서), 주간 백업 메일, 예약 실행(주간 백업) */
+function 권한목록_() {
+  SpreadsheetApp.getActiveSpreadsheet(); UrlFetchApp.fetch; DriveApp.getRootFolder; DocumentApp.create;
+  MailApp.sendEmail; ScriptApp.newTrigger; Session.getEffectiveUser; LockService.getScriptLock;
 }
