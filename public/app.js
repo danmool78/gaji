@@ -657,45 +657,97 @@
     return '';
   }
 
-  /* ---------- 결과 기록 ---------- */
+  /* ---------- 결과 기록 ----------
+   * 기록(report) = { summary, kind, unit, table: { cols: [...], rows: [[...]] }, observe, claim, next, by, at }
+   * kind: rep(조건별 반복) · line(시간에 따른 변화) · xy(두 값의 관계) · free(자유 표) · obs(관찰 기록) */
   const CLAIMS = ['가설 지지', '가설 기각', '추가 실험 필요'];
-  const num = (x) => { const v = parseFloat(String(x).replace(',', '.')); return isFinite(v) ? v : null; };
+  const KINDS = {
+    rep: { label: '조건별 반복', hint: '조건마다 여러 번 잰 값 → 평균 · 표준편차 막대 그래프', cols: ['조건', '1회', '2회', '3회'], n: 3 },
+    line: { label: '시간에 따른 변화', hint: '첫 열이 시간(가로축), 나머지 열이 잰 값 → 꺾은선 그래프', cols: ['시간(분)', '값'], n: 5 },
+    xy: { label: '두 값의 관계', hint: '첫 열이 바꾼 값, 둘째 열이 잰 값 → 산점도 · 추세선 · R²', cols: ['바꾼 값', '잰 값'], n: 5 },
+    free: { label: '자유 표', hint: '열 이름을 직접 정해 여러 항목을 기록 (그래프 없음)', cols: ['항목', '값', '메모'], n: 3 },
+    obs: { label: '관찰 기록', hint: '색 변화 · 있음/없음처럼 글로 남기는 결과', cols: ['조건', '관찰한 것'], n: 3 }
+  };
+  const SERIES = ['var(--exp)', 'var(--idea)', 'var(--q)', 'var(--res)', 'var(--done)'];
+  const num = (x) => { if (x === null || x === undefined || x === '') return null; const v = parseFloat(String(x).replace(',', '.')); return isFinite(v) && /^\s*[-+]?[\d.,]+(e[-+]?\d+)?\s*$/i.test(String(x)) ? v : null; };
   function stats(vals) { const v = vals.map(num).filter((x) => x !== null); if (!v.length) return null; const m = v.reduce((a, b) => a + b, 0) / v.length;
     const sd = v.length > 1 ? Math.sqrt(v.reduce((a, b) => a + (b - m) * (b - m), 0) / (v.length - 1)) : 0; return { n: v.length, m, sd }; }
-  const r3 = (x) => (Math.abs(x) >= 100 ? x.toFixed(1) : Math.abs(x) >= 1 ? x.toFixed(2) : x.toPrecision(3)).replace(/\.?0+$/, '');
-  function recRow(c, v) { v = v || []; return '<div class="rec-row"><input name="cond" placeholder="조건 (예: 소금 5%)" value="' + esc(c || '') + '">' + [0, 1, 2].map((k) => '<input name="v" inputmode="decimal" placeholder="' + (k + 1) + '회" value="' + esc(v[k] ?? '') + '">').join('') + '</div>'; }
+  const r3 = (x) => (Math.abs(x) >= 100 ? x.toFixed(1) : Math.abs(x) >= 1 ? x.toFixed(2) : x === 0 ? '0' : x.toPrecision(3)).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+  const unitOf = (h) => { const m = String(h || '').match(/\(([^)]+)\)\s*$/); return m ? m[1] : ''; };
+  // 예전 기록(rows: [{cond, v}]) → 표
+  function tableOf(r) {
+    if (r.table && r.table.cols) return r.table;
+    const rows = (r.rows || []).map((x) => [x.cond || ''].concat((x.v || []).map(String)));
+    const n = Math.max(3, ...rows.map((x) => x.length - 1));
+    return { cols: ['조건'].concat(Array.from({ length: n }, (_, i) => i + 1 + '회')), rows: rows.map((x) => x.concat(Array(n + 1 - x.length).fill(''))) };
+  }
+  const kindOf = (r) => r.kind || 'rep';
+
+  function gridHTML(t) {
+    return '<div class="grid-ed"><table><thead><tr>' + t.cols.map((c, j) => '<th><input data-h="' + j + '" value="' + esc(c) + '" aria-label="열 이름"></th>').join('') +
+      '<th class="ge-add"><button type="button" class="chipbtn" data-act="gCol" aria-label="열 추가">+ 열</button></th></tr></thead><tbody>' +
+      t.rows.map((row) => '<tr>' + t.cols.map((_, j) => '<td><input value="' + esc(row[j] ?? '') + '"' + (j ? ' inputmode="text"' : '') + '></td>').join('') + '<td></td></tr>').join('') +
+      '</tbody></table></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="chipbtn" data-act="gRow">+ 줄 추가</button><button type="button" class="chipbtn" data-act="gDelRow">마지막 줄 빼기</button><button type="button" class="chipbtn" data-act="gDelCol">마지막 열 빼기</button></div>';
+  }
+  function readGrid(fm) {
+    const cols = Array.from(fm.querySelectorAll('.grid-ed thead input')).map((i) => i.value.trim().slice(0, 30));
+    const rows = Array.from(fm.querySelectorAll('.grid-ed tbody tr')).map((tr) => Array.from(tr.querySelectorAll('input')).map((i) => i.value.trim().slice(0, 60))).filter((r) => r.some((x) => x !== ''));
+    return { cols, rows };
+  }
   function recordForm(n) {
-    const r = n.report || {}, rows = (r.rows && r.rows.length ? r.rows : [{}, {}, {}]);
+    const r = n.report || {}, kind = kindOf(r), t = r.table || r.rows ? tableOf(r) : { cols: KINDS[kind].cols.slice(), rows: Array.from({ length: KINDS[kind].n }, () => KINDS[kind].cols.map(() => '')) };
     openSheet('<h3>결과 기록 · ' + esc(code(n)) + '</h3><form id="recordForm" data-id="' + esc(n.id) + '" style="display:flex;flex-direction:column;gap:12px">' +
       '<label class="field">무엇을 했나요 (실험 요약)<textarea name="summary" maxlength="600" placeholder="예: 소금 농도 0 · 5 · 10%에서 물이 끓는 온도를 3번씩 쟀어요.">' + esc(r.summary || '') + '</textarea></label>' +
-      '<div class="field">측정값 <span class="muted" style="font-weight:400">조건마다 1~3회 값</span><div id="recRows" style="display:flex;flex-direction:column;gap:6px">' + rows.map((x) => recRow(x.cond, x.v)).join('') + '</div>' +
-      '<div style="display:flex;gap:8px;align-items:center"><button type="button" class="chipbtn" data-act="recRow">+ 줄 추가</button><label style="display:flex;gap:6px;align-items:center;font-weight:400">단위<input name="unit" maxlength="12" value="' + esc(r.unit || '') + '" placeholder="예: ℃" style="width:90px;min-height:36px"></label></div></div>' +
-      '<label class="field">관찰한 것<textarea name="observe" maxlength="800" placeholder="예: 농도가 높을수록 끓는점이 올라갔어요. 10%에서 거품이 많았어요.">' + esc(r.observe || '') + '</textarea></label>' +
+      '<div class="field">측정 방식<div class="kind-pick">' + Object.entries(KINDS).map(([k, v]) => '<button type="button" data-kind="' + k + '" aria-pressed="' + (k === kind) + '">' + v.label + '</button>').join('') + '</div>' +
+        '<small class="muted" id="kindHint" style="font-weight:400">' + KINDS[kind].hint + '</small><input type="hidden" name="kind" value="' + kind + '"></div>' +
+      '<div class="field">측정값 <span class="muted" style="font-weight:400">열 이름도 바꿀 수 있어요. 단위는 괄호 안에: 온도(℃)</span><div id="gridBox">' + gridHTML(t) + '</div>' +
+        '<label id="unitBox" style="display:' + (kind === 'rep' ? 'flex' : 'none') + ';gap:6px;align-items:center;font-weight:400">값의 단위<input name="unit" maxlength="12" value="' + esc(r.unit || '') + '" placeholder="예: ℃" style="width:100px;min-height:36px"></label></div>' +
+      '<label class="field">관찰한 것<textarea name="observe" maxlength="800" placeholder="예: 농도가 높을수록 끓는점이 올라갔어요.">' + esc(r.observe || '') + '</textarea></label>' +
       '<div class="field">결론 <span class="muted" style="font-weight:400">최종 판정은 관리자가 해요</span><div class="seg" style="grid-template-columns:repeat(3,1fr)">' + CLAIMS.map((c) => '<button type="button" data-claim="' + c + '" aria-pressed="' + (r.claim === c) + '">' + c + '</button>').join('') + '</div><input type="hidden" name="claim" value="' + esc(r.claim || '') + '"></div>' +
       '<label class="field">다음에 해 볼 것<textarea name="next" maxlength="400" placeholder="예: 설탕으로도 같은 실험">' + esc(r.next || '') + '</textarea></label>' +
       '<div class="btn-row"><button type="submit" class="btn" name="mode" value="draft">임시 저장</button><button type="submit" class="btn primary" name="mode" value="done">' + (n.status === '기록 완료' ? '고친 기록 저장' : '기록 완료로 제출') + '</button></div></form>');
   }
+  // 측정 방식 바꾸기: 표가 비어 있으면 그 방식의 기본 표로, 값이 있으면 그대로 두고 그래프만 바뀜
+  function pickKind(k) {
+    const fm = $('#recordForm'); if (!fm) return;
+    fm.querySelector('[name=kind]').value = k; $('#kindHint').textContent = KINDS[k].hint; $('#unitBox').style.display = k === 'rep' ? 'flex' : 'none';
+    fm.querySelectorAll('[data-kind]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.kind === k)));
+    const t = readGrid(fm);
+    if (!t.rows.length) $('#gridBox').innerHTML = gridHTML({ cols: KINDS[k].cols.slice(), rows: Array.from({ length: KINDS[k].n }, () => KINDS[k].cols.map(() => '')) });
+  }
+  function gridAct(act) {
+    const fm = $('#recordForm'); if (!fm) return; const t = readGrid(fm), all = Array.from(fm.querySelectorAll('.grid-ed tbody tr')).map((tr) => Array.from(tr.querySelectorAll('input')).map((i) => i.value));
+    if (act === 'gRow') all.push(t.cols.map(() => ''));
+    if (act === 'gDelRow' && all.length > 1) all.pop();
+    if (act === 'gCol' && t.cols.length < 12) { const k = fm.querySelector('[name=kind]').value; t.cols.push(k === 'rep' ? t.cols.length + '회' : '열 ' + (t.cols.length + 1)); all.forEach((r) => r.push('')); }
+    if (act === 'gDelCol' && t.cols.length > 1) { t.cols.pop(); all.forEach((r) => r.pop()); }
+    $('#gridBox').innerHTML = gridHTML({ cols: t.cols, rows: all });
+  }
   function saveRecord(fm, submitter) {
     const n = byId(fm.dataset.id); if (!n) return;
-    const fd = new FormData(fm), rows = Array.from(fm.querySelectorAll('.rec-row')).map((el) => ({ cond: el.querySelector('[name=cond]').value.trim().slice(0, 30), v: Array.from(el.querySelectorAll('[name=v]')).map((i) => i.value.trim()).filter((x) => x !== '').map((x) => num(x) ?? x) })).filter((r) => r.cond || r.v.length);
-    const done = submitter && submitter.value === 'done';
-    const rep = { summary: String(fd.get('summary') || '').trim(), unit: String(fd.get('unit') || '').trim(), rows, observe: String(fd.get('observe') || '').trim(), claim: String(fd.get('claim') || ''), next: String(fd.get('next') || '').trim(), by: meName(), at: dstr(TODAY) };
-    if (done && !rep.summary && !rows.length) return toast('요약이나 측정값을 하나는 넣어 주세요');
+    const fd = new FormData(fm), table = readGrid(fm), done = submitter && submitter.value === 'done';
+    const rep = { summary: String(fd.get('summary') || '').trim(), kind: String(fd.get('kind') || 'rep'), unit: String(fd.get('unit') || '').trim(), table, observe: String(fd.get('observe') || '').trim(), claim: String(fd.get('claim') || ''), next: String(fd.get('next') || '').trim(), by: meName(), at: dstr(TODAY) };
+    if (done && !rep.summary && !table.rows.length && !rep.observe) return toast('요약 · 측정값 · 관찰 중 하나는 넣어 주세요');
     if (done && !rep.claim) return toast('결론을 골라 주세요');
     n.report = rep;
     if (done && n.status === '실험 완료') { n.status = '기록 완료'; if (PF.mode !== 'live' || isAdmin()) n.verdict = rep.claim; PF.myMoves[n.id] = Date.now(); }
     save(); closeSheet(); render();
     toast(!done ? '임시 저장했어요' : (n.verdict ? '기록을 완료했어요' : '기록을 냈어요 · 관리자가 판정하면 확정돼요'));
   }
+
   function reportCard(n) {
-    const r = n.report, st = (r.rows || []).map((x) => ({ cond: x.cond, s: stats(x.v || []), v: x.v || [] }));
-    const has = st.some((x) => x.s);
-    let h = '<div class="card rec-card"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">결과 기록</b><span>' + esc(r.by || '') + (r.at ? ' · ' + fmt(r.at) : '') + '</span></div>';
+    const r = n.report, kind = kindOf(r), t = tableOf(r);
+    let h = '<div class="card rec-card"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">결과 기록</b><span>' + esc(KINDS[kind] ? KINDS[kind].label : '') + ' · ' + esc(r.by || '') + (r.at ? ' · ' + fmt(r.at) : '') + '</span></div>';
     if (r.summary) h += '<p>' + esc(r.summary) + '</p>';
-    if (has) {
-      h += barChart(st.filter((x) => x.s), r.unit);
-      h += '<div style="overflow-x:auto"><table class="rec-table"><thead><tr><th>조건</th><th>측정값</th><th>평균</th><th>표준편차</th></tr></thead><tbody>' +
-        st.map((x) => '<tr><td>' + esc(x.cond || '-') + '</td><td class="code">' + x.v.map((v) => esc(v)).join(' · ') + '</td><td class="code"><b>' + (x.s ? r3(x.s.m) : '-') + '</b>' + (r.unit ? ' ' + esc(r.unit) : '') + '</td><td class="code">' + (x.s && x.s.n > 1 ? '±' + r3(x.s.sd) : '-') + '</td></tr>').join('') + '</tbody></table></div>';
+    if (t.rows.length) {
+      if (kind === 'rep') {
+        const st = t.rows.map((row) => ({ cond: row[0], v: row.slice(1).filter((x) => x !== ''), s: stats(row.slice(1)) }));
+        if (st.some((x) => x.s)) h += barChart(st.filter((x) => x.s), r.unit);
+        h += tableHTML(t.cols.concat(['평균', '표준편차']), t.rows.map((row, i) => row.concat([st[i].s ? '<b>' + r3(st[i].s.m) + '</b>' + (r.unit ? ' ' + esc(r.unit) : '') : '-', st[i].s && st[i].s.n > 1 ? '±' + r3(st[i].s.sd) : '-'])), 2);
+      } else {
+        if (kind === 'line') h += lineChart(t); else if (kind === 'xy') h += xyChart(t);
+        h += tableHTML(t.cols, t.rows, 0);
+      }
     }
     if (r.observe) h += '<div><small class="muted">관찰한 것</small><p>' + esc(r.observe) + '</p></div>';
     h += '<div class="rec-claim"><span>결론 제안 <b>' + esc(r.claim || '-') + '</b></span><span>판정 ' + (n.verdict ? '<span class="badge ' + (n.verdict === '가설 기각' ? 't-bad' : n.verdict === '가설 지지' ? 't-ok' : 't-warn') + '">' + esc(n.verdict) + '</span>' : '<span class="badge t-neutral">판정 대기</span>') + '</span></div>';
@@ -703,18 +755,64 @@
     if (r.next) h += '<div><small class="muted">다음에 해 볼 것</small><p>' + esc(r.next) + '</p><button type="button" class="chipbtn" data-act="nextIdea">이걸로 아이디어 만들기</button></div>';
     return h + '</div>';
   }
-  // 막대 + 오차 막대(±표준편차)
+  // 표: rawTail = 끝에서 몇 열은 이미 HTML (평균 · 표준편차)
+  function tableHTML(cols, rows, rawTail) {
+    return '<div style="overflow-x:auto"><table class="rec-table"><thead><tr>' + cols.map((c) => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>' +
+      rows.map((row) => '<tr>' + row.map((v, j) => '<td' + (num(v) !== null || j >= row.length - rawTail ? ' class="code"' : '') + '>' + (j >= row.length - rawTail ? v : esc(v)) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>';
+  }
+
+  /* ---------- 그래프 ---------- */
+  const CW = 320, CH = 180, CL = 42, CB = 144, CT = 14, CR = 10;
+  const axisY = (min, max, y) => [max, (max + min) / 2, min].map((v) => '<text x="' + (CL - 6) + '" y="' + (y(v) + 4) + '" font-size="10" text-anchor="end" fill="var(--muted)">' + r3(v) + '</text><line x1="' + CL + '" x2="' + (CW - CR) + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="var(--line)" stroke-dasharray="3 4"/>').join('');
+  const svgWrap = (g, label, note) => '<svg viewBox="0 0 ' + CW + ' ' + CH + '" class="rec-chart" role="img" aria-label="' + esc(label) + '">' + g + '</svg>' + (note ? '<small class="muted" style="margin-top:-6px">' + note + '</small>' : '');
+  function range(vals, zero) { let lo = Math.min(...vals), hi = Math.max(...vals); if (zero) lo = Math.min(0, lo); if (hi === lo) { hi += 1; lo -= zero ? 0 : 1; } const pad = (hi - lo) * 0.08; return [zero && lo === 0 ? 0 : lo - pad, hi + pad]; }
+  // 조건별 반복: 막대 + 오차 막대(±표준편차)
   function barChart(st, unit) {
-    const W = 320, H = 170, L = 40, B = 136, T = 14, max = Math.max(...st.map((x) => x.s.m + x.s.sd)), min = Math.min(0, ...st.map((x) => x.s.m - x.s.sd));
-    const y = (v) => B - (v - min) / ((max - min) || 1) * (B - T), bw = Math.min(46, (W - L - 10) / st.length * 0.6), step = (W - L - 10) / st.length;
-    let g = '<line x1="' + L + '" y1="' + y(0) + '" x2="' + (W - 6) + '" y2="' + y(0) + '" stroke="var(--edge)"/>';
-    [max, (max + min) / 2].forEach((v) => { g += '<text x="' + (L - 6) + '" y="' + (y(v) + 4) + '" font-size="10" text-anchor="end" fill="var(--muted)">' + r3(v) + '</text><line x1="' + L + '" x2="' + (W - 6) + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="var(--line)" stroke-dasharray="3 4"/>'; });
-    st.forEach((x, i) => { const cx = L + step * i + step / 2, top = y(x.s.m);
-      g += '<rect x="' + (cx - bw / 2) + '" y="' + Math.min(top, y(0)) + '" width="' + bw + '" height="' + Math.abs(y(0) - top) + '" rx="4" fill="var(--exp)" opacity=".85"/>';
+    const [min, max] = range(st.flatMap((x) => [x.s.m + x.s.sd, x.s.m - x.s.sd]), true);
+    const y = (v) => CB - (v - min) / (max - min) * (CB - CT), step = (CW - CL - CR) / st.length, bw = Math.min(46, step * 0.6);
+    let g = axisY(min, max, y) + '<line x1="' + CL + '" y1="' + y(Math.max(min, 0)) + '" x2="' + (CW - CR) + '" y2="' + y(Math.max(min, 0)) + '" stroke="var(--edge)"/>';
+    st.forEach((x, i) => { const cx = CL + step * i + step / 2, top = y(x.s.m), base = y(Math.max(min, 0));
+      g += '<rect x="' + (cx - bw / 2) + '" y="' + Math.min(top, base) + '" width="' + bw + '" height="' + Math.abs(base - top) + '" rx="4" fill="var(--exp)" opacity=".85"/>';
       if (x.s.sd) g += '<path d="M' + cx + ' ' + y(x.s.m + x.s.sd) + 'V' + y(x.s.m - x.s.sd) + 'M' + (cx - 7) + ' ' + y(x.s.m + x.s.sd) + 'h14M' + (cx - 7) + ' ' + y(x.s.m - x.s.sd) + 'h14" stroke="var(--fg)" stroke-width="1.6"/>';
-      g += '<text x="' + cx + '" y="' + (top - 6 - (x.s.sd ? Math.abs(y(x.s.m + x.s.sd) - top) : 0)) + '" font-size="10.5" font-weight="700" text-anchor="middle" fill="var(--fg)">' + r3(x.s.m) + '</text>';
-      g += '<text x="' + cx + '" y="' + (B + 16) + '" font-size="11" text-anchor="middle" fill="var(--muted)">' + esc(String(x.cond || '').slice(0, 8)) + '</text>'; });
-    return '<svg viewBox="0 0 ' + W + ' ' + H + '" class="rec-chart" role="img" aria-label="조건별 평균 막대 그래프">' + g + (unit ? '<text x="4" y="12" font-size="10" fill="var(--muted)">' + esc(unit) + '</text>' : '') + '</svg><small class="muted" style="margin-top:-6px">막대: 평균 · 세로선: ±표준편차</small>';
+      g += '<text x="' + cx + '" y="' + (Math.min(top, y(x.s.m + x.s.sd)) - 5) + '" font-size="10.5" font-weight="700" text-anchor="middle" fill="var(--fg)">' + r3(x.s.m) + '</text>';
+      g += '<text x="' + cx + '" y="' + (CB + 16) + '" font-size="11" text-anchor="middle" fill="var(--muted)">' + esc(String(x.cond || '').slice(0, 8)) + '</text>'; });
+    if (unit) g += '<text x="4" y="11" font-size="10" fill="var(--muted)">' + esc(unit) + '</text>';
+    return svgWrap(g, '조건별 평균 막대 그래프', '막대: 평균 · 세로선: ±표준편차');
+  }
+  // 숫자로 읽을 수 있는 (x, 열들) 모으기
+  function xyData(t) {
+    const xs = t.rows.map((r) => num(r[0])), numericX = xs.filter((x) => x !== null).length >= Math.max(2, t.rows.length * 0.6);
+    const series = t.cols.slice(1).map((name, k) => ({ name, pts: t.rows.map((r, i) => ({ x: numericX ? xs[i] : i, lab: r[0], y: num(r[k + 1]) })).filter((p) => p.y !== null && (numericX ? p.x !== null : true)) })).filter((s) => s.pts.length >= 2);
+    return { numericX, series };
+  }
+  function lineChart(t) {
+    const d = xyData(t); if (!d.series.length) return '';
+    const allX = d.series.flatMap((s) => s.pts.map((p) => p.x)), allY = d.series.flatMap((s) => s.pts.map((p) => p.y));
+    const [x0, x1] = d.numericX ? [Math.min(...allX), Math.max(...allX)] : [0, Math.max(1, t.rows.length - 1)], [y0, y1] = range(allY, false);
+    const X = (v) => CL + (v - x0) / ((x1 - x0) || 1) * (CW - CL - CR), Y = (v) => CB - (v - y0) / (y1 - y0) * (CB - CT);
+    let g = axisY(y0, y1, Y);
+    (d.numericX ? [x0, (x0 + x1) / 2, x1] : [0, x1]).forEach((v) => { g += '<text x="' + X(v) + '" y="' + (CB + 16) + '" font-size="10" text-anchor="middle" fill="var(--muted)">' + (d.numericX ? r3(v) : esc(String(t.rows[Math.round(v)][0]).slice(0, 8))) + '</text>'; });
+    d.series.forEach((s, k) => { const c = SERIES[k % SERIES.length], pts = s.pts.slice().sort((a, b) => a.x - b.x);
+      g += '<path d="' + pts.map((p, i) => (i ? 'L' : 'M') + X(p.x) + ' ' + Y(p.y)).join('') + '" fill="none" stroke="' + c + '" stroke-width="2.5" stroke-linejoin="round"/>' + pts.map((p) => '<circle cx="' + X(p.x) + '" cy="' + Y(p.y) + '" r="3.5" fill="' + c + '"/>').join(''); });
+    g += '<text x="' + (CW - CR) + '" y="' + (CH - 4) + '" font-size="10" text-anchor="end" fill="var(--muted)">' + esc(t.cols[0]) + '</text>';
+    const legend = d.series.length > 1 ? d.series.map((s, k) => '<span class="lg"><i style="background:' + SERIES[k % SERIES.length] + '"></i>' + esc(s.name) + '</span>').join('') : esc(d.series[0].name);
+    return svgWrap(g, '시간에 따른 변화 꺾은선 그래프', legend);
+  }
+  function xyChart(t) {
+    const d = xyData(t); if (!d.numericX || !d.series.length) return lineChart(t);
+    const s = d.series[0], pts = s.pts, n = pts.length;
+    const mx = pts.reduce((a, p) => a + p.x, 0) / n, my = pts.reduce((a, p) => a + p.y, 0) / n;
+    const sxx = pts.reduce((a, p) => a + (p.x - mx) ** 2, 0), sxy = pts.reduce((a, p) => a + (p.x - mx) * (p.y - my), 0), syy = pts.reduce((a, p) => a + (p.y - my) ** 2, 0);
+    const b = sxx ? sxy / sxx : 0, a = my - b * mx, r2 = sxx && syy ? (sxy * sxy) / (sxx * syy) : 0;
+    const [x0, x1] = range(pts.map((p) => p.x), false), [y0, y1] = range(pts.map((p) => p.y).concat([a + b * x0, a + b * x1]), false);
+    const X = (v) => CL + (v - x0) / (x1 - x0) * (CW - CL - CR), Y = (v) => CB - (v - y0) / (y1 - y0) * (CB - CT);
+    let g = axisY(y0, y1, Y);
+    [x0, (x0 + x1) / 2, x1].forEach((v) => { g += '<text x="' + X(v) + '" y="' + (CB + 16) + '" font-size="10" text-anchor="middle" fill="var(--muted)">' + r3(v) + '</text>'; });
+    g += '<line x1="' + X(x0) + '" y1="' + Y(a + b * x0) + '" x2="' + X(x1) + '" y2="' + Y(a + b * x1) + '" stroke="var(--idea)" stroke-width="2" stroke-dasharray="6 4"/>';
+    g += pts.map((p) => '<circle cx="' + X(p.x) + '" cy="' + Y(p.y) + '" r="4" fill="var(--exp)" opacity=".9"/>').join('');
+    g += '<text x="' + (CW - CR) + '" y="' + (CH - 4) + '" font-size="10" text-anchor="end" fill="var(--muted)">' + esc(t.cols[0]) + '</text><text x="4" y="11" font-size="10" fill="var(--muted)">' + esc(s.name) + '</text>';
+    const eq = 'y = ' + r3(b) + 'x ' + (a < 0 ? '− ' : '+ ') + r3(Math.abs(a));
+    return svgWrap(g, '두 값의 관계 산점도', '점: 측정값 · 점선: 추세선 <span class="code">' + eq + '</span> · <b>R² = ' + r2.toFixed(3) + '</b>' + (r2 >= 0.9 ? ' (아주 강한 관계)' : r2 >= 0.6 ? ' (뚜렷한 관계)' : r2 >= 0.3 ? ' (약한 관계)' : ' (관계가 거의 없음)'));
   }
 
   /* ---------- 찾기 ---------- */
@@ -988,10 +1086,11 @@
     r.readAsDataURL(f);
   });
   $('#sheet').addEventListener('click', (e) => {
+    const kd = e.target.closest('[data-kind]'); if (kd) return pickKind(kd.dataset.kind);
     const cl = e.target.closest('[data-claim]'); if (cl) { $('#recordForm [name=claim]').value = cl.dataset.claim; cl.parentNode.querySelectorAll('[data-claim]').forEach((b) => b.setAttribute('aria-pressed', String(b === cl))); return; }
     const a = e.target.closest('[data-act]'); if (!a) return; const act = a.dataset.act;
     if (act === 'closeSheet') return closeSheet();
-    if (act === 'recRow') { $('#recRows').insertAdjacentHTML('beforeend', recRow()); return; }
+    if (['gRow', 'gCol', 'gDelRow', 'gDelCol'].includes(act)) return gridAct(act);
     if (act === 'approveDev' || act === 'denyDev') return devAction(act, a.dataset.id);
     if (['resetCode', 'setRole', 'setStatus'].includes(act)) return peopleAction(a);
     if (act === 'shareCode') { const t = a.dataset.text; if (navigator.share) navigator.share({ text: t }).catch(() => {}); else (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('복사했어요'), () => {}); }

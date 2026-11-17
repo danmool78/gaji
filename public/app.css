@@ -200,8 +200,20 @@ a.btn { text-decoration: none; color: var(--fg); } a.btn.primary { color: #fff; 
 html.loading body::before { content: ''; position: fixed; top: 0; left: 0; width: 40%; height: 3px; z-index: 1000; background: var(--brand); border-radius: 0 3px 3px 0; animation: gbar 1.1s ease-in-out infinite; }
 .toast-act { margin-left: 12px; border: 0; background: transparent; color: inherit; text-decoration: underline; text-underline-offset: 3px; font-weight: 800; font-size: 13px; cursor: pointer; padding: 4px 6px; pointer-events: auto; }
 .toast { pointer-events: auto; }
-.rec-row { display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr)); gap: 6px; }
+.rec-row-old { display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr)); gap: 6px; }
 .rec-row input { font: inherit; font-size: 15px; min-height: 42px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 0 10px; min-width: 0; }
+.kind-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+.kind-pick button { min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-weight: 700; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.kind-pick button[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: #fff; }
+.grid-ed { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+.grid-ed table { border-collapse: collapse; min-width: 100%; }
+.grid-ed th, .grid-ed td { padding: 0; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); }
+.grid-ed tr > :last-child { border-right: 0; } .grid-ed tbody tr:last-child td { border-bottom: 0; }
+.grid-ed input { width: 100%; min-width: 72px; border: 0; background: transparent; color: var(--fg); font: inherit; font-size: 15px; padding: 9px 10px; }
+.grid-ed thead input { font-weight: 700; font-size: 13px; color: var(--muted); background: var(--surface-2); }
+.grid-ed input:focus { outline: 2px solid var(--exp); outline-offset: -2px; }
+.grid-ed .ge-add { background: var(--surface-2); padding: 0 6px; width: 1%; }
+.lg { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; white-space: nowrap; } .lg i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 .rec-card { display: flex; flex-direction: column; gap: 12px; }
 .rec-card p { margin: 2px 0 0; font-size: 14px; line-height: 1.7; }
 .rec-chart { width: 100%; max-width: 460px; height: auto; }
