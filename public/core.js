@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.1.0';
+var GAJI_CONNECTOR_VERSION = '2.2.0';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util) {
@@ -25,6 +25,7 @@ function GajiCore(store, util) {
   /* 개인 코드 잠금: 연결기 비밀 열쇠(스크립트 속성, 시트에 없음)로 숫자마다 섞어서 저장 → 본인만 다시 볼 수 있음 */
   function seal(id, code) { var k = util.sha256(util.secret() + ':code:' + id), o = ''; for (var i = 0; i < code.length; i++) o += (Number(code[i]) + parseInt(k.substr(i * 2, 2), 16)) % 10; return 'v1:' + o; }
   function unseal(id, v) { if (!v || v.indexOf('v1:') !== 0) return ''; v = v.slice(3); var k = util.sha256(util.secret() + ':code:' + id), o = ''; for (var i = 0; i < v.length; i++) o += (Number(v[i]) - parseInt(k.substr(i * 2, 2), 16) % 10 + 10) % 10; return o; }
+  function val(v) { return v && typeof v === 'object' ? JSON.stringify(v) : str(v); }   // 기록(report) 같은 묶음 값 비교
   function str(v) { return v === undefined || v === null ? '' : String(v); }
   function initialized() { return setting('initializedAt', '') !== ''; }
 
@@ -159,7 +160,7 @@ function GajiCore(store, util) {
         }
         var u = cleanNode(old), changed = false;
         NODE_FIELDS.forEach(function (f) {
-          if (!(f in c) || str(c[f]) === str(old[f])) return;
+          if (!(f in c) || val(c[f]) === val(old[f])) return;
           if (!admin && f === 'verdict') { rejected.push(old.id + ':verdict'); return; }
           if (!admin && f === 'status' && STAGES.indexOf(c.status) >= 0 && STAGES.indexOf(c.status) < STAGES.indexOf(old.status)) {
             // 부원: 내가 방금(10분 안) 옮긴 단계는 한 단계만 되돌릴 수 있음 (실수 되돌리기)

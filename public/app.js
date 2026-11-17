@@ -633,6 +633,7 @@
       h += '<div class="card"><div class="panel-title"><span>이 실험의 가지 · ' + lineage(n).length + '세대' + (after(n) ? ' · 후속 ' + after(n) + '개' : '') + '</span><span>' + esc(lineName(lineage(n)[0].line)) + '</span></div>' + branchSvg(rows, n.id) + '</div>'; }
     if (n.type === 'idea') { const r = ready(n); h += '<div class="card conds">' + cond(r[0], '같이 해요 3명 이상 (' + (n.fans || 0) + '명)') + cond(r[1], n.volunteer ? '담당 지원 · ' + esc(n.volunteer) : '담당 지원자 없음') + cond(r[2], '과학실 장비로 가능') + '</div>'; }
     h += '<div class="btn-row">' + actions(n) + '</div>';
+    if (n.report) h += reportCard(n);
     h += '<div class="card"><dl class="kv"><dt>고유번호</dt><dd><span class="code">' + esc(uid(n)) + '</span> <span class="muted" style="font-size:12px">바뀌지 않음</span></dd>' + (n.owner ? '<dt>담당</dt><dd>' + esc(n.owner) + '</dd>' : '') + '<dt>' + (n.type === 'exp' ? '실험일' : '날짜') + '</dt><dd>' + fmt(n.date) + (isExpLike(n) && days(n.date) >= 0 && n.status !== '기록 완료' ? ' · D-' + days(n.date) : '') + '</dd></dl>' + (n.desc ? '<p style="margin:12px 0 0;font-size:14px;line-height:1.7">' + esc(n.desc) + '</p>' : '') + '</div>';
     h += '<div class="card"><div class="panel-title"><span>관련된 것</span><span>누르면 이동</span></div>' + relationSvg(n) + '</div>';
     return h;
@@ -647,11 +648,73 @@
     if (n.type === 'idea') { const ok = ready(n).every(Boolean);
       return '<button type="button" class="btn" data-act="fan">같이 해요 +1</button>' + (ok ? '<button type="button" class="btn primary" data-act="convert">계획서로 만들기</button>' : (!n.volunteer ? '<button type="button" class="btn" data-act="volunteer">담당 지원</button>' : '<button type="button" class="btn" data-act="equip">장비 확인</button>')); }
     if (n.type === 'exp' && n.status !== '취소') { const i = STAGES.indexOf(n.status);
-      return (i > 0 && i < STAGES.length - 1 ? '<button type="button" class="btn blue" data-act="advance">다음 단계: ' + STAGES[i + 1] + '</button>' : '') +
+      return (n.status === '실험 완료' ? '<button type="button" class="btn primary" data-act="record">결과 기록하기' + (n.report ? ' (이어서)' : '') + '</button>'
+          : n.status === '기록 완료' ? '<button type="button" class="btn" data-act="record">기록 고치기</button>'
+          : i > 0 && i < STAGES.length - 1 ? '<button type="button" class="btn blue" data-act="advance">다음 단계: ' + STAGES[i + 1] + '</button>' : '') +
         (canBack(n) ? '<button type="button" class="btn" data-act="stageBack">이전 단계로: ' + STAGES[i - 1] + '</button>' : '') +
         '<button type="button" class="btn" data-act="branch">이어서 가지 치기</button>'; }
     if (n.type === 'q' && n.status !== '해결') return '<button type="button" class="btn primary" data-act="solve">해결됨으로 표시</button><button type="button" class="btn" data-act="toIdea">실험 아이디어로</button>';
     return '';
+  }
+
+  /* ---------- 결과 기록 ---------- */
+  const CLAIMS = ['가설 지지', '가설 기각', '추가 실험 필요'];
+  const num = (x) => { const v = parseFloat(String(x).replace(',', '.')); return isFinite(v) ? v : null; };
+  function stats(vals) { const v = vals.map(num).filter((x) => x !== null); if (!v.length) return null; const m = v.reduce((a, b) => a + b, 0) / v.length;
+    const sd = v.length > 1 ? Math.sqrt(v.reduce((a, b) => a + (b - m) * (b - m), 0) / (v.length - 1)) : 0; return { n: v.length, m, sd }; }
+  const r3 = (x) => (Math.abs(x) >= 100 ? x.toFixed(1) : Math.abs(x) >= 1 ? x.toFixed(2) : x.toPrecision(3)).replace(/\.?0+$/, '');
+  function recRow(c, v) { v = v || []; return '<div class="rec-row"><input name="cond" placeholder="조건 (예: 소금 5%)" value="' + esc(c || '') + '">' + [0, 1, 2].map((k) => '<input name="v" inputmode="decimal" placeholder="' + (k + 1) + '회" value="' + esc(v[k] ?? '') + '">').join('') + '</div>'; }
+  function recordForm(n) {
+    const r = n.report || {}, rows = (r.rows && r.rows.length ? r.rows : [{}, {}, {}]);
+    openSheet('<h3>결과 기록 · ' + esc(code(n)) + '</h3><form id="recordForm" data-id="' + esc(n.id) + '" style="display:flex;flex-direction:column;gap:12px">' +
+      '<label class="field">무엇을 했나요 (실험 요약)<textarea name="summary" maxlength="600" placeholder="예: 소금 농도 0 · 5 · 10%에서 물이 끓는 온도를 3번씩 쟀어요.">' + esc(r.summary || '') + '</textarea></label>' +
+      '<div class="field">측정값 <span class="muted" style="font-weight:400">조건마다 1~3회 값</span><div id="recRows" style="display:flex;flex-direction:column;gap:6px">' + rows.map((x) => recRow(x.cond, x.v)).join('') + '</div>' +
+      '<div style="display:flex;gap:8px;align-items:center"><button type="button" class="chipbtn" data-act="recRow">+ 줄 추가</button><label style="display:flex;gap:6px;align-items:center;font-weight:400">단위<input name="unit" maxlength="12" value="' + esc(r.unit || '') + '" placeholder="예: ℃" style="width:90px;min-height:36px"></label></div></div>' +
+      '<label class="field">관찰한 것<textarea name="observe" maxlength="800" placeholder="예: 농도가 높을수록 끓는점이 올라갔어요. 10%에서 거품이 많았어요.">' + esc(r.observe || '') + '</textarea></label>' +
+      '<div class="field">결론 <span class="muted" style="font-weight:400">최종 판정은 관리자가 해요</span><div class="seg" style="grid-template-columns:repeat(3,1fr)">' + CLAIMS.map((c) => '<button type="button" data-claim="' + c + '" aria-pressed="' + (r.claim === c) + '">' + c + '</button>').join('') + '</div><input type="hidden" name="claim" value="' + esc(r.claim || '') + '"></div>' +
+      '<label class="field">다음에 해 볼 것<textarea name="next" maxlength="400" placeholder="예: 설탕으로도 같은 실험">' + esc(r.next || '') + '</textarea></label>' +
+      '<div class="btn-row"><button type="submit" class="btn" name="mode" value="draft">임시 저장</button><button type="submit" class="btn primary" name="mode" value="done">' + (n.status === '기록 완료' ? '고친 기록 저장' : '기록 완료로 제출') + '</button></div></form>');
+  }
+  function saveRecord(fm, submitter) {
+    const n = byId(fm.dataset.id); if (!n) return;
+    const fd = new FormData(fm), rows = Array.from(fm.querySelectorAll('.rec-row')).map((el) => ({ cond: el.querySelector('[name=cond]').value.trim().slice(0, 30), v: Array.from(el.querySelectorAll('[name=v]')).map((i) => i.value.trim()).filter((x) => x !== '').map((x) => num(x) ?? x) })).filter((r) => r.cond || r.v.length);
+    const done = submitter && submitter.value === 'done';
+    const rep = { summary: String(fd.get('summary') || '').trim(), unit: String(fd.get('unit') || '').trim(), rows, observe: String(fd.get('observe') || '').trim(), claim: String(fd.get('claim') || ''), next: String(fd.get('next') || '').trim(), by: meName(), at: dstr(TODAY) };
+    if (done && !rep.summary && !rows.length) return toast('요약이나 측정값을 하나는 넣어 주세요');
+    if (done && !rep.claim) return toast('결론을 골라 주세요');
+    n.report = rep;
+    if (done && n.status === '실험 완료') { n.status = '기록 완료'; if (PF.mode !== 'live' || isAdmin()) n.verdict = rep.claim; PF.myMoves[n.id] = Date.now(); }
+    save(); closeSheet(); render();
+    toast(!done ? '임시 저장했어요' : (n.verdict ? '기록을 완료했어요' : '기록을 냈어요 · 관리자가 판정하면 확정돼요'));
+  }
+  function reportCard(n) {
+    const r = n.report, st = (r.rows || []).map((x) => ({ cond: x.cond, s: stats(x.v || []), v: x.v || [] }));
+    const has = st.some((x) => x.s);
+    let h = '<div class="card rec-card"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">결과 기록</b><span>' + esc(r.by || '') + (r.at ? ' · ' + fmt(r.at) : '') + '</span></div>';
+    if (r.summary) h += '<p>' + esc(r.summary) + '</p>';
+    if (has) {
+      h += barChart(st.filter((x) => x.s), r.unit);
+      h += '<div style="overflow-x:auto"><table class="rec-table"><thead><tr><th>조건</th><th>측정값</th><th>평균</th><th>표준편차</th></tr></thead><tbody>' +
+        st.map((x) => '<tr><td>' + esc(x.cond || '-') + '</td><td class="code">' + x.v.map((v) => esc(v)).join(' · ') + '</td><td class="code"><b>' + (x.s ? r3(x.s.m) : '-') + '</b>' + (r.unit ? ' ' + esc(r.unit) : '') + '</td><td class="code">' + (x.s && x.s.n > 1 ? '±' + r3(x.s.sd) : '-') + '</td></tr>').join('') + '</tbody></table></div>';
+    }
+    if (r.observe) h += '<div><small class="muted">관찰한 것</small><p>' + esc(r.observe) + '</p></div>';
+    h += '<div class="rec-claim"><span>결론 제안 <b>' + esc(r.claim || '-') + '</b></span><span>판정 ' + (n.verdict ? '<span class="badge ' + (n.verdict === '가설 기각' ? 't-bad' : n.verdict === '가설 지지' ? 't-ok' : 't-warn') + '">' + esc(n.verdict) + '</span>' : '<span class="badge t-neutral">판정 대기</span>') + '</span></div>';
+    if (n.status === '기록 완료' && (PF.mode !== 'live' || isAdmin())) h += '<div class="seg" style="grid-template-columns:repeat(3,1fr)" aria-label="판정 (관리자)">' + CLAIMS.map((c) => '<button type="button" data-verdict="' + c + '" aria-pressed="' + (n.verdict === c) + '">' + c + '</button>').join('') + '</div>';
+    if (r.next) h += '<div><small class="muted">다음에 해 볼 것</small><p>' + esc(r.next) + '</p><button type="button" class="chipbtn" data-act="nextIdea">이걸로 아이디어 만들기</button></div>';
+    return h + '</div>';
+  }
+  // 막대 + 오차 막대(±표준편차)
+  function barChart(st, unit) {
+    const W = 320, H = 170, L = 40, B = 136, T = 14, max = Math.max(...st.map((x) => x.s.m + x.s.sd)), min = Math.min(0, ...st.map((x) => x.s.m - x.s.sd));
+    const y = (v) => B - (v - min) / ((max - min) || 1) * (B - T), bw = Math.min(46, (W - L - 10) / st.length * 0.6), step = (W - L - 10) / st.length;
+    let g = '<line x1="' + L + '" y1="' + y(0) + '" x2="' + (W - 6) + '" y2="' + y(0) + '" stroke="var(--edge)"/>';
+    [max, (max + min) / 2].forEach((v) => { g += '<text x="' + (L - 6) + '" y="' + (y(v) + 4) + '" font-size="10" text-anchor="end" fill="var(--muted)">' + r3(v) + '</text><line x1="' + L + '" x2="' + (W - 6) + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="var(--line)" stroke-dasharray="3 4"/>'; });
+    st.forEach((x, i) => { const cx = L + step * i + step / 2, top = y(x.s.m);
+      g += '<rect x="' + (cx - bw / 2) + '" y="' + Math.min(top, y(0)) + '" width="' + bw + '" height="' + Math.abs(y(0) - top) + '" rx="4" fill="var(--exp)" opacity=".85"/>';
+      if (x.s.sd) g += '<path d="M' + cx + ' ' + y(x.s.m + x.s.sd) + 'V' + y(x.s.m - x.s.sd) + 'M' + (cx - 7) + ' ' + y(x.s.m + x.s.sd) + 'h14M' + (cx - 7) + ' ' + y(x.s.m - x.s.sd) + 'h14" stroke="var(--fg)" stroke-width="1.6"/>';
+      g += '<text x="' + cx + '" y="' + (top - 6 - (x.s.sd ? Math.abs(y(x.s.m + x.s.sd) - top) : 0)) + '" font-size="10.5" font-weight="700" text-anchor="middle" fill="var(--fg)">' + r3(x.s.m) + '</text>';
+      g += '<text x="' + cx + '" y="' + (B + 16) + '" font-size="11" text-anchor="middle" fill="var(--muted)">' + esc(String(x.cond || '').slice(0, 8)) + '</text>'; });
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" class="rec-chart" role="img" aria-label="조건별 평균 막대 그래프">' + g + (unit ? '<text x="4" y="12" font-size="10" fill="var(--muted)">' + esc(unit) + '</text>' : '') + '</svg><small class="muted" style="margin-top:-6px">막대: 평균 · 세로선: ±표준편차</small>';
   }
 
   /* ---------- 찾기 ---------- */
@@ -837,6 +900,7 @@
     const gs = t.closest('[data-go-screen]'); if (gs) return go(gs.dataset.goScreen);
     const tm = t.closest('[data-tmode]'); if (tm) { prefs.treeMode = tm.dataset.tmode; savePrefs(); return render(); }
     if (t.closest('[data-fold]')) { prefs.showDone = !prefs.showDone; savePrefs(); return render(); }
+    const vd = t.closest('[data-verdict]'); if (vd) { const it2 = cur().s === 'item' ? byId(cur().arg) : null; if (it2) { it2.verdict = vd.dataset.verdict; save(); render(); toast('판정: ' + it2.verdict); } return; }
     const ty = t.closest('[data-ty]'); if (ty) { prefs.ty = ty.dataset.ty; savePrefs(); return render(); }
     const col = t.closest('[data-color]'); if (col) return saveBrand({ color: col.dataset.color });
     const th = t.closest('button[data-theme]'); if (th) { prefs.theme = th.dataset.theme; savePrefs(); return render(); }
@@ -884,6 +948,8 @@
       n.status = STAGES[i + 1]; if (n.status === '준비 중') n.signal = n.signal || 2; PF.myMoves[id] = Date.now();
       toast(n.status + ' 단계로 옮겼어요', { label: '되돌리기', fn: () => { const x = byId(id); if (!x) return; Object.assign(x, prev); save(); render(); toast(prev.status + ' 단계로 되돌렸어요'); } });
     }
+    if (act === 'record') return recordForm(n);
+    if (act === 'nextIdea') { const t = (n.report && n.report.next) || ''; newForm('idea', n); const ti = $('#newForm [name=title]'); if (ti) ti.value = t.slice(0, 60); return; }
     if (act === 'stageBack') { const i = STAGES.indexOf(n.status); if (i >= 2) { n.status = STAGES[i - 1]; if (!isAdmin()) delete PF.myMoves[n.id]; toast(n.status + ' 단계로 되돌렸어요'); } }
     if (act === 'solve') { n.status = '해결'; toast('해결됨으로 표시했어요'); }
     if (act === 'branch') { save(); return newForm('idea', n); }
@@ -922,8 +988,10 @@
     r.readAsDataURL(f);
   });
   $('#sheet').addEventListener('click', (e) => {
+    const cl = e.target.closest('[data-claim]'); if (cl) { $('#recordForm [name=claim]').value = cl.dataset.claim; cl.parentNode.querySelectorAll('[data-claim]').forEach((b) => b.setAttribute('aria-pressed', String(b === cl))); return; }
     const a = e.target.closest('[data-act]'); if (!a) return; const act = a.dataset.act;
     if (act === 'closeSheet') return closeSheet();
+    if (act === 'recRow') { $('#recRows').insertAdjacentHTML('beforeend', recRow()); return; }
     if (act === 'approveDev' || act === 'denyDev') return devAction(act, a.dataset.id);
     if (['resetCode', 'setRole', 'setStatus'].includes(act)) return peopleAction(a);
     if (act === 'shareCode') { const t = a.dataset.text; if (navigator.share) navigator.share({ text: t }).catch(() => {}); else (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('복사했어요'), () => {}); }
@@ -933,6 +1001,7 @@
     e.preventDefault(); if (id === 'joinForm') submitJoin(e.target); else if (id === 'masterJoinForm') submitMasterJoin(e.target); else submitConnect(e.target);
   });
   $('#sheet').addEventListener('submit', (e) => {
+    if (e.target.id === 'recordForm') { e.preventDefault(); return saveRecord(e.target, e.submitter); }
     if (e.target.id === 'addMemberForm') {
       e.preventDefault(); const fd = new FormData(e.target), name = String(fd.get('name')).trim(), btn = e.target.querySelector('[type=submit]'); btn.disabled = true;
       rpc('addMember', { studentId: String(fd.get('sid')).trim(), name }).then((r) => { PF.people = null; showCode(name, r.code); render(); }, (er) => { btn.disabled = false; if (!deviceLost(er)) toast(er.message); });
