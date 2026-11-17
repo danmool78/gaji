@@ -2195,9 +2195,11 @@
     const copyText = (txt, done) => (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast(done), () => toast('길게 눌러 복사해 주세요'));
     if (act === 'clearFilters') { ['fy', 'ff', 'fp', 'fs'].forEach((k) => delete prefs[k]); savePrefs(); return render(); }
     if (act === 'retry') return startClub();
-    if (act === 'findDone') { ['fy', 'ff', 'fp'].forEach((k) => delete prefs[k]); prefs.fs = '기록 완료'; prefs.ty = 'exp'; prefs.q = ''; savePrefs(); return tab('find'); }
-    if (act === 'findPerson') { prefs.fp = a.dataset.name; prefs.ty = 'all'; prefs.q = ''; savePrefs(); return tab('find'); }
-    if (act === 'findMine') { prefs.ty = 'mine'; prefs.q = ''; savePrefs(); return tab('find'); }
+    // 다른 화면에서 찾기로 넘어갈 때는 남아 있던 조건(연도 · 분야 · 사람 · 단계 · 검색어)을 비우고 필요한 것만
+    const findWith = (o) => { ['fy', 'ff', 'fp', 'fs'].forEach((k) => { prefs[k] = ''; }); prefs.q = ''; prefs.ty = o.ty || 'all'; if (o.fp) prefs.fp = o.fp; if (o.fs) prefs.fs = o.fs; savePrefs(); return tab('find'); };
+    if (act === 'findDone') return findWith({ ty: 'exp', fs: '기록 완료' });
+    if (act === 'findPerson') return findWith({ fp: a.dataset.name });
+    if (act === 'findMine') return findWith({ ty: 'mine' });
     if (act === 'demoWho') return demoWho();
     if (act === 'pfLogin') return PF.api && PF.api.login();
     if (act === 'askApprove') return askApprove();
