@@ -1193,14 +1193,49 @@
     return false;
   }
   /* ---------- 찾기 ---------- */
+  /* 찾기: 제목 · 번호뿐 아니라 계획서 · 진행 메모 · 결과 · 고찰 · 댓글 내용까지. 연도 · 분야 · 사람 · 단계로 좁히기 */
+  function searchParts(n) {
+    const p = n.plan || {}, r = n.report || {}, run = n.run || {}, out = [['제목', n.title], ['번호', code(n) + ' ' + uid(n)], ['설명', n.desc]];
+    PLAN.forEach(([k, l]) => { const v = p[k]; if (v && v.length) out.push(['계획서 · ' + l.replace(/ \(.*\)$/, ''), Array.isArray(v) ? v.join(' / ') : v]); });
+    (run.notes || []).forEach((x) => out.push(['진행 메모', x.text]));
+    [['summary', '결과 요약'], ['observe', '관찰'], ['discuss', '고찰'], ['conclusion', '결론'], ['next', '더 해 볼 것']].forEach(([k, l]) => { if (r[k]) out.push([l, r[k]]); });
+    if (r.table || r.rows) { const t = tableOf(r); out.push(['측정값', t.cols.join(' ') + ' ' + t.rows.map((x) => x.join(' ')).join(' / ')]); }
+    commentsOf(n.id).forEach((c) => { if (c.text) out.push([(CKIND[c.kind] || CKIND.note)[0] + ' · ' + c.by, c.text]); });
+    return out.filter((x) => x[1]);
+  }
+  const peopleOf = (n) => [...new Set([n.owner, n.createdBy, n.volunteer, n.plan && n.plan.by, n.report && n.report.by].concat(((n.run && n.run.notes) || []).map((x) => x.by)).filter((x) => x && x !== '나'))];
+  const yearOf = (n) => String(n.created || n.date || '').slice(0, 4);
+  const stageOf = (n) => n.type === 'idea' ? '아이디어' : n.type === 'q' ? (n.status === '해결' ? '해결된 질문' : '미해결 질문') : n.type === 'res' ? '자료' : n.status === '실험 완료' ? '기록 대기' : n.status;
+  function hiSnip(text, q) {
+    const t = String(text), i = t.toLowerCase().indexOf(q); if (i < 0) return esc(t.slice(0, 60));
+    const a = Math.max(0, i - 22), b = Math.min(t.length, i + q.length + 30);
+    return (a ? '…' : '') + esc(t.slice(a, i)) + '<mark>' + esc(t.slice(i, i + q.length)) + '</mark>' + esc(t.slice(i + q.length, b)) + (b < t.length ? '…' : '');
+  }
   function viewFind() {
-    const q = (prefs.q || '').trim().toLowerCase(), ty = prefs.ty || 'all';
-    const list = db.nodes.filter((n) => (ty === 'all' || n.type === ty || (ty === 'exp' && n.type === 'idea')) && (!q || n.title.toLowerCase().includes(q) || code(n).toLowerCase().includes(q) || uid(n).toLowerCase() === q))
-      .sort((a, b) => b.date.localeCompare(a.date));
+    const q = (prefs.q || '').trim().toLowerCase(), ty = prefs.ty || 'all', all = alive();
+    const F = { fy: prefs.fy || '', ff: prefs.ff || '', fp: prefs.fp || '', fs: prefs.fs || '' };
+    const list = [];
+    all.forEach((n) => {
+      if (!(ty === 'all' || n.type === ty || (ty === 'exp' && n.type === 'idea'))) return;
+      if (F.fy && yearOf(n) !== F.fy) return; if (F.ff && n.field !== F.ff) return; if (F.fp && !peopleOf(n).includes(F.fp)) return; if (F.fs && stageOf(n) !== F.fs) return;
+      if (!q) return list.push({ n, hit: null });
+      const terms = q.split(/\s+/).filter(Boolean), parts = searchParts(n), blob = parts.map((x) => x[1]).join(' ').toLowerCase();
+      if (!terms.every((w) => blob.includes(w))) return;
+      const hit = parts.find((x) => String(x[1]).toLowerCase().includes(q)) || parts.find((x) => String(x[1]).toLowerCase().includes(terms[0]));
+      list.push({ n, hit: hit && hit[0] !== '제목' && hit[0] !== '번호' ? hit : null, score: parts[0][1].toLowerCase().includes(terms[0]) ? 0 : 1 });
+    });
+    list.sort((a, b) => (a.score || 0) - (b.score || 0) || String(b.n.date).localeCompare(String(a.n.date)));
+    const opts = (id, label, values, cur) => '<label class="fsel"><span>' + label + '</span><select id="' + id + '"><option value="">전체</option>' + values.map((v) => '<option' + (v === cur ? ' selected' : '') + '>' + esc(v) + '</option>').join('') + '</select></label>';
+    const years = [...new Set(all.map(yearOf).filter(Boolean))].sort().reverse(), fields = Object.keys(FCODE).filter((f) => all.some((n) => n.field === f));
+    const people = [...new Set(all.flatMap(peopleOf))].sort(), stages = [...new Set(all.map(stageOf))];
     const chip = (k, label, c) => '<button type="button" class="chip" data-ty="' + k + '" aria-pressed="' + (ty === k) + '">' + (c ? '<i style="background:' + c + '"></i>' : '') + label + '</button>';
-    return '<label for="q" class="muted" style="font-size:13px;font-weight:700;margin:4px 2px -10px">제목 또는 번호로 찾기</label><input id="q" class="search" type="search" placeholder="예: 효소, CHE-019" value="' + esc(prefs.q || '') + '">' +
+    const filtered = F.fy || F.ff || F.fp || F.fs;
+    return '<label for="q" class="muted" style="font-size:13px;font-weight:700;margin:4px 2px -10px">제목 · 번호 · 내용으로 찾기</label><input id="q" class="search" type="search" placeholder="예: 전압, 레몬, CHE-019, 산화막" value="' + esc(prefs.q || '') + '">' +
       '<div class="chips" role="group" aria-label="종류">' + chip('all', '전체') + chip('exp', '실험 · 아이디어', 'var(--exp)') + chip('q', '질문', 'var(--q)') + chip('res', '자료', 'var(--res)') + '</div>' +
-      '<div class="day-list">' + (list.length ? list.map((n) => '<button type="button" class="srow" data-item="' + n.id + '">' + ico(n) + '<span class="tx"><small class="code">' + esc(code(n)) + '</small><b>' + esc(n.title) + '</b></span>' + badge(n) + '</button>').join('') : '<div class="card empty">찾는 항목이 없어요.</div>') + '</div>';
+      '<div class="fsels">' + opts('fy', '연도', years, F.fy) + opts('ff', '분야', fields, F.ff) + opts('fp', '사람', people, F.fp) + opts('fs', '단계', stages, F.fs) + '</div>' +
+      '<div class="find-count muted">' + list.length + '개' + (q ? ' · ‘' + esc(prefs.q.trim()) + '’' : '') + (filtered ? ' <button type="button" class="chipbtn" data-act="clearFilters">거르기 풀기</button>' : '') + '</div>' +
+      '<div class="day-list">' + (list.length ? list.map(({ n, hit }) => '<button type="button" class="srow" data-item="' + n.id + '">' + ico(n) + '<span class="tx"><small class="code">' + esc(code(n)) + ' · ' + esc(yearOf(n)) + (n.owner ? ' · ' + esc(n.owner) : '') + '</small><b>' + (q ? hiSnip(n.title, q.split(/\s+/)[0]) : esc(n.title)) + '</b>' +
+        (hit ? '<small class="snip"><em>' + esc(hit[0]) + '</em> ' + hiSnip(hit[1], String(hit[1]).toLowerCase().includes(q) ? q : q.split(/\s+/)[0]) + '</small>' : '') + '</span>' + badge(n) + '</button>').join('') : '<div class="card empty">찾는 항목이 없어요.</div>') + '</div>';
   }
 
   /* ---------- 더 보기 ---------- */
@@ -1319,7 +1354,7 @@
   function setHTML(sel, html) {
     const el = $(sel); if (lastHTML[sel] === html && el.innerHTML) return;
     const keep = [], act = document.activeElement;
-    el.querySelectorAll('input:not([type=file]):not([type=checkbox]),textarea,select').forEach((f) => { const k = (f.form ? f.form.id : '') + '|' + (f.id || f.name); if (f.value && !f.readOnly) keep.push([k, f.value]); });
+    el.querySelectorAll('input:not([type=file]):not([type=checkbox]):not([type=hidden]),textarea').forEach((f) => { const k = (f.form ? f.form.id : '') + '|' + (f.id || f.name); if (f.value && !f.readOnly) keep.push([k, f.value]); });
     const focusKey = act && el.contains(act) && /INPUT|TEXTAREA|SELECT/.test(act.tagName) ? [(act.form ? act.form.id : '') + '|' + (act.id || act.name), act.selectionStart, act.selectionEnd] : null;
     el.innerHTML = html; lastHTML[sel] = html; dbg('바뀜');
     if (DEBUG) dbg('바뀐이유', sel + ' ' + PF.mode + '/' + (nav[nav.length - 1] || {}).s + ' ' + ((new Error().stack || '').split('\n').slice(3, 6).map((l) => (l.match(/at (\S+)/) || [])[1] || '').join('←')) + ' @' + new Date().toLocaleTimeString());
@@ -1385,6 +1420,7 @@
     const n = ['item', 'run', 'report'].includes(cur().s) ? byId(cur().arg) : null, act = a.dataset.act;
     const did = a.dataset.id;
     const copyText = (txt, done) => (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast(done), () => toast('길게 눌러 복사해 주세요'));
+    if (act === 'clearFilters') { ['fy', 'ff', 'fp', 'fs'].forEach((k) => delete prefs[k]); savePrefs(); return render(); }
     if (act === 'retry') return startClub();
     if (act === 'pfLogin') return PF.api && PF.api.login();
     if (act === 'askApprove') return askApprove();
@@ -1458,6 +1494,7 @@
     if (e.target.id === 'clubInput' && !PF.club) { db.settings.clubName = e.target.value.trim() || '실험 동아리'; save(); applyBrand(); }
   });
   $('#screen').addEventListener('change', (e) => {
+    if (['fy', 'ff', 'fp', 'fs'].includes(e.target.id)) { prefs[e.target.id] = e.target.value; savePrefs(); return render(); }
     if (e.target.id === 'clubInput' && PF.club) return saveBrand({ name: e.target.value.trim().slice(0, 30) || PF.club.name });
     if (e.target.id === 'domainInput' && PF.club) { const d = e.target.value.trim().toLowerCase().replace(/^@/, '').slice(0, 60); PF.club.domain = d; PF.api.saveInfo({ domain: d }).then(() => toast('저장했어요'), () => toast('저장하지 못했어요')); return; }
     if (e.target.id !== 'logoFile' || !e.target.files[0]) return;

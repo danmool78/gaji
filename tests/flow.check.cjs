@@ -1,4 +1,4 @@
-// 체험 모드에서 레몬 전지 실험 전 과정(계획→검토→준비→진행→결과→보고서→가지 옮기기→댓글→휴지통). 실행: node tests/flow.check.cjs 390
+// 체험 모드에서 레몬 전지 실험 전 과정 + 찾기. 실행: node tests/flow.check.cjs 390
 // 고등학생 한 명이 레몬 전지 실험을 처음부터 끝까지 (체험 모드, 휴대폰 390)
 const { chromium } = require('playwright'); const http = require('http'), fs = require('fs'), path = require('path'); const P = require('path').join(__dirname, '../public');
 const srv = http.createServer((q, r) => { let f = path.join(P, q.url.split('?')[0]); if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) f = P + '/index.html'; r.writeHead(200, { 'content-type': f.endsWith('.js') ? 'text/javascript' : f.endsWith('.css') ? 'text/css' : f.endsWith('.html') ? 'text/html' : 'text/plain' }); fs.createReadStream(f).pipe(r); }).listen(5087);
@@ -104,6 +104,14 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) process
   await click('.tabs [data-tab="more"]'); await click('[data-go-screen="trash"]'); t = await body(); ok(t.includes('레몬 직렬 연결로 LED 켜기'), '휴지통에 있음');
   await click('[data-act=restore]'); t = await body(); ok(!t.includes('레몬 직렬 연결로 LED 켜기'), '되살리기');
   await shot('10-trash');
+  // 10. 내용으로 찾기
+  await click('.tabs [data-tab="find"]'); await p.fill('#q', '산화막'); await p.waitForTimeout(150);
+  t = await body(); ok(t.includes('레몬 전지') && /고찰|결론/.test(t) && (await p.$('mark')), '‘산화막’ → 고찰 내용으로 찾음');
+  await p.fill('#q', '알루미늄 호일'); await p.waitForTimeout(150); t = await p.textContent('.day-list'); ok(t.includes('진행 메모'), '‘알루미늄 호일’ → 진행 메모에서 찾음');
+  await p.fill('#q', '레몬 온도'); await p.waitForTimeout(150); t = await p.textContent('.day-list'); ok(t.includes('계획서 · 통제 변인') || t.includes('수정 요청'), '‘레몬 온도’ → 계획서 · 첨삭에서 찾음');
+  await p.fill('#q', ''); await p.selectOption('#fs', '기록 완료'); await p.waitForTimeout(100); t = await p.textContent('.day-list'); ok(t.includes('레몬 전지') && !t.includes('미해결'), '단계: 기록 완료로 거르기');
+  await p.selectOption('#ff', '화학'); await p.waitForTimeout(100); await shot('11-find');
+  await click('[data-act=clearFilters]'); ok(!(await p.inputValue('#fs')), '거르기 풀기');
   ok(!errs.length, '화면 오류 없음 ' + errs.join(' / '));
   ok(!wrapBad.length, '버튼 줄바꿈 · 넘침 없음 ' + wrapBad.join(' | '));
   await b.close(); srv.close();
