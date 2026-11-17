@@ -48,8 +48,8 @@
     // 'YYYY-MM-DD' 또는 'YYYY-MM-DDT…' 글자를 모두 오늘 기준으로 옮김 (계획서 · 진행 노트 · 댓글 · 사진 시각까지)
     const mv = (v) => { const d = new Date(String(v).slice(0, 10) + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + shiftDays); const ymd = d.toISOString().slice(0, 10); return String(v).length > 10 ? ymd + String(v).slice(10) : ymd; };
     const walk = (o) => { if (Array.isArray(o)) return o.map(walk); if (o && typeof o === 'object') { const r = {}; Object.keys(o).forEach((k) => { const nk = /^\d{4}-\d\d-\d\d/.test(k) ? k : k; r[nk] = walk(o[k]); }); return r; } return typeof o === 'string' && /^\d{4}-\d\d-\d\d(T[\d:.]+Z)?$/.test(o) ? mv(o) : o; };
-    const out = walk({ nodes: S.nodes, comments: S.comments || [], files: S.files || [], history: S.history || [], notice: S.notice || null });
-    S.nodes = out.nodes; S.comments = out.comments; S.files = out.files; S.history = out.history; S.notice = out.notice;
+    const out = walk({ nodes: S.nodes, comments: S.comments || [], files: S.files || [], history: S.history || [], notice: S.notice || null, events: S.events || [] });
+    S.nodes = out.nodes; S.comments = out.comments; S.files = out.files; S.history = out.history; S.notice = out.notice; S.events = out.events;
     S.lastNo = { exp: Math.max(27, ...S.nodes.filter((n) => n.type !== 'q' && n.type !== 'res').map((n) => n.no || 0)), q: Math.max(7, ...S.nodes.filter((n) => n.type === 'q').map((n) => n.no || 0)), res: 6 };
     S.day = dstr(new Date());
     return S;
@@ -180,7 +180,7 @@
     if (PF.isMaster && PF.api && !PF.statsSent) { PF.statsSent = true; rpc('stats', null, null, { quiet: true }).then((st) => PF.api.saveStats(st)).catch(() => {}); }
   }
   function applyLoad(d) {
-    PF.me = d.me; PF.rev = d.rev; PF.rules = d.rules || null; PF.notice = d.notice || null; PF.newDevices = (d.newDevices || []).filter((x) => !(prefs.seenDev || []).includes(x.id));
+    PF.me = d.me; PF.rev = d.rev; PF.rules = d.rules || null; PF.notice = d.notice || null; PF.events = d.events || []; PF.newDevices = (d.newDevices || []).filter((x) => !(prefs.seenDev || []).includes(x.id));
     db = { settings: db.settings, nodes: d.nodes.map(fixNode), links: d.links, lines: d.lines || {}, lastNo: d.lastNo || { exp: 0, q: 0, res: 0 }, comments: d.comments || [], files: d.files || [] }; PF.members = d.members || [];
     PF.base = snapshot(); PF.mode = 'live';
   }
@@ -699,27 +699,55 @@
     else { db.notice = text ? { text: text.slice(0, 1000), by: meName(), role: myRole(), at: nowIso() } : null; save(); }
     closeSheet(); render(); toast(text ? '공지를 올렸어요' : '공지를 지웠어요');
   }
+  // 달력 일정: 동아리 일정(관리자가 쓰고 모두 봄) · 내 일정(누구나 쓰고 나만 봄)
+  const curEvents = () => PF.mode === 'live' ? (PF.events || []) : (db.events || []).filter((e) => e.scope === 'club' || e.by === meName()).map((e) => Object.assign({}, e, { mine: e.by === meName() }));
+  function evAdd() {
+    const d0 = PF.calDay || dstr(TODAY), admin = isAdmin();
+    openSheet('<h3>일정 올리기</h3><form id="evForm" style="display:flex;flex-direction:column;gap:12px">' +
+      '<label class="field">날짜<input type="date" name="date" value="' + esc(d0) + '" required></label>' +
+      '<label class="field">내용<input name="title" maxlength="60" required placeholder="예: 다니엘 전지 재료 주문 · 발표회 · 대회 원서 마감"></label>' +
+      '<div class="field">누가 볼까요<div class="seg" style="grid-template-columns:repeat(2,1fr)"><button type="button" data-evscope="me" aria-pressed="true">내 일정 (나만)</button>' +
+      (admin ? '<button type="button" data-evscope="club" aria-pressed="false">동아리 일정 (모두)</button>' : '<button type="button" disabled title="기장 · 선생님만">동아리 일정 (기장 · 선생님)</button>') + '</div><input type="hidden" name="scope" value="me"></div>' +
+      '<div class="btn-row"><button type="button" class="btn" data-act="closeSheet">취소</button><button type="submit" class="btn primary">올리기</button></div></form>');
+  }
+  async function evSave(fd) {
+    const o = { date: String(fd.get('date') || ''), title: String(fd.get('title') || '').trim(), scope: fd.get('scope') === 'club' ? 'club' : 'me' };
+    if (!/^\d{4}-\d\d-\d\d$/.test(o.date) || !o.title) return toast('날짜와 내용을 넣어 주세요');
+    if (PF.mode === 'live') { try { PF.events = (await rpc('eventSet', Object.assign({ op: 'add' }, o))).events; } catch (e) { if (!deviceLost(e)) toast(e.message); return; } }
+    else { db.events = db.events || []; db.events.push(Object.assign({ id: 'e' + Date.now().toString(36), by: meName(), at: nowIso() }, o)); save(); }
+    PF.calDay = o.date; const t = new Date(o.date + 'T00:00:00'); PF.calOff = (t.getFullYear() - TODAY.getFullYear()) * 12 + t.getMonth() - TODAY.getMonth();
+    closeSheet(); render(); toast(o.scope === 'club' ? '동아리 일정을 올렸어요 · 모두에게 보여요' : '내 일정을 올렸어요 · 나만 보여요');
+  }
+  async function evDel(id) {
+    if (!confirm('이 일정을 지울까요?')) return;
+    if (PF.mode === 'live') { try { PF.events = (await rpc('eventSet', { op: 'delete', id })).events; } catch (e) { if (!deviceLost(e)) toast(e.message); return; } }
+    else { db.events = (db.events || []).filter((e) => e.id !== id); save(); }
+    render(); toast('지웠어요');
+  }
   /* 홈 달력: 실험 · 아이디어 날짜를 점으로, 날짜를 누르면 그날 목록 */
   function homeCalendar() {
     const off = PF.calOff || 0, base = new Date(TODAY.getFullYear(), TODAY.getMonth() + off, 1), y = base.getFullYear(), m = base.getMonth();
     const key = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     const byDay = {}; alive().filter((n) => (n.type === 'exp' || n.type === 'idea') && n.status !== '취소' && n.date).forEach((n) => { const k = String(n.date).slice(0, 10); (byDay[k] = byDay[k] || []).push(n); });
+    const evDay = {}; curEvents().forEach((e) => { (evDay[e.date] = evDay[e.date] || []).push(e); });
     const first = new Date(y, m, 1), start = new Date(first); start.setDate(1 - first.getDay());
     const todayK = key(TODAY), sel = PF.calDay && PF.calDay.slice(0, 7) === key(first).slice(0, 7) ? PF.calDay : '';
     let cells = '';
     for (let i = 0; i < 42; i++) {
-      const d = new Date(start); d.setDate(start.getDate() + i); const k = key(d), out = d.getMonth() !== m, list = byDay[k] || [];
+      const d = new Date(start); d.setDate(start.getDate() + i); const k = key(d), out = d.getMonth() !== m, list = byDay[k] || [], evs = evDay[k] || [], all = list.length + evs.length;
       if (i === 35 && out) break;   // 마지막 줄이 다음 달뿐이면 생략
-      cells += '<button type="button" class="cal-d' + (out ? ' out' : '') + (k === todayK ? ' today' : '') + (k === sel ? ' sel' : '') + (list.length ? ' has' : '') + '" data-calday="' + k + '"' + (list.length ? '' : ' tabindex="-1"') + ' aria-label="' + (d.getMonth() + 1) + '월 ' + d.getDate() + '일' + (list.length ? ' · ' + list.length + '개' : '') + '">' +
-        '<span class="cal-n">' + d.getDate() + '</span><span class="cal-dots">' + list.slice(0, 3).map((n) => '<i style="background:' + nodeColor(n) + '"></i>').join('') + (list.length > 3 ? '<b>+</b>' : '') + '</span></button>';
+      cells += '<button type="button" class="cal-d' + (out ? ' out' : '') + (k === todayK ? ' today' : '') + (k === sel ? ' sel' : '') + (all ? ' has' : '') + (evs.some((e) => e.scope === 'club') ? ' club' : '') + '" data-calday="' + k + '" aria-label="' + (d.getMonth() + 1) + '월 ' + d.getDate() + '일' + (all ? ' · ' + all + '개' : '') + '">' +
+        '<span class="cal-n">' + d.getDate() + '</span><span class="cal-dots">' + evs.slice(0, 2).map((e) => '<i class="ev ' + (e.scope === 'club' ? 'club' : 'me') + '"></i>').join('') + list.slice(0, Math.max(0, 3 - Math.min(2, evs.length))).map((n) => '<i style="background:' + nodeColor(n) + '"></i>').join('') + (all > 3 ? '<b>+</b>' : '') + '</span></button>';
     }
-    const items = sel ? (byDay[sel] || []) : [];
-    const cnt = Object.keys(byDay).filter((k) => k.slice(0, 7) === key(first).slice(0, 7)).reduce((a, k) => a + byDay[k].length, 0);
-    return '<h3 class="zone-sub">달력 <span class="cnt">' + cnt + '</span><small>' + y + '년 ' + (m + 1) + '월 실험 · 아이디어</small></h3>' +
+    const items = sel ? (byDay[sel] || []) : [], selEv = sel ? (evDay[sel] || []) : [];
+    const ym = key(first).slice(0, 7), cnt = Object.keys(byDay).filter((k) => k.slice(0, 7) === ym).reduce((a, k) => a + byDay[k].length, 0) + Object.keys(evDay).filter((k) => k.slice(0, 7) === ym).reduce((a, k) => a + evDay[k].length, 0);
+    return '<h3 class="zone-sub">달력 <span class="cnt">' + cnt + '</span><small>실험 · 동아리 일정 · 내 일정</small></h3>' +
       '<div class="cal"><div class="cal-top"><button type="button" class="chipbtn" data-calmove="-1" aria-label="이전 달">‹</button><b>' + (y !== TODAY.getFullYear() ? y + '년 ' : '') + (m + 1) + '월</b><button type="button" class="chipbtn" data-calmove="1" aria-label="다음 달">›</button>' +
-      (off ? '<button type="button" class="chipbtn" data-calmove="0">오늘</button>' : '') + '</div>' +
+      (off ? '<button type="button" class="chipbtn" data-calmove="0">오늘</button>' : '') + '<button type="button" class="chipbtn cal-add" data-act="evAdd">+ 일정</button></div>' +
       '<div class="cal-grid">' + WD.map((w, i) => '<span class="cal-w' + (i === 0 ? ' sun' : i === 6 ? ' sat' : '') + '">' + w + '</span>').join('') + cells + '</div>' +
-      (sel ? '<div class="cal-list"><div class="cal-lh"><b>' + Number(sel.slice(5, 7)) + '월 ' + Number(sel.slice(8, 10)) + '일</b><span class="muted">' + (items.length ? items.length + '개' : '예정 없음') + '</span></div>' +
+      (sel ? '<div class="cal-list"><div class="cal-lh"><b>' + Number(sel.slice(5, 7)) + '월 ' + Number(sel.slice(8, 10)) + '일</b><span class="muted">' + (items.length + selEv.length ? items.length + selEv.length + '개' : '예정 없음') + '</span><button type="button" class="chipbtn" data-act="evAdd" style="margin-left:auto">+ 이 날 일정</button></div>' +
+        selEv.map((e) => '<div class="ev-row ' + (e.scope === 'club' ? 'club' : 'me') + '"><span class="ev-tag">' + (e.scope === 'club' ? '동아리' : '내 일정') + '</span><b>' + esc(e.title) + '</b>' + (e.scope === 'club' ? '<span class="muted">' + esc(e.by) + '</span>' : '') +
+          (e.mine || (e.scope === 'club' && isAdmin()) ? '<button type="button" class="chipbtn" data-evdel="' + esc(e.id) + '">지우기</button>' : '') + '</div>').join('') +
         items.map((n) => '<button type="button" class="srow" data-item="' + esc(n.id) + '">' + ico(n) + '<span class="tx"><b>' + fieldTag(n) + esc(n.title) + '</b><small>' + esc([n.owner, lineName(n.line)].filter(Boolean).join(' · ')) + '</small></span>' + badge(n) + '</button>').join('') + '</div>' : '') + '</div>';
   }
   function viewHome() {
@@ -2206,6 +2234,7 @@
     if (t.closest('[data-fold]')) { prefs.showDone = !prefs.showDone; savePrefs(); return render(); }
     const vd = t.closest('[data-verdict]'); if (vd) { const it2 = cur().s === 'item' ? byId(cur().arg) : null; if (it2) { it2.verdict = vd.dataset.verdict; save(); render(); toast('판정: ' + it2.verdict); } return; }
     const ty = t.closest('[data-ty]'); if (ty) { prefs.ty = ty.dataset.ty; savePrefs(); return render(); }
+    const ed = t.closest('[data-evdel]'); if (ed) return evDel(ed.dataset.evdel);
     const cm = t.closest('[data-calmove]'); if (cm) { const v = Number(cm.dataset.calmove); PF.calOff = v ? (PF.calOff || 0) + v : 0; PF.calDay = ''; return render(); }
     const cd = t.closest('[data-calday]'); if (cd) { PF.calDay = PF.calDay === cd.dataset.calday ? '' : cd.dataset.calday; return render(); }
     const col = t.closest('[data-color]'); if (col) return saveBrand({ color: col.dataset.color });
@@ -2231,6 +2260,7 @@
     if (act === 'myCode') return myCode();
     if (act === 'backupNow') return backupNow();
     if (act === 'noticeEdit') return noticeEdit();
+    if (act === 'evAdd') return evAdd();
     if (act === 'history') { const hn = ['item', 'run', 'report'].includes(cur().s) ? byId(cur().arg) : null; if (hn) return openHistory(hn); }
     if (act === 'restoreOpen') return restoreOpen();
     if (act === 'restorePick') return restorePick(did);
@@ -2319,6 +2349,7 @@
   });
   $('#sheet').addEventListener('click', (e) => {
     const uk = e.target.closest('[data-ukind]'); if (uk) { const fm = uk.closest('form'); fm.querySelector('[name=kind' + uk.dataset.i + ']').value = uk.dataset.ukind; uk.parentNode.querySelectorAll('[data-ukind]').forEach((x) => x.setAttribute('aria-pressed', String(x === uk))); return; }
+    const es = e.target.closest('[data-evscope]'); if (es) { const f = es.closest('form'); f.querySelector('[name=scope]').value = es.dataset.evscope; f.querySelectorAll('[data-evscope]').forEach((x) => x.setAttribute('aria-pressed', String(x === es))); return; }
     const kd = e.target.closest('[data-kind]'); if (kd) return pickKind(kd.dataset.kind);
     const cl = e.target.closest('[data-claim]'); if (cl) { $('#recordForm [name=claim]').value = cl.dataset.claim; cl.parentNode.querySelectorAll('[data-claim]').forEach((b) => b.setAttribute('aria-pressed', String(b === cl))); return; }
     const a = e.target.closest('[data-act]'); if (!a) return; const act = a.dataset.act;
@@ -2359,6 +2390,7 @@
     if (e.target.id === 'uploadForm') { e.preventDefault(); return doUpload(e.target); }
     if (flowSubmit(e)) return;
     if (e.target.id === 'recordForm') { e.preventDefault(); return saveRecord(e.target, e.submitter); }
+    if (e.target.id === 'evForm') { e.preventDefault(); return evSave(new FormData(e.target)); }
     if (e.target.id === 'noticeForm') { e.preventDefault(); return noticeSave(new FormData(e.target).get('text')); }
     if (e.target.id === 'restoreForm') { e.preventDefault(); return restoreDo(e.target); }
     if (e.target.id === 'backupToForm') { e.preventDefault(); closeSheet(); return backupSet({ to: String(new FormData(e.target).get('to') || '').trim() }); }

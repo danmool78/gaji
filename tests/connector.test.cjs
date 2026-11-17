@@ -180,7 +180,7 @@ const mc2 = call({ action: 'myCode', device: r9b.data.device });
 ok('old code renewed', mc2.ok && mc2.data.renewed && /^\d{4}$/.test(mc2.data.code), mc2);
 ok('device kept after renew', call({ action: 'load', device: r9b.data.device }).ok);
 ok('new code works', call({ action: 'register', studentId: '20399', code: mc2.data.code }).ok);
-ok('ping version', call({ action: 'ping' }).data.version === '2.13.0');
+ok('ping version', call({ action: 'ping' }).data.version === '2.14.0');
 
 // 실수 되돌리기: 내가 10분 안에 옮긴 단계는 한 단계 되돌리기 가능
 call({ action: 'sync', device: M, nodes: [{ id: 'u1', type: 'exp', title: '되돌리기 시험', status: '검토 중', owner: '정다온', plan: PL, review: 2 }] });
@@ -519,6 +519,20 @@ let nt = call({ action: 'noticeSet', device: ADM, text: '금요일 7교시 <b>�
 ok('admin writes notice (tags stripped)', nt.ok && nt.data.notice.text === '금요일 7교시 b과학실/b 정리' && nt.data.notice.by, nt);
 ok('everyone sees notice on load', call({ action: 'load', device: OTH }).data.notice.text.includes('과학실'));
 ok('admin clears notice', call({ action: 'noticeSet', device: ADM, text: '' }).data.notice === null && call({ action: 'load', device: OTH }).data.notice === null);
+
+
+// ===== 2.14.0: 달력 일정 =====
+ok('member cannot add club event', call({ action: 'eventSet', device: OTH, scope: 'club', date: '2026-11-28', title: '발표회' }).code === 'not_admin');
+let ev = call({ action: 'eventSet', device: ADM, scope: 'club', date: '2026-11-28', title: '전지 연구 발표회' });
+ok('admin adds club event', ev.ok && ev.data.events.some((e) => e.scope === 'club' && e.title === '전지 연구 발표회'), ev);
+ev = call({ action: 'eventSet', device: OTH, scope: 'me', date: '2026-11-20', title: '재료 주문' });
+ok('member adds own event', ev.ok && ev.data.events.some((e) => e.title === '재료 주문' && e.mine));
+const evs = call({ action: 'load', device: MEM }).data.events;
+ok('others see club event but not my personal one', evs.some((e) => e.title === '전지 연구 발표회') && !evs.some((e) => e.title === '재료 주문'), evs);
+const mine = call({ action: 'load', device: OTH }).data.events.find((e) => e.title === '재료 주문');
+ok('others cannot delete my event', call({ action: 'eventSet', device: MEM, op: 'delete', id: mine.id }).code === 'not_mine');
+ok('bad date refused', call({ action: 'eventSet', device: OTH, date: '내일', title: 'x' }).code === 'bad');
+ok('I delete my event', !call({ action: 'eventSet', device: OTH, op: 'delete', id: mine.id }).data.events.some((e) => e.title === '재료 주문'));
 
 console.log(`connector: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

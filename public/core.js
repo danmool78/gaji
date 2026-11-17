@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.13.0';
+var GAJI_CONNECTOR_VERSION = '2.14.0';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
@@ -142,7 +142,7 @@ function GajiCore(store, util, drive) {
     var mine = store.rows('devices').filter(function (d) { return d.memberId === me.id; });
     var notice = mine.filter(function (d) { return d.id !== me.deviceId && d.status === '승인' && days(d.approvedAt) < 7; }).map(function (d) { return { id: d.id, label: d.label, at: d.approvedAt }; });
     return {
-      rev: Number(setting('rev', '0')), me: { id: me.id, name: me.name, role: me.role }, rules: rules(), notice: noticeGet(), nodes: nodes,
+      rev: Number(setting('rev', '0')), me: { id: me.id, name: me.name, role: me.role }, rules: rules(), notice: noticeGet(), events: eventsFor(me), nodes: nodes,
       links: store.rows('links').filter(function (l) { return !util.bool(l.off); }).map(function (l) { return { id: l.id, s: l.s, t: l.t, k: l.k }; }),
       files: (function () { var seen = {}; nodes.forEach(function (n) { seen[n.id] = 1; });
         return store.rows('files').filter(function (f) { return !util.bool(f.off) && seen[f.node]; }).map(fileOut); })(),
@@ -273,6 +273,32 @@ function GajiCore(store, util, drive) {
     setSetting('notice', text ? JSON.stringify({ text: text, by: me.name, role: me.role, at: util.now() }) : '');
     bump(); log(me, text ? '공지' : '공지 지움', text.slice(0, 60));
     return { notice: noticeGet() };
+  };
+
+  /* ---------- 달력 일정: 동아리 일정(관리자가 쓰고 모두 봄) · 내 일정(누구나 쓰고 나만 봄) ---------- */
+  function eventsFor(me) {
+    return store.rows('events').filter(function (e) { return !util.bool(e.off) && (e.scope === 'club' || e.byId === me.id); })
+      .map(function (e) { return { id: e.id, date: e.date, title: e.title, scope: e.scope, by: e.by, mine: e.byId === me.id }; });
+  }
+  A.eventSet = function (q) {
+    var me = deviceOf(q), admin = !!ADMIN[me.role], op = q.op || 'add'; limit('ev_' + me.id, 40, 600);
+    return util.lock(function () {
+      if (op === 'add') {
+        var scope = q.scope === 'club' ? 'club' : 'me';
+        if (scope === 'club' && !admin) err('not_admin', '동아리 일정은 기장 · 선생님만 올릴 수 있어요');
+        var date = String(q.date || ''), title = String(q.title || '').replace(/[<>]/g, '').trim().slice(0, 60);
+        if (!/^\d{4}-\d\d-\d\d$/.test(date) || !title) err('bad', '날짜와 내용을 넣어 주세요');
+        store.append('events', { id: newId('e'), date: date, title: title, scope: scope, by: me.name, byId: me.id, at: util.now(), off: '' });
+        if (scope === 'club') { bump(); log(me, '동아리 일정', date + ' ' + title); }
+      } else {
+        var e = store.rows('events').filter(function (x) { return x.id === q.id && !util.bool(x.off); })[0]; if (!e) err('bad', '일정을 찾을 수 없어요');
+        if (e.byId !== me.id && !(e.scope === 'club' && admin)) err('not_mine', '내가 올린 일정만 고치거나 지울 수 있어요');
+        if (op === 'delete') e.off = 'true';
+        else { if (q.date && /^\d{4}-\d\d-\d\d$/.test(q.date)) e.date = q.date; if (q.title) e.title = String(q.title).replace(/[<>]/g, '').trim().slice(0, 60); }
+        store.update('events', e._row, e); if (e.scope === 'club') bump();
+      }
+      return { events: eventsFor(me) };
+    });
   };
 
   A.sync = function (q) {
@@ -721,6 +747,7 @@ var GAJI_TABS = {
   comments: { name: '댓글', cols: ['id', 'node', 'sec', 'kind', 'text', 'by', 'byId', 'role', 'at', 'editedAt', 'resolved', 'off'] },
   lines: { name: '줄기', cols: ['key', 'name'] },
   log: { name: '기록', cols: ['at', 'member', 'device', 'action', 'detail'] },
+  events: { name: '일정', cols: ['id', 'date', 'title', 'scope', 'by', 'byId', 'at', 'off'] },
   history: { name: '변경 기록', cols: ['id', 'node', 'field', 'by', 'byId', 'at', 'before', 'after'] }
 };
 var GAJI_NUM = { no: 1, signal: 1, review: 1, fans: 1, size: 1 };
