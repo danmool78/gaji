@@ -66,8 +66,9 @@
   /* ================= 드라이브 연결 (동아리 연결기) =================
    * mode: demo(체험) · preview(마스터, 연결 전 · 예시 데이터) · closed(부원, 연결 전)
    *       join(학번 + 개인 코드) · pending(승인 기다림) · loading · error · live(연결됨) */
-  const NEED_VER = '1.2.0';   // 이 화면에 필요한 연결기 판
-  const verOld = (v) => { const a = String(v || '0').split('.').map(Number), b = NEED_VER.split('.').map(Number); for (let i = 0; i < 3; i++) { if ((a[i] || 0) !== b[i]) return (a[i] || 0) < b[i]; } return false; };
+  const NEED_VER = '1.1.0';   // 이 화면에 꼭 필요한 연결기 판 (이보다 낮을 때만 업데이트 안내)
+  const LATEST_VER = '1.2.0';
+  const verOld = (v, need) => { const a = String(v || '0').split('.').map(Number), b = (need || NEED_VER).split('.').map(Number); for (let i = 0; i < 3; i++) { if ((a[i] || 0) !== b[i]) return (a[i] || 0) < b[i]; } return false; };
   const GATE = new Set(['closed', 'join', 'pending', 'loading', 'error']);
   const devKey = () => 'gaji-dev:' + PF.slug;
   const getDev = () => { try { return JSON.parse(localStorage.getItem(devKey()) || 'null'); } catch (e) { return null; } };
@@ -226,6 +227,26 @@
     (navigator.clipboard ? navigator.clipboard.writeText(text + '\n' + link) : Promise.reject()).then(() => toast('메시지를 복사했어요 · 카톡에 붙여 넣어 주세요'), () => toast(link));
   }
 
+  /* 내 개인 코드 보기. 예전 판에서 만든 마스터 코드는 꺼낼 수 없으니 새로 만들고 이 기기를 마스터 키로 다시 연결 */
+  async function myCode() {
+    try {
+      const r = await rpc('myCode'); showCode(r.name, r.code, true);
+      if (r.renewed) toast('예전 판 코드라 새 코드를 만들었어요 · 앞으로 이 코드를 써요');
+    } catch (er) {
+      if (deviceLost(er)) return;
+      if (er.code === 'no_code' && PF.isMaster && PF.club.masterKey && PF.dev && PF.dev.studentId) {
+        try {
+          const rc = await rpc('resetCode', { id: PF.me.id });
+          const mr = await rpc('masterRegister', { masterKey: PF.club.masterKey, studentId: PF.dev.studentId, label: PF.dev.label || deviceLabel(), slug: PF.slug });
+          putDev(Object.assign({}, PF.dev, { id: mr.device.id, secret: mr.device.secret }));
+          showCode(PF.me.name, rc.code, true); toast('예전 판 코드라 새 코드를 만들었어요 · 앞으로 이 코드를 써요');
+        } catch (e2) { toast(e2.message); }
+        return;
+      }
+      toast(er.code === 'no_code' ? '예전 판에서 만든 코드라 볼 수 없어요. 관리자에게 코드 다시 만들기를 부탁해 주세요' : er.message);
+    }
+  }
+
   /* ---------- 승인 (관리자) ---------- */
   async function openApprove(id) {
     if (!isAdmin()) return toast('기기 승인은 관리자만 할 수 있어요');
@@ -300,7 +321,7 @@
       (PF.connAuth ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기가 응답하지 않아요 · 권한 허용이 필요할 수 있어요</span><span style="font-weight:400;line-height:1.7">① <b>연결기 권한 확인</b>을 눌러 새 창 열기<br>② ‘권한 필요’ 또는 ‘액세스 승인’이 나오면 → <b>권한 검토</b> → 내 계정 → <b>고급 → 이동 → 허용</b><br>③ 새 창에 <b>"gaji":true</b> 글자가 보이면 성공 → 여기서 <b>연결 시험</b></span></div>' : '') +
       (PF.connVer ? (verOld(PF.connVer)
         ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기 업데이트 필요 · 지금 ' + esc(PF.connVer) + ' → 새 판 ' + NEED_VER + '</span><span style="font-weight:400;line-height:1.7">① 아래 <b>연결기 코드 복사</b> → Apps Script에 덮어쓰고 저장<br>② <b>배포 → 배포 관리</b> → 연필 모양(수정) → 버전: <b>새 버전</b> → 배포<br>③ 여기서 <b>연결 시험</b> → ' + NEED_VER + ' 확인</span></div>'
-        : '<span class="muted" style="font-size:12px">연결기 ' + esc(PF.connVer) + ' · 최신</span>') : '') +
+        : '<span class="muted" style="font-size:12px">● 연결기 ' + esc(PF.connVer) + ' · 정상' + (verOld(PF.connVer, LATEST_VER) ? ' (새 판 ' + LATEST_VER + '은 급하지 않아요)' : '') + '</span>') : '') +
       '<div class="btn-row"><button type="button" class="btn" data-act="testConn">연결 시험</button><a class="btn" href="' + esc(c.connector) + '" target="_blank" rel="noopener">연결기 권한 확인</a><button type="button" class="btn" data-act="copyGs">연결기 코드 복사</button></div>' +
       '<span class="muted" style="font-size:12px;line-height:1.6">연결기를 새로 배포했거나 다른 시트로 옮길 때만 주소를 바꿔요.</span><button type="button" class="chipbtn" data-act="rewire">연결기 주소 바꾸기</button></div>';
     const step = (n, t, d, extra) => '<li class="wstep"><span class="wnum">' + n + '</span><div><b>' + t + '</b><span class="muted">' + d + '</span>' + (extra || '') + '</div></li>';
@@ -770,7 +791,7 @@
     if (act === 'retry') return startClub();
     if (act === 'pfLogin') return PF.api && PF.api.login();
     if (act === 'askApprove') return askApprove();
-    if (act === 'myCode') { rpc('myCode').then((r) => { showCode(r.name, r.code, true); if (r.renewed) toast('예전 판 코드라 새 코드를 만들었어요 · 앞으로 이 코드를 써요'); }, (er) => { if (!deviceLost(er)) toast(er.message); }); return; }
+    if (act === 'myCode') return myCode();
     if (act === 'restartJoin') { dropDev(); PF.mode = 'join'; return render(); }
     if (act === 'leaveDevice') { if (!confirm('이 기기에서 나갈까요? 다시 들어오려면 학번 · 개인 코드와 승인이 필요해요.')) return; rpc('block', { id: PF.dev.id }).catch(() => {}); dropDev(); PF.mode = 'join'; nav = [{ s: 'home' }]; return render(true); }
     if (act === 'openApprove') return openApprove(did);
@@ -785,7 +806,7 @@
       return render();
     }
     if (act === 'copyGs') return copyGs();
-    if (act === 'testConn') { rpc('ping').then((p) => { PF.connVer = p.version; PF.connAuth = false; render(); toast('연결 정상 · 연결기 ' + p.version + (verOld(p.version) ? ' · 업데이트 필요' : ' · 최신')); }, (er) => { if (er.code === 'network') { PF.connAuth = true; render(); } toast(er.code === 'network' ? '연결기가 응답하지 않아요 · 아래 안내대로 권한을 허용해 주세요' : er.message); }); return; }
+    if (act === 'testConn') { rpc('ping').then((p) => { PF.connVer = p.version; PF.connAuth = false; render(); toast('연결 정상 · 연결기 ' + p.version + (verOld(p.version) ? ' · 업데이트 필요' : '')); }, (er) => { if (er.code === 'network') { PF.connAuth = true; render(); } toast(er.code === 'network' ? '연결기가 응답하지 않아요 · 아래 안내대로 권한을 허용해 주세요' : er.message); }); return; }
     if (act === 'rewire') { PF.rewire = true; return render(); }
     if (act === 'rewireCancel') { PF.rewire = false; return render(); }
     if (act === 'reset') { db = freshSample(); save(); toast('예시 데이터로 되돌렸어요'); return render(); }
