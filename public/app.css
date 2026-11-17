@@ -633,3 +633,14 @@ body { overscroll-behavior-y: none; }
 .zone-hof { margin-top: 8px; }
 @media (min-width: 900px) { .hof { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (min-width: 560px) and (max-width: 899px) { .hof { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* 공지판 */
+.notice-board { display: flex; gap: 14px; align-items: flex-start; padding: 16px 18px; border-radius: 16px; border: 1.5px solid var(--brand); background: linear-gradient(120deg, var(--brand-soft), var(--surface) 70%); margin-bottom: 4px; }
+.notice-board.empty { align-items: center; border-style: dashed; background: var(--surface); }
+.notice-board.empty .btn { margin-left: auto; white-space: nowrap; }
+.nb-ic { width: 40px; height: 40px; border-radius: 12px; background: var(--brand); color: var(--on-brand, #fff); display: grid; place-items: center; flex: none; }
+.nb-ic svg { width: 22px; height: 22px; }
+.nb-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.nb-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.nb-head b { font-size: 15px; color: var(--brand); } .nb-head .chipbtn { margin-left: auto; }
+.notice-board p { margin: 0; font-size: 15.5px; line-height: 1.65; font-weight: 600; overflow-wrap: anywhere; }

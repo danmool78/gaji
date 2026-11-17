@@ -48,8 +48,8 @@
     // 'YYYY-MM-DD' 또는 'YYYY-MM-DDT…' 글자를 모두 오늘 기준으로 옮김 (계획서 · 진행 노트 · 댓글 · 사진 시각까지)
     const mv = (v) => { const d = new Date(String(v).slice(0, 10) + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + shiftDays); const ymd = d.toISOString().slice(0, 10); return String(v).length > 10 ? ymd + String(v).slice(10) : ymd; };
     const walk = (o) => { if (Array.isArray(o)) return o.map(walk); if (o && typeof o === 'object') { const r = {}; Object.keys(o).forEach((k) => { const nk = /^\d{4}-\d\d-\d\d/.test(k) ? k : k; r[nk] = walk(o[k]); }); return r; } return typeof o === 'string' && /^\d{4}-\d\d-\d\d(T[\d:.]+Z)?$/.test(o) ? mv(o) : o; };
-    const out = walk({ nodes: S.nodes, comments: S.comments || [], files: S.files || [], history: S.history || [] });
-    S.nodes = out.nodes; S.comments = out.comments; S.files = out.files; S.history = out.history;
+    const out = walk({ nodes: S.nodes, comments: S.comments || [], files: S.files || [], history: S.history || [], notice: S.notice || null });
+    S.nodes = out.nodes; S.comments = out.comments; S.files = out.files; S.history = out.history; S.notice = out.notice;
     S.lastNo = { exp: Math.max(27, ...S.nodes.filter((n) => n.type !== 'q' && n.type !== 'res').map((n) => n.no || 0)), q: Math.max(7, ...S.nodes.filter((n) => n.type === 'q').map((n) => n.no || 0)), res: 6 };
     S.day = dstr(new Date());
     return S;
@@ -180,7 +180,7 @@
     if (PF.isMaster && PF.api && !PF.statsSent) { PF.statsSent = true; rpc('stats', null, null, { quiet: true }).then((st) => PF.api.saveStats(st)).catch(() => {}); }
   }
   function applyLoad(d) {
-    PF.me = d.me; PF.rev = d.rev; PF.rules = d.rules || null; PF.newDevices = (d.newDevices || []).filter((x) => !(prefs.seenDev || []).includes(x.id));
+    PF.me = d.me; PF.rev = d.rev; PF.rules = d.rules || null; PF.notice = d.notice || null; PF.newDevices = (d.newDevices || []).filter((x) => !(prefs.seenDev || []).includes(x.id));
     db = { settings: db.settings, nodes: d.nodes.map(fixNode), links: d.links, lines: d.lines || {}, lastNo: d.lastNo || { exp: 0, q: 0, res: 0 }, comments: d.comments || [], files: d.files || [] }; PF.members = d.members || [];
     PF.base = snapshot(); PF.mode = 'live';
   }
@@ -677,6 +677,28 @@
       '<button type="button" class="hof-card" ' + (c.n ? 'data-item="' + esc(c.n.id) + '"' : 'data-act="findPerson" data-name="' + esc(c.who) + '"') + ' style="--i:' + i + '"><span class="hof-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="' + c.ic + '"/></svg></span>' +
       '<span class="hof-k">' + c.k + '</span><b class="hof-v">' + c.v + '</b>' + (c.n ? '<span class="hof-t">' + fieldTag(c.n) + esc(c.n.title) + '</span>' : '<span class="hof-t"><b>' + esc(c.who) + '</b></span>') + '<small class="muted">' + (c.n ? esc(c.s) : c.s) + '</small></button>').join('') + '</div></section>';
   }
+  /* 공지판: 하나뿐인 판 · 기장 · 관리자 · 선생님만 쓰고 고침 · 바뀌면 15초 안에 모두의 화면에 */
+  const curNotice = () => PF.mode === 'live' ? PF.notice : db.notice || null;
+  function noticeBoard() {
+    const nt = curNotice(), ed = isAdmin();
+    if (!nt && !ed) return '';
+    if (!nt) return '<div class="notice-board empty"><span class="nb-ic">' + NB_IC + '</span><span class="muted">공지판이 비어 있어요. 부원 모두에게 알릴 것이 있으면 적어 주세요.</span><button type="button" class="btn" data-act="noticeEdit">공지 쓰기</button></div>';
+    return '<div class="notice-board"><span class="nb-ic">' + NB_IC + '</span><div class="nb-body"><div class="nb-head"><b>공지</b><span class="muted">' + esc(nt.by) + (nt.role && nt.role !== '부원' ? ' · ' + esc(nt.role === '마스터' ? '기장' : nt.role === '교사' ? '선생님' : nt.role) : '') + ' · ' + esc(md(nt.at)) + ' ' + esc(hm(nt.at)) + '</span>' +
+      (ed ? '<button type="button" class="chipbtn" data-act="noticeEdit">고치기</button>' : '') + '</div><p>' + para(nt.text) + '</p></div></div>';
+  }
+  const NB_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12"/></svg>';
+  function noticeEdit() {
+    if (!isAdmin()) return toast('공지는 기장 · 선생님만 쓸 수 있어요');
+    const nt = curNotice();
+    openSheet('<h3>공지판</h3><form id="noticeForm" style="display:flex;flex-direction:column;gap:12px"><label class="field">부원 모두에게 보이는 공지 <span class="muted" style="font-weight:400">새로 쓰면 이전 공지는 바뀌어요</span><textarea name="text" rows="5" maxlength="1000" placeholder="예: 금요일 7교시 과학실 정리 · 레몬 전지 발표 자료는 목요일까지">' + esc(nt ? nt.text : '') + '</textarea></label>' +
+      '<div class="btn-row">' + (nt ? '<button type="button" class="btn" data-act="noticeClear">지우기</button>' : '') + '<button type="button" class="btn" data-act="closeSheet">취소</button><button type="submit" class="btn primary">올리기</button></div></form>');
+  }
+  async function noticeSave(text) {
+    text = String(text || '').trim();
+    if (PF.mode === 'live') { try { PF.notice = (await rpc('noticeSet', { text })).notice; } catch (e) { if (!deviceLost(e)) toast(e.message); return; } }
+    else { db.notice = text ? { text: text.slice(0, 1000), by: meName(), role: myRole(), at: nowIso() } : null; save(); }
+    closeSheet(); render(); toast(text ? '공지를 올렸어요' : '공지를 지웠어요');
+  }
   function viewHome() {
     const t = myTodos(), club = isAdmin() ? todos().filter((x) => !t.some((y) => y.n.id === x.n.id)) : [], allLines = computeLines(), lines = allLines.slice().sort((a, b) => b.rows.length - a.rows.length || (a.state === 'done') - (b.state === 'done')).slice(0, 3);
     const reps = alive().filter((n) => n.type === 'exp' && n.status === '기록 완료' && resultReady(n.report)).sort((a, b) => (isFinal(b) - isFinal(a)) || String(b.date).localeCompare(String(a.date)));
@@ -685,6 +707,7 @@
     return (nd.length ? '<div class="card notice"><b>내 이름으로 새 기기' + (nd.length > 1 ? ' ' + nd.length + '대가' : '가') + ' 승인됐어요</b><span class="muted" style="font-size:13px">내가 연 기기가 아니면 ‘내가 아님’을 눌러 바로 막으세요.</span>' +
       nd.map((d) => '<div class="nd-row"><span>' + esc(d.label || '기기') + ' · ' + esc(String(d.at).slice(5, 10).replace('-', '/')) + '</span><button type="button" class="chipbtn" data-act="notMe" data-id="' + esc(d.id) + '">내가 아님</button></div>').join('') +
       '<div class="btn-row"><button type="button" class="btn" data-act="seenAllDev">모두 내 기기예요 · 확인</button></div></div>' : '') +
+      noticeBoard() +
       '<div class="home-grid">' +
       // 왼쪽 = 해야 할 일
       '<section class="zone zone-do"><h2 class="zone-h"><span class="zone-dot"></span>해야 할 일<small>나와 동아리가 지금 챙길 것</small></h2>' +
@@ -692,7 +715,7 @@
       '<div class="todo">' + (t.length ? t.slice(0, 6).map((x) => '<button type="button" class="todo-item' + (x.req ? ' req' : '') + '" data-item="' + x.n.id + '">' + ico(x.n) + '<span class="tx"><b>' + fieldTag(x.n) + esc(x.n.title) + '</b><small>' + esc(x.why) + '</small></span>' + (x.req ? '<span class="badge t-warn">검토 요청</span>' : badge(x.n)) + '</button>').join('') +
         (t.length > 6 ? '<button type="button" class="fold" data-act="findMine">내 것 모두 보기 (' + t.length + ') →</button>' : '')
         : '<div class="card empty">지금 할 일이 없어요. 새 실험을 만들거나, 아이디어에 담당 지원해 보세요.</div>') + '</div>' +
-      (club.length ? '<h3 class="zone-sub">동아리 챙길 것 <small>기장 · 선생님</small></h3><div class="todo">' + club.slice(0, 3).map((x) => '<button type="button" class="todo-item" data-item="' + x.n.id + '">' + ico(x.n) + '<span class="tx"><b>' + fieldTag(x.n) + esc(x.n.title) + '</b><small>' + esc(x.why) + (x.n.owner ? ' · ' + esc(x.n.owner) : '') + '</small></span>' + badge(x.n) + '</button>').join('') + '</div>' : '') +
+      (club.length ? '<h3 class="zone-sub">동아리 챙길 것 <small>' + (club.length > 3 ? '급한 3개 · 모두 ' + club.length + '개' : '기장 · 선생님') + '</small></h3><div class="todo">' + club.slice(0, 3).map((x) => '<button type="button" class="todo-item" data-item="' + x.n.id + '">' + ico(x.n) + '<span class="tx"><b>' + fieldTag(x.n) + esc(x.n.title) + '</b><small>' + esc(x.why) + (x.n.owner ? ' · ' + esc(x.n.owner) : '') + '</small></span>' + badge(x.n) + '</button>').join('') + '</div>' + (club.length > 3 ? '<button type="button" class="fold" data-go-screen="board">동아리 챙길 것 모두 보기 (' + club.length + ') →</button>' : '') : '') +
       '<h3 class="zone-sub">새로 올리기</h3><div class="quick">' +
         '<button type="button" data-new="exp" style="background:#2F6FDB">' + svgIcon('exp', '#fff') + '새 실험</button>' +
         '<button type="button" data-new="idea" style="background:#B86200">' + svgIcon('idea', '#fff') + '아이디어</button>' +
@@ -2180,6 +2203,7 @@
     if (act === 'askApprove') return askApprove();
     if (act === 'myCode') return myCode();
     if (act === 'backupNow') return backupNow();
+    if (act === 'noticeEdit') return noticeEdit();
     if (act === 'history') { const hn = ['item', 'run', 'report'].includes(cur().s) ? byId(cur().arg) : null; if (hn) return openHistory(hn); }
     if (act === 'restoreOpen') return restoreOpen();
     if (act === 'restorePick') return restorePick(did);
@@ -2272,6 +2296,7 @@
     const cl = e.target.closest('[data-claim]'); if (cl) { $('#recordForm [name=claim]').value = cl.dataset.claim; cl.parentNode.querySelectorAll('[data-claim]').forEach((b) => b.setAttribute('aria-pressed', String(b === cl))); return; }
     const a = e.target.closest('[data-act]'); if (!a) return; const act = a.dataset.act;
     if (act === 'closeSheet') return closeSheet();
+    if (act === 'noticeClear') { if (confirm('공지를 지울까요?')) noticeSave(''); return; }
     if (act === 'revert') return revertHist(a.dataset.hid);
     if (act === 'restorePick') return restorePick(a.dataset.id);
     if (['gRow', 'gCol', 'gDelRow', 'gDelCol'].includes(act)) return gridAct(act);
@@ -2307,6 +2332,7 @@
     if (e.target.id === 'uploadForm') { e.preventDefault(); return doUpload(e.target); }
     if (flowSubmit(e)) return;
     if (e.target.id === 'recordForm') { e.preventDefault(); return saveRecord(e.target, e.submitter); }
+    if (e.target.id === 'noticeForm') { e.preventDefault(); return noticeSave(new FormData(e.target).get('text')); }
     if (e.target.id === 'restoreForm') { e.preventDefault(); return restoreDo(e.target); }
     if (e.target.id === 'backupToForm') { e.preventDefault(); closeSheet(); return backupSet({ to: String(new FormData(e.target).get('to') || '').trim() }); }
     if (e.target.id === 'addMemberForm') {

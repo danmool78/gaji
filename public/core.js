@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.12.0';
+var GAJI_CONNECTOR_VERSION = '2.13.0';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
@@ -142,7 +142,7 @@ function GajiCore(store, util, drive) {
     var mine = store.rows('devices').filter(function (d) { return d.memberId === me.id; });
     var notice = mine.filter(function (d) { return d.id !== me.deviceId && d.status === '승인' && days(d.approvedAt) < 7; }).map(function (d) { return { id: d.id, label: d.label, at: d.approvedAt }; });
     return {
-      rev: Number(setting('rev', '0')), me: { id: me.id, name: me.name, role: me.role }, rules: rules(), nodes: nodes,
+      rev: Number(setting('rev', '0')), me: { id: me.id, name: me.name, role: me.role }, rules: rules(), notice: noticeGet(), nodes: nodes,
       links: store.rows('links').filter(function (l) { return !util.bool(l.off); }).map(function (l) { return { id: l.id, s: l.s, t: l.t, k: l.k }; }),
       files: (function () { var seen = {}; nodes.forEach(function (n) { seen[n.id] = 1; });
         return store.rows('files').filter(function (f) { return !util.bool(f.off) && seen[f.node]; }).map(fileOut); })(),
@@ -264,6 +264,16 @@ function GajiCore(store, util, drive) {
   }
   // 너무 잦은 요청 막기 (기기 · 학번마다 일정 시간에 몇 번까지)
   function limit(key, n, sec) { if (util.hit && !util.hit(key, n, sec)) err('slow', '요청이 너무 많아요. 잠시 뒤 다시 해 주세요'); }
+
+  /* ---------- 공지판: 하나뿐인 판, 기장 · 관리자 · 선생님만 쓰고 고침 ---------- */
+  function noticeGet() { try { var v = JSON.parse(setting('notice', '') || 'null'); return v && v.text ? v : null; } catch (e) { return null; } }
+  A.noticeSet = function (q) {
+    var me = deviceOf(q); needAdmin(me); limit('nt_' + me.id, 20, 600);
+    var text = String(q.text || '').replace(/[<>]/g, '').trim().slice(0, 1000);
+    setSetting('notice', text ? JSON.stringify({ text: text, by: me.name, role: me.role, at: util.now() }) : '');
+    bump(); log(me, text ? '공지' : '공지 지움', text.slice(0, 60));
+    return { notice: noticeGet() };
+  };
 
   A.sync = function (q) {
     var me = deviceOf(q), admin = !!ADMIN[me.role]; limit('sy_' + me.id, 120, 60);

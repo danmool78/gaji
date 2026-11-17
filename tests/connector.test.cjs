@@ -180,7 +180,7 @@ const mc2 = call({ action: 'myCode', device: r9b.data.device });
 ok('old code renewed', mc2.ok && mc2.data.renewed && /^\d{4}$/.test(mc2.data.code), mc2);
 ok('device kept after renew', call({ action: 'load', device: r9b.data.device }).ok);
 ok('new code works', call({ action: 'register', studentId: '20399', code: mc2.data.code }).ok);
-ok('ping version', call({ action: 'ping' }).data.version === '2.12.0');
+ok('ping version', call({ action: 'ping' }).data.version === '2.13.0');
 
 // 실수 되돌리기: 내가 10분 안에 옮긴 단계는 한 단계 되돌리기 가능
 call({ action: 'sync', device: M, nodes: [{ id: 'u1', type: 'exp', title: '되돌리기 시험', status: '검토 중', owner: '정다온', plan: PL, review: 2 }] });
@@ -511,6 +511,14 @@ ok('too many tries → slowed down', slow.code === 'slow' || slow.code === 'lock
 let cmf = null; for (let i = 0; i < 45; i++) cmf = call({ action: 'comment', device: OTH, node: 'b1', text: '도배 ' + i });
 ok('comment flood → slowed down', cmf.code === 'slow', cmf);
 HITS.strict = false;
+
+
+// ===== 2.13.0: 공지판 =====
+ok('member cannot write notice', call({ action: 'noticeSet', device: OTH, text: '부원이 쓴 공지' }).code === 'not_admin');
+let nt = call({ action: 'noticeSet', device: ADM, text: '금요일 7교시 <b>과학실</b> 정리' });
+ok('admin writes notice (tags stripped)', nt.ok && nt.data.notice.text === '금요일 7교시 b과학실/b 정리' && nt.data.notice.by, nt);
+ok('everyone sees notice on load', call({ action: 'load', device: OTH }).data.notice.text.includes('과학실'));
+ok('admin clears notice', call({ action: 'noticeSet', device: ADM, text: '' }).data.notice === null && call({ action: 'load', device: OTH }).data.notice === null);
 
 console.log(`connector: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
