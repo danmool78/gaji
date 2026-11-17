@@ -1,4 +1,4 @@
-// 체험 모드에서 레몬 전지 실험 전 과정 + 찾기. 실행: node tests/flow.check.cjs 390
+// 체험 모드에서 레몬 전지 실험 전 과정 + 줄기 + 찾기. 실행: node tests/flow.check.cjs 390
 // 고등학생 한 명이 레몬 전지 실험을 처음부터 끝까지 (체험 모드, 휴대폰 390)
 const { chromium } = require('playwright'); const http = require('http'), fs = require('fs'), path = require('path'); const P = require('path').join(__dirname, '../public');
 const srv = http.createServer((q, r) => { let f = path.join(P, q.url.split('?')[0]); if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) f = P + '/index.html'; r.writeHead(200, { 'content-type': f.endsWith('.js') ? 'text/javascript' : f.endsWith('.css') ? 'text/css' : f.endsWith('.html') ? 'text/html' : 'text/plain' }); fs.createReadStream(f).pipe(r); }).listen(5087);
@@ -24,7 +24,9 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) process
 
   // 1. 새 실험 → 계획서가 바로 열림
   await click('[data-new="exp"]'); await p.fill('#newForm [name=title]', '레몬 전지: 전극 금속에 따라 전압이 달라질까?');
-  await p.selectOption('#newForm [name=field]', '화학'); await click('#newForm [type=submit]');
+  await p.selectOption('#newForm [name=field]', '화학');
+  ok((await p.inputValue('#newForm [name=newLine]')) === '레몬 전지', '새 줄기 이름 제안: 제목의 : 앞');
+  await p.fill('#newForm [name=newLine]', '전지 연구'); await click('#newForm [type=submit]');
   ok(await p.isVisible('#planForm'), '새 실험 → 계획서 창');
   const plan = {
     purpose: '과일 전지에서 어떤 금속을 쓰면 전압이 가장 높은지 알고 싶다. 전지의 원리(산화 · 환원)를 직접 확인한다.',
@@ -104,6 +106,12 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) process
   await click('.tabs [data-tab="more"]'); await click('[data-go-screen="trash"]'); t = await body(); ok(t.includes('레몬 직렬 연결로 LED 켜기'), '휴지통에 있음');
   await click('[data-act=restore]'); t = await body(); ok(!t.includes('레몬 직렬 연결로 LED 켜기'), '되살리기');
   await shot('10-trash');
+  // 9-1. 새 뿌리 실험을 같은 줄기로 → 줄기 바꾸기
+  await click('.tabs [data-tab="home"]'); await click('[data-new="exp"]'); await p.fill('#newForm [name=title]', '건전지 방전 곡선');
+  ok((await p.$eval('#newForm [name=line]', (e) => e.options[e.selectedIndex].text)) === '전지 연구', '지난번 줄기가 기본으로 골라짐');
+  await click('#newForm [type=submit]'); await p.keyboard.press('Escape'); await p.waitForTimeout(80);
+  await click('[data-act=itemMenu]'); await click('#sheet [data-act=editItem]'); await p.selectOption('#editForm [name=line]', '__new'); await p.fill('#editForm [name=newLine]', '전기 회로'); await click('#editForm [type=submit]');
+  t = await body(); ok(t.includes('전기 회로'), '줄기 바꾸기 (새 줄기)');
   // 10. 내용으로 찾기
   await click('.tabs [data-tab="find"]'); await p.fill('#q', '산화막'); await p.waitForTimeout(150);
   t = await body(); ok(t.includes('레몬 전지') && /고찰|결론/.test(t) && (await p.$('mark')), '‘산화막’ → 고찰 내용으로 찾음');

@@ -220,6 +220,9 @@
       pollRev();
     }, 15000);
   }
+  // 저장이 끝나기 전에 창을 닫으려 하면 붙잡기 (연결기 저장은 몇 초 걸림)
+  window.addEventListener('beforeunload', (e) => { if (PF.mode === 'live' && (PF.busy || (PF.base && dirty()))) { e.preventDefault(); e.returnValue = '아직 저장 중이에요'; return '아직 저장 중이에요'; } });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && PF.mode === 'live' && PF.base && dirty()) doSync(); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && PF.mode === 'live') { clearTimeout(pollRev.t); pollRev.t = setTimeout(() => rpc('rev', null, null, { quiet: true }).then((r) => { if (r.rev !== PF.rev && !dirty()) liveLoad(); else pollRev(); }, (e) => { if (!deviceLost(e)) pollRev(); }), 50); } });
 
   /* ---------- 들어가기 화면 (탭 없이 한 장) ---------- */
@@ -1079,7 +1082,7 @@
       '<label class="field">분야<select name="field">' + Object.keys(FCODE).map((f) => '<option' + (n.field === f ? ' selected' : '') + '>' + f + '</option>').join('') + '</select></label>' +
       '<label class="field">' + (n.type === 'exp' ? '실험 예정일' : '날짜') + '<input type="date" name="date" value="' + esc(n.date || '') + '"></label>' +
       (n.type !== 'q' ? '<label class="field">담당' + (owners.length ? '<select name="owner"><option value="">없음</option>' + owners.map((o) => '<option' + (n.owner === o ? ' selected' : '') + '>' + esc(o) + '</option>').join('') + '</select>' : '<input name="owner" maxlength="20" value="' + esc(n.owner || '') + '">') + '</label>' : '') +
-      (isExpLike(n) && !parentOf(n) ? '<label class="field">연구 줄기 이름<input name="lineName" maxlength="20" value="' + esc(lineName(n.line)) + '"></label>' : '') +
+      (isExpLike(n) && !parentOf(n) ? lineFields([...new Set(alive().map((x) => x.line).filter(Boolean))], n.line || '__new', '') + '<label class="field">이 줄기 이름 바꾸기<input name="lineName" maxlength="20" value="' + esc(lineName(n.line)) + '"></label>' : '') +
       '<label class="field">설명<textarea name="desc" rows="3" maxlength="600">' + esc(n.desc || '') + '</textarea></label>' +
       '<div class="btn-row"><button type="button" class="btn" data-act="closeSheet">취소</button><button type="submit" class="btn primary">저장</button></div></form>');
   }
@@ -1087,7 +1090,8 @@
     const n = byId(fm.dataset.id); if (!n) return; const fd = new FormData(fm);
     n.title = String(fd.get('title')).trim().slice(0, 60) || n.title; n.field = String(fd.get('field') || n.field); if (fd.get('date')) n.date = String(fd.get('date'));
     if (fd.has('owner')) n.owner = String(fd.get('owner') || '').trim(); n.desc = String(fd.get('desc') || '').trim();
-    if (fd.has('lineName') && n.line) { const ln = String(fd.get('lineName')).trim().slice(0, 20); if (ln) db.lines[n.line] = ln; }
+    if (fd.has('line') && fd.get('line') !== n.line) { const ln = pickLine(fd, n.title); descendants(n).forEach((id) => { const x = byId(id); if (x) x.line = ln; }); }
+    else if (fd.has('lineName') && n.line) { const ln = String(fd.get('lineName')).trim().slice(0, 20); if (ln) db.lines[n.line] = ln; }
     save(); closeSheet(); render(); toast('고쳤어요');
   }
   function descendants(n) { return treeRows([n]).map((r) => r.n.id); }
@@ -1347,8 +1351,21 @@
       '<label class="field">' + (type === 'q' ? '궁금한 것' : '제목') + '<input name="title" maxlength="60" required placeholder="' + (type === 'q' ? '예: 몰 농도는 언제 써요?' : '예: 소금 농도와 끓는점') + '"></label>' +
       '<label class="field">분야<select name="field">' + Object.keys(FCODE).map((f) => '<option' + (parent && parent.field === f ? ' selected' : '') + '>' + f + '</option>').join('') + '</select></label>' +
       (type !== 'q' ? '<label class="field">' + (type === 'exp' ? '실험 예정일' : '해 보고 싶은 때') + '<input type="date" name="date" value="' + dstr(d) + '" required></label>' +
-        (parent ? '' : '<label class="field">연구 줄기 (같은 주제끼리 묶여요)<select name="line"><option value="__new">새 줄기 만들기</option>' + lines.map((l) => '<option value="' + esc(l) + '">' + esc(lineName(l)) + '</option>').join('') + '</select></label>') : '') +
+        (parent ? '' : lineFields(lines, prefs.lastLine && lines.includes(prefs.lastLine) ? prefs.lastLine : '__new', '')) : '') +
       '<div class="btn-row"><button type="button" class="btn" data-act="closeSheet">취소</button><button type="submit" class="btn primary">만들기</button></div></form>');
+  }
+  // 연구 줄기: 같은 주제의 실험을 묶는 이름. 고르거나 새로 짓기
+  function lineFields(lines, cur, newName) {
+    return '<label class="field">연구 줄기 <span class="muted" style="font-weight:400">같은 주제끼리 묶여요 (예: 전지 연구)</span><select name="line" data-line-pick>' +
+      lines.map((l) => '<option value="' + esc(l) + '"' + (l === cur ? ' selected' : '') + '>' + esc(lineName(l)) + '</option>').join('') + '<option value="__new"' + (cur === '__new' ? ' selected' : '') + '>+ 새 줄기 만들기</option></select></label>' +
+      '<label class="field" data-new-line' + (cur === '__new' ? '' : ' hidden') + '>새 줄기 이름<input name="newLine" maxlength="20" value="' + esc(newName || '') + '" placeholder="예: 전지 연구"></label>';
+  }
+  const suggestLine = (title) => String(title || '').split(/[:：·\-—(]/)[0].trim().slice(0, 20);
+  function pickLine(fd, title) {
+    let ln = fd.get('line');
+    if (!ln || ln === '__new') { const name = String(fd.get('newLine') || '').trim().slice(0, 20) || suggestLine(title) || title.slice(0, 12);
+      ln = Object.keys(db.lines).find((k) => db.lines[k] === name) || 'L' + Date.now().toString(36); db.lines[ln] = name; }
+    prefs.lastLine = ln; savePrefs(); return ln;
   }
   function create(f, parent) {
     const fam = f.type === 'q' ? 'q' : f.type === 'res' ? 'res' : 'exp';
@@ -1545,6 +1562,13 @@
     const id = e.target.id; if (!['joinForm', 'masterJoinForm', 'connectForm'].includes(id)) return;
     e.preventDefault(); if (id === 'joinForm') submitJoin(e.target); else if (id === 'masterJoinForm') submitMasterJoin(e.target); else submitConnect(e.target);
   });
+  $('#sheet').addEventListener('change', (e) => {
+    if (e.target.matches('[data-line-pick]')) { const f = e.target.form, box = f.querySelector('[data-new-line]'); box.hidden = e.target.value !== '__new'; if (!box.hidden) { const i = box.querySelector('input'); if (!i.value) i.value = suggestLine((f.querySelector('[name=title]') || {}).value); i.focus(); } }
+  });
+  $('#sheet').addEventListener('input', (e) => {
+    if (e.target.name === 'title' && e.target.form && e.target.form.id === 'newForm') { const box = e.target.form.querySelector('[data-new-line]'); if (box && !box.hidden) { const i = box.querySelector('input'); if (!i.dataset.touched) i.value = suggestLine(e.target.value); } }
+    if (e.target.name === 'newLine') e.target.dataset.touched = '1';
+  });
   $('#sheet').addEventListener('submit', (e) => {
     if (flowSubmit(e)) return;
     if (e.target.id === 'recordForm') { e.preventDefault(); return saveRecord(e.target, e.submitter); }
@@ -1556,7 +1580,7 @@
     e.preventDefault(); const fm = e.target, fd = new FormData(fm), type = fm.dataset.type, parent = fm.dataset.parent ? byId(fm.dataset.parent) : null;
     const title = String(fd.get('title') || '').trim(); if (!title) return;
     const f = { type, title, field: fd.get('field'), date: fd.get('date') || dstr(TODAY) };
-    if (type !== 'q') { let ln = parent ? parent.line : fd.get('line'); if (!ln || ln === '__new') { ln = 'L' + Date.now().toString(36); db.lines[ln] = title.slice(0, 12); } f.line = ln; }
+    if (type !== 'q') f.line = parent ? parent.line : pickLine(fd, title);
     if (type === 'exp') Object.assign(f, { status: '계획 작성', owner: meName(), signal: 0, review: 0 });
     if (type === 'idea') Object.assign(f, { status: '아이디어', fans: 1, volunteer: '', equip: false });
     if (type === 'q') f.status = '미해결';
