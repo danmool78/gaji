@@ -771,3 +771,8 @@ textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3p
 .rp-club b { font-size: 15px; } .rp-sbox b { font-size: 13.5px; }
 @media (max-width: 700px) { .report { font-size: 13.5px; } .rp-cover h2 { font-size: 20px; } .rp-h h3 { font-size: 15px; } }
 @media print { .report { font-size: 10pt; line-height: 1.75; } .rp-cover h2 { font-size: 18pt; } .rp-h h3 { font-size: 12pt; } .rp-cover .rp-meta { font-size: 9pt; } }
+/* 바로 찍기: 폰 · 태블릿에서만, 뒤쪽 카메라가 바로 켜짐 */
+.upl-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.upl-row .btn { flex: 1 1 140px; }
+.btn.upl.cam { display: none; background: var(--brand); border-color: var(--brand); color: var(--on-brand, #fff); gap: 6px; font-weight: 800; }
+@media (pointer: coarse) { .btn.upl.cam { display: inline-flex; align-items: center; justify-content: center; } }

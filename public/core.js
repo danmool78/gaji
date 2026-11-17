@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.16.0';
+var GAJI_CONNECTOR_VERSION = '2.17.0';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
@@ -174,7 +174,8 @@ function GajiCore(store, util, drive) {
      선생님(역할 '교사')이 아직 없으면 선생님 승인은 빼고 적용 */
   function rules() {
     var p = Math.round(Number(setting('approvePeers', '2'))); if (!(p >= 0 && p <= 5)) p = 2;
-    return { peers: p, team: setting('approveTeam', 'off') === 'on', teacher: setting('approveTeacher', 'final') === 'none' ? 'none' : 'final', skip: setting('approveSkip', 'off') === 'on' };
+    return { peers: p, team: setting('approveTeam', 'off') === 'on', teacher: setting('approveTeacher', 'final') === 'none' ? 'none' : 'final', skip: setting('approveSkip', 'off') === 'on',
+      expTeacher: setting('approveExpTeacher', 'on') !== 'off', expLeader: setting('approveExpLeader', 'on') !== 'off' };   // 실험일(실험실 사용): 선생님 허가 필요 · 기장 대행
   }
   function approvalsOf(n) {
     var R = rules(), t = teachers();
@@ -278,11 +279,13 @@ function GajiCore(store, util, drive) {
   /* ---------- 달력 일정: 동아리 일정(관리자가 쓰고 모두 봄) · 내 일정(누구나 쓰고 나만 봄) ---------- */
   function eventsFor(me) {
     // 동아리 일정 · 승인된 실험일은 모두에게, 내 일정은 나에게만, 승인 대기 실험일은 올린 사람과 승인하는 사람(선생님 · 마스터)에게만
-    var ap = APPROVER[me.role];
-    return store.rows('events').filter(function (e) { if (util.bool(e.off)) return false; if (e.scope === 'club') return true; if (e.scope === 'exp') return e.state === 'ok' || e.byId === me.id || ap; return e.byId === me.id; })
+    var ap = expApprover(me), need = expNeedsOk();
+    return store.rows('events').map(function (e) { if (!need && e.scope === 'exp' && e.state === 'wait') e.state = 'ok'; return e; }).filter(function (e) { if (util.bool(e.off)) return false; if (e.scope === 'club') return true; if (e.scope === 'exp') return e.state === 'ok' || e.byId === me.id || ap; return e.byId === me.id; })
       .map(function (e) { return { id: e.id, date: e.date, title: e.title, scope: e.scope, by: e.by, mine: e.byId === me.id, node: e.node || '', state: e.scope === 'exp' ? (e.state || 'ok') : '', okBy: e.okBy || '' }; });
   }
-  var APPROVER = { '교사': 1, '마스터': 1 };   // 실험일 승인: 선생님 · 마스터(기장)
+  // 실험일 승인: 선생님. 설정에서 허용하면 기장(마스터)이 대행. 선생님이 아직 없으면 기장이 대신함
+  function expApprover(me) { var R = rules(); if (me.role === '교사') return true; return me.role === '마스터' && (R.expLeader || !teachers().length); }
+  function expNeedsOk() { return rules().expTeacher; }
   A.eventSet = function (q) {
     var me = deviceOf(q), admin = !!ADMIN[me.role], op = q.op || 'add'; limit('ev_' + me.id, 40, 600);
     return util.lock(function () {
@@ -298,19 +301,19 @@ function GajiCore(store, util, drive) {
           node = n.id; title = n.title.slice(0, 60);
         }
         if (!/^\d{4}-\d\d-\d\d$/.test(date) || !title) err('bad', '날짜와 내용을 넣어 주세요');
-        store.append('events', { id: newId('e'), date: date, title: title, scope: scope, by: me.name, byId: me.id, at: util.now(), off: '', node: node, state: scope === 'exp' ? (APPROVER[me.role] ? 'ok' : 'wait') : '', okBy: scope === 'exp' && APPROVER[me.role] ? me.name : '' });
+        store.append('events', { id: newId('e'), date: date, title: title, scope: scope, by: me.name, byId: me.id, at: util.now(), off: '', node: node, state: scope === 'exp' ? (!expNeedsOk() || expApprover(me) ? 'ok' : 'wait') : '', okBy: scope === 'exp' && expNeedsOk() && expApprover(me) ? me.name : '' });
         if (scope !== 'me') { bump(); log(me, scope === 'club' ? '동아리 일정' : '실험일', date + ' ' + title); }
       } else {
         var e = store.rows('events').filter(function (x) { return x.id === q.id && !util.bool(x.off); })[0]; if (!e) err('bad', '일정을 찾을 수 없어요');
         if (op === 'approve' || op === 'reject') {
           if (e.scope !== 'exp') err('bad', '실험일만 승인해요');
-          if (!APPROVER[me.role]) err('not_approver', '실험일은 선생님 · 마스터(기장)만 승인할 수 있어요');
+          if (!expApprover(me)) err('not_approver', rules().expLeader ? '실험일은 선생님이나 기장(마스터)만 승인할 수 있어요' : '실험일은 지도 선생님만 승인할 수 있어요');
           e.state = op === 'approve' ? 'ok' : 'no'; e.okBy = me.name; store.update('events', e._row, e); bump(); log(me, op === 'approve' ? '실험일 승인' : '실험일 거절', e.date + ' ' + e.title);
           return { events: eventsFor(me) };
         }
         if (e.byId !== me.id && !(e.scope !== 'me' && admin)) err('not_mine', '내가 올린 일정만 고치거나 지울 수 있어요');
         if (op === 'delete') e.off = 'true';
-        else { if (q.date && /^\d{4}-\d\d-\d\d$/.test(q.date) && q.date !== e.date) { e.date = q.date; if (e.scope === 'exp' && !APPROVER[me.role]) { e.state = 'wait'; e.okBy = ''; } } if (q.title && e.scope !== 'exp') e.title = String(q.title).replace(/[<>]/g, '').trim().slice(0, 60); }
+        else { if (q.date && /^\d{4}-\d\d-\d\d$/.test(q.date) && q.date !== e.date) { e.date = q.date; if (e.scope === 'exp' && expNeedsOk() && !expApprover(me)) { e.state = 'wait'; e.okBy = ''; } } if (q.title && e.scope !== 'exp') e.title = String(q.title).replace(/[<>]/g, '').trim().slice(0, 60); }
         store.update('events', e._row, e); if (e.scope !== 'me') bump();
       }
       return { events: eventsFor(me) };
@@ -505,7 +508,9 @@ function GajiCore(store, util, drive) {
     if ('team' in q) setSetting('approveTeam', q.team ? 'on' : 'off');
     if ('teacher' in q) setSetting('approveTeacher', q.teacher === 'none' ? 'none' : 'final');
     if ('skip' in q) setSetting('approveSkip', q.skip ? 'on' : 'off');
-    bump(); var R = rules(); log(me, '승인 규칙', '부원 ' + R.peers + ' · 팀 ' + (R.team ? '인정' : '제외') + ' · 선생님 ' + R.teacher + ' · 건너뛰기 ' + (R.skip ? '허용' : '안 됨'));
+    if ('expTeacher' in q) setSetting('approveExpTeacher', q.expTeacher ? 'on' : 'off');
+    if ('expLeader' in q) setSetting('approveExpLeader', q.expLeader ? 'on' : 'off');
+    bump(); var R = rules(); log(me, '승인 규칙', '부원 ' + R.peers + ' · 팀 ' + (R.team ? '인정' : '제외') + ' · 선생님 ' + R.teacher + ' · 건너뛰기 ' + (R.skip ? '허용' : '안 됨') + ' · 실험일 ' + (R.expTeacher ? '선생님 허가' + (R.expLeader ? '(기장 대행)' : '') : '허가 없음'));
     return R;
   };
 

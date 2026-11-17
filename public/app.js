@@ -735,8 +735,10 @@
     closeSheet(); render(); toast(text ? '공지를 올렸어요' : '공지를 지웠어요');
   }
   // 달력 일정: 동아리 일정(관리자가 쓰고 모두 봄) · 내 일정(누구나 쓰고 나만 봄)
-  const isApprover = () => ['교사', '마스터'].includes(myRole());   // 실험일 승인: 선생님 · 마스터(기장)
-  const curEvents = () => PF.mode === 'live' ? (PF.events || []) : (db.events || []).map((e) => Object.assign({}, e, { mine: e.by === meName(), state: e.scope === 'exp' ? (e.state || 'ok') : '' }))
+  // 실험일 승인: 선생님. 설정에서 허용하면 기장(마스터)이 대행. 선생님이 아직 없으면 기장이 대신함
+  const isApprover = () => myRole() === '교사' || (myRole() === '마스터' && (rules().expLeader || !teacherNames().length));
+  const expNeedsOk = () => rules().expTeacher;
+  const curEvents = () => PF.mode === 'live' ? (PF.events || []) : (db.events || []).map((e) => Object.assign({}, e, { mine: e.by === meName(), state: e.scope === 'exp' ? (e.state === 'wait' && !expNeedsOk() ? 'ok' : e.state || 'ok') : '' }))
     .filter((e) => e.scope === 'club' || (e.scope === 'exp' && (e.state === 'ok' || e.mine || isApprover())) || (e.scope === 'me' && e.mine));
   function evAdd() {
     const d0 = PF.calDay || dstr(TODAY), admin = isAdmin();
@@ -757,9 +759,9 @@
     if (o.scope === 'exp') { const n = byId(String(fd.get('node') || '')); if (!n) return toast('실험을 골라 주세요'); o.node = n.id; o.title = n.title; }
     if (!/^\d{4}-\d\d-\d\d$/.test(o.date) || !o.title) return toast('날짜와 내용을 넣어 주세요');
     if (PF.mode === 'live') { try { PF.events = (await rpc('eventSet', Object.assign({ op: 'add' }, o))).events; } catch (e) { if (!deviceLost(e)) toast(e.message); return; } }
-    else { db.events = db.events || []; db.events.push(Object.assign({ id: 'e' + Date.now().toString(36), by: meName(), at: nowIso() }, o, o.scope === 'exp' ? { state: isApprover() ? 'ok' : 'wait', okBy: isApprover() ? meName() : '' } : {})); save(); }
+    else { db.events = db.events || []; db.events.push(Object.assign({ id: 'e' + Date.now().toString(36), by: meName(), at: nowIso() }, o, o.scope === 'exp' ? { state: !expNeedsOk() || isApprover() ? 'ok' : 'wait', okBy: expNeedsOk() && isApprover() ? meName() : '' } : {})); save(); }
     PF.calDay = o.date; const t = new Date(o.date + 'T00:00:00'); PF.calOff = (t.getFullYear() - TODAY.getFullYear()) * 12 + t.getMonth() - TODAY.getMonth();
-    closeSheet(); render(); toast(o.scope === 'me' ? '내 일정을 올렸어요 · 나만 보여요' : o.scope === 'exp' ? (isApprover() ? '실험일을 올렸어요 · 모두에게 보여요' : '실험일을 올렸어요 · 선생님 · 기장이 승인하면 모두에게 보여요') : '동아리 일정을 올렸어요 · 모두에게 보여요');
+    closeSheet(); render(); toast(o.scope === 'me' ? '내 일정을 올렸어요 · 나만 보여요' : o.scope === 'exp' ? (!expNeedsOk() || isApprover() ? '실험일을 올렸어요 · 모두에게 보여요' : '실험일을 올렸어요 · ' + (rules().expLeader ? '선생님 · 기장' : '선생님') + '이 허가하면 모두에게 보여요') : '동아리 일정을 올렸어요 · 모두에게 보여요');
   }
   async function evDecide(id, ok) {
     if (PF.mode === 'live') { try { PF.events = (await rpc('eventSet', { op: ok ? 'approve' : 'reject', id })).events; } catch (e) { if (!deviceLost(e)) toast(e.message); return; } }
@@ -1009,7 +1011,7 @@
     const list = filesOf(n.id);
     return '<span>사진 · 그래프 <span class="muted" style="font-weight:400">실험 장면이나 엑셀 그래프를 바로 올려요 · 보고서에 그림으로 들어가요</span></span>' +
       (list.length ? '<div class="ph-strip">' + list.map((f) => f.mime === 'application/pdf' ? '<span class="ph-pdf">PDF</span>' : thumbSrc(f) ? '<img src="' + thumbSrc(f) + '" alt="' + esc(f.caption || '') + '">' : '<img data-fid="' + esc(f.id) + '" alt="">').join('') + '</div>' : '') +
-      '<label class="btn upl"><input type="file" accept="image/*,application/pdf" multiple data-upload-quick="' + esc(n.id) + '" hidden>사진 · 그래프 올리기</label>';
+      '<div class="upl-row">' + '<label class="btn upl cam"><input type="file" accept="image/*" capture="environment" data-upload-quick="' + esc(n.id) + '" hidden>' + CAM_IC + '바로 찍기</label>' + '<label class="btn upl"><input type="file" accept="image/*,application/pdf" multiple data-upload-quick="' + esc(n.id) + '" hidden>사진 · 그래프 올리기</label></div>';
   }
   // 창을 닫지 않고 바로 올리기 (결과 기록 창 · 관찰 줄 사진)
   async function quickUpload(nodeId, file, caption, kind) {
@@ -1203,7 +1205,7 @@
   // 지도 선생님: 역할 '교사'. 있으면 선생님 승인이 꼭 있어야 준비 시작
   const teacherNames = () => ((PF.mode === 'live' ? PF.members : db.members) || []).filter((m) => m.role === '교사').map((m) => m.name);
   // 승인 규칙 (동아리마다 설정 → 실험 승인 규칙). 기본: 팀 밖 부원 2명 → 선생님 최종 승인
-  const RULES0 = { peers: 2, team: false, teacher: 'final', skip: false };
+  const RULES0 = { peers: 2, team: false, teacher: 'final', skip: false, expTeacher: true, expLeader: true };
   const rules = () => Object.assign({}, RULES0, (PF.mode === 'live' ? PF.rules : db.rules) || {});
   const teacherNeeded = () => rules().teacher === 'final' && teacherNames().length > 0;
   const teacherOk = (n) => { const t = teacherNames(); return !teacherNeeded() || approvals(n).some((c) => t.includes(c.by)); };
@@ -1722,11 +1724,12 @@
       (pdf ? '<span class="ph-pdf">PDF</span>' : src ? '<img alt="' + esc(f.caption || f.name) + '" src="' + src + '" data-fid="' + esc(f.id) + '">' : '<img alt="' + esc(f.caption || f.name) + '" data-fid="' + esc(f.id) + '"><span class="spin ph-spin"></span>') +
       '<span class="ph-cap">' + (i !== undefined ? '<b>그림 ' + (i + 1) + '</b> ' : '') + esc(f.caption || FKIND[f.kind] || '') + '</span></button>';
   }
+  const CAM_IC = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
   function filesCard(n, compact) {
     const list = filesOf(n.id), can = canEdit(n);
     return '<div class="card sec-card"><div class="sec-head"><b>사진 · 그래프 · 자료</b><span class="muted">' + list.length + '개</span></div>' +
       (list.length ? '<div class="ph-grid">' + list.map((f) => fileTile(f)).join('') + '</div>' : (compact ? '' : '<span class="muted" style="font-size:13px">실험 장면, 장치, 결과 그래프(엑셀 등) 사진을 올려 두면 보고서에 그림으로 들어가요.</span>')) +
-      (can ? '<label class="btn upl"><input type="file" accept="image/*,application/pdf" multiple data-upload="' + esc(n.id) + '" hidden>' + (compact ? '사진 찍기 · 올리기' : '사진 · 파일 올리기') + '</label>' : '') + '</div>';
+      (can ? '<div class="upl-row">' + (compact ? '<label class="btn upl cam"><input type="file" accept="image/*" capture="environment" data-upload-quick="' + esc(n.id) + '" hidden>' + CAM_IC + '바로 찍기</label>' : '') + '<label class="btn upl"><input type="file" accept="image/*,application/pdf" multiple data-upload="' + esc(n.id) + '" hidden>' + (compact ? '사진 고르기 · 올리기' : '사진 · 파일 올리기') + '</label></div>' : '') + '</div>';
   }
   // 고른 파일 → 미리 보기 · 설명 · 종류 → 올리기
   async function pickFiles(nodeId, list) {
@@ -2046,12 +2049,15 @@
       ck('team', R.team, '함께하는 사람(팀원)의 승인도 인정 <small class="muted">끄면 팀 밖의 부원만 승인할 수 있어요 (교차 검토)</small>') +
       ck('teacher', R.teacher === 'final', '부원 승인 뒤 <b>지도 선생님의 최종 승인</b>이 꼭 있어야 함' + (tn.length ? ' <small class="muted">선생님: ' + tn.map(esc).join(' · ') + '</small>' : ' <small class="muted" style="color:var(--warn-fg,#9A5B00)">지도 선생님이 아직 지정되지 않아 지금은 적용되지 않아요. 더 보기 → 부원 · 기기에서 역할을 ‘지도 선생님’으로 바꿔 주세요.</small>')) +
       ck('skip', R.skip, '급할 때 기장 · 관리자 · 선생님이 검토 없이 준비를 시작할 수 있음') +
+      '<b style="font-size:14px;margin-top:4px">실험일 (실험실 사용) 승인</b>' +
+      ck('expTeacher', R.expTeacher, '부원이 올린 실험일은 <b>지도 선생님이 허가</b>해야 모두에게 보임 <small class="muted">끄면 올리자마자 확정돼요</small>') +
+      (R.expTeacher ? ck('expLeader', R.expLeader, '기장(마스터)이 선생님 대신 허가할 수 있음' + (tn.length ? '' : ' <small class="muted">지금은 선생님이 없어서 기장이 대신 허가해요</small>')) : '') +
       (ed ? '' : '<span class="muted" style="font-size:12px">동아리 마스터나 지도 선생님만 바꿀 수 있어요.</span>') +
       '<span class="muted" style="font-size:12px;line-height:1.6">어떤 규칙이든 계획서(목적 · 방법)가 없으면 검토를 요청할 수 없고, 결과 · 결론이 없으면 기록 완료가 되지 않아요. 내 실험은 내가 승인할 수 없어요.</span></div>';
   }
   async function setRule(o) {
     if (PF.mode === 'live') { try { PF.rules = await rpc('rulesSet', o); toast('승인 규칙을 바꿨어요'); } catch (e) { if (!deviceLost(e)) toast(e.message); } return render(); }
-    db.rules = Object.assign({}, rules(), o.teacher ? { teacher: o.teacher } : {}, 'peers' in o ? { peers: o.peers } : {}, 'team' in o ? { team: o.team } : {}, 'skip' in o ? { skip: o.skip } : {});
+    db.rules = Object.assign({}, rules(), o.teacher ? { teacher: o.teacher } : {}, ['peers', 'team', 'skip', 'expTeacher', 'expLeader'].reduce((a, k) => (k in o ? Object.assign(a, { [k]: o[k] }) : a), {}));
     save(); render(); toast('승인 규칙을 바꿨어요');
   }
   // 관리자: 자동 백업 (일주일에 한 번 '가지 백업' 폴더 + 메일)

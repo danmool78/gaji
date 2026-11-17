@@ -180,7 +180,7 @@ const mc2 = call({ action: 'myCode', device: r9b.data.device });
 ok('old code renewed', mc2.ok && mc2.data.renewed && /^\d{4}$/.test(mc2.data.code), mc2);
 ok('device kept after renew', call({ action: 'load', device: r9b.data.device }).ok);
 ok('new code works', call({ action: 'register', studentId: '20399', code: mc2.data.code }).ok);
-ok('ping version', call({ action: 'ping' }).data.version === '2.16.0');
+ok('ping version', call({ action: 'ping' }).data.version === '2.17.0');
 
 // 실수 되돌리기: 내가 10분 안에 옮긴 단계는 한 단계 되돌리기 가능
 call({ action: 'sync', device: M, nodes: [{ id: 'u1', type: 'exp', title: '되돌리기 시험', status: '검토 중', owner: '정다온', plan: PL, review: 2 }] });
@@ -442,7 +442,7 @@ store._t.settings = store._t.settings.filter((x) => !/^approve/.test(x.key));
 const MST = nm2.data.device;   // 지금 마스터 (새기장)
 call({ action: 'sync', device: MEM, nodes: [{ id: 'x1', type: 'exp', title: '팀 실험', status: '계획 작성', owner: '정다온', team: ['한결'], plan: PL }] });
 call({ action: 'sync', device: MEM, nodes: [{ id: 'x1', title: '팀 실험', status: '검토 중' }] });
-ok('load has default rules', JSON.stringify(call({ action: 'load', device: MEM }).data.rules) === JSON.stringify({ peers: 2, team: false, teacher: 'final', skip: false }));
+ok('load has default rules', JSON.stringify(call({ action: 'load', device: MEM }).data.rules) === JSON.stringify({ peers: 2, team: false, teacher: 'final', skip: false, expTeacher: true, expLeader: true }));
 ok('teammate cannot approve (default)', call({ action: 'comment', device: OTH, node: 'x1', kind: 'approve' }).code === 'team');
 ok('owner cannot approve own', call({ action: 'comment', device: MEM, node: 'x1', kind: 'approve' }).code === 'self');
 const tc = call({ action: 'addMember', device: ADM, studentId: 'T001', name: '홍교사' });
@@ -557,6 +557,25 @@ let apr = call({ action: 'eventSet', device: TCH2 || MST, op: 'approve', id: pen
 ok('teacher (or master) approves', apr.ok && apr.data.events.find((e) => e.id === pend.id).state === 'ok', apr);
 ok('approved → everyone sees', call({ action: 'load', device: OTH }).data.events.some((e) => e.id === pend.id && e.state === 'ok'));
 ok('master can approve too', call({ action: 'eventSet', device: MST, op: 'reject', id: pend.id }).ok && call({ action: 'load', device: MEM }).data.events.find((e) => e.id === pend.id).state === 'no');
+
+
+// ===== 2.17.0: 실험일 승인 규칙 (선생님 허가 필요 · 기장 대행) =====
+let xr = call({ action: 'rulesSet', device: MST, expLeader: false });
+ok('rule: leader proxy off', xr.ok && xr.data.expLeader === false && xr.data.expTeacher === true, xr);
+const xp2 = call({ action: 'eventSet', device: MEM, scope: 'exp', node: 'ed1', date: '2026-12-02' }).data.events.find((e) => e.date === '2026-12-02');
+ok('member post waits', xp2 && xp2.state === 'wait', xp2);
+ok('master cannot approve when proxy off', call({ action: 'eventSet', device: MST, op: 'approve', id: xp2.id }).code === 'not_approver');
+ok('master does not see pending when proxy off', !call({ action: 'load', device: MST }).data.events.some((e) => e.id === xp2.id));
+ok('teacher still approves', call({ action: 'eventSet', device: TCH, op: 'approve', id: xp2.id }).ok);
+const xmp = call({ action: 'eventSet', device: MST, scope: 'exp', node: 'ed1', date: '2026-12-03' }).data.events.find((e) => e.date === '2026-12-03');
+ok('master own post waits too when proxy off', xmp && xmp.state === 'wait', xmp);
+xr = call({ action: 'rulesSet', device: TCH, expTeacher: false });
+ok('rule: no approval needed', xr.ok && xr.data.expTeacher === false);
+ok('pending becomes ok when approval turned off', call({ action: 'load', device: OTH }).data.events.some((e) => e.id === xmp.id && e.state === 'ok'));
+const xp3 = call({ action: 'eventSet', device: MEM, scope: 'exp', node: 'ed1', date: '2026-12-04' }).data.events.find((e) => e.date === '2026-12-04');
+ok('member post is ok immediately', xp3 && xp3.state === 'ok');
+ok('member cannot change exp rules', call({ action: 'rulesSet', device: MEM, expTeacher: true }).code === 'not_master');
+call({ action: 'rulesSet', device: MST, expTeacher: true, expLeader: true });
 
 console.log(`connector: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
