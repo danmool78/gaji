@@ -37,17 +37,22 @@
   }
 
   /* ---------- 저장 (체험 모드: 이 브라우저에만) ---------- */
-  const KEY = 'gaji-demo-v1';
+  // 체험: 이 브라우저에만 저장, 날짜가 바뀌면 처음 상태로 (매일 리셋)
+  const KEY = 'gaji-demo-v2';
   function freshSample() {
     const S = JSON.parse(JSON.stringify(window.GAJI_SAMPLE));
-    const shift = TODAY - new Date(S.base);
-    const mv = (d) => dstr(new Date(new Date(d).getTime() + shift));
-    S.nodes.forEach((n) => { n.date = mv(n.date); n.created = mv(n.created); });
-    S.lastNo = { exp: 27, q: 7, res: 6 };
+    const shiftDays = Math.round((TODAY - new Date(S.base)) / 864e5);
+    // 'YYYY-MM-DD' 또는 'YYYY-MM-DDT…' 글자를 모두 오늘 기준으로 옮김 (계획서 · 진행 노트 · 댓글 · 사진 시각까지)
+    const mv = (v) => { const d = new Date(String(v).slice(0, 10) + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + shiftDays); const ymd = d.toISOString().slice(0, 10); return String(v).length > 10 ? ymd + String(v).slice(10) : ymd; };
+    const walk = (o) => { if (Array.isArray(o)) return o.map(walk); if (o && typeof o === 'object') { const r = {}; Object.keys(o).forEach((k) => { const nk = /^\d{4}-\d\d-\d\d/.test(k) ? k : k; r[nk] = walk(o[k]); }); return r; } return typeof o === 'string' && /^\d{4}-\d\d-\d\d(T[\d:.]+Z)?$/.test(o) ? mv(o) : o; };
+    const out = walk({ nodes: S.nodes, comments: S.comments || [], files: S.files || [] });
+    S.nodes = out.nodes; S.comments = out.comments; S.files = out.files;
+    S.lastNo = { exp: Math.max(27, ...S.nodes.filter((n) => n.type !== 'q' && n.type !== 'res').map((n) => n.no || 0)), q: Math.max(7, ...S.nodes.filter((n) => n.type === 'q').map((n) => n.no || 0)), res: 6 };
+    S.day = dstr(new Date());
     return S;
   }
-  function load() { try { const s = localStorage.getItem(KEY); if (s) return JSON.parse(s); } catch (e) {} return freshSample(); }
-  function save() { if (PF.mode === 'live') return scheduleSync(); try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {} }
+  function load() { try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && s.day === dstr(new Date())) return s; } catch (e) {} return freshSample(); }
+  function save() { if (PF.mode === 'live') return scheduleSync(); try { db.day = db.day || dstr(new Date()); localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { toast('이 브라우저 저장 공간이 꽉 찼어요'); } }
   let db = load();
   /* 실제 동아리 주소(/c/주소)로 열렸을 때 platform.js 가 채워 줌 */
   const PF = { club: null, isMaster: false, api: null, slug: null, handover: null, mode: 'demo', me: null, dev: null, rev: 0, base: null, busy: false, newDevices: [], people: null, myMoves: {},
@@ -90,7 +95,7 @@
   function putCache(d) { try { localStorage.setItem(cacheKey(), JSON.stringify({ url: PF.club.connector, at: Date.now(), d })); } catch (e) {} }
   function getCache() { try { const c = JSON.parse(localStorage.getItem(cacheKey()) || 'null'); return c && c.url === PF.club.connector ? c : null; } catch (e) { return null; } }
   const isAdmin = () => PF.mode === 'live' && PF.me && (PF.me.role === '관리자' || PF.me.role === '마스터');
-  const meName = () => (PF.mode === 'live' && PF.me ? PF.me.name : '나');
+  const meName = () => (PF.mode === 'live' && PF.me ? PF.me.name : prefs.demoMe || '김기장');
   const URL_RE = /^https:\/\/script\.google\.com\/(a\/[^/]+\/)?macros\/s\/[\w-]+\/exec$/;
   function deviceLabel() {
     const u = navigator.userAgent;
@@ -225,6 +230,14 @@
     }, 15000);
   }
   // 저장이 끝나기 전에 창을 닫으려 하면 붙잡기 (연결기 저장은 몇 초 걸림)
+  // 체험: 누구로 써 볼지 고르기 (이름만 바뀜)
+  $('#demoPill').addEventListener('click', () => { if (PF.mode !== 'demo') return; demoWho(); });
+  function demoWho() {
+    const ms = db.members || [{ name: '김기장', role: '마스터', note: '기장' }];
+    openSheet('<h3>누구로 체험할까요?</h3><p class="muted" style="margin:0;font-size:13px">북일고등학교 실험 동아리는 체험용 가상 동아리예요. 바꾼 내용은 이 브라우저에만 저장되고 <b>매일 처음 상태로 돌아가요.</b></p><div class="move-list">' +
+      ms.map((m) => '<button type="button" class="srow" data-act="demoMe" data-name="' + esc(m.name) + '"><span class="tx"><b>' + esc(m.name) + '</b><small>' + esc(m.note || (m.role === '부원' ? '부원' : m.role)) + '</small></span>' + (meName() === m.name ? '<span class="badge t-info">지금</span>' : '') + '</button>').join('') +
+      '</div><div class="btn-row"><button type="button" class="btn" data-act="demoReset">처음 상태로 되돌리기</button><button type="button" class="btn" data-act="closeSheet">닫기</button></div>');
+  }
   window.addEventListener('beforeunload', (e) => { if (PF.mode === 'live' && (PF.busy || (PF.base && dirty()))) { e.preventDefault(); e.returnValue = '아직 저장 중이에요'; return '아직 저장 중이에요'; } });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && PF.mode === 'live' && PF.base && dirty()) doSync(); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && PF.mode === 'live') { clearTimeout(pollRev.t); pollRev.t = setTimeout(() => rpc('rev', null, null, { quiet: true }).then((r) => { if (r.rev !== PF.rev && !dirty()) liveLoad(); else pollRev(); }, (e) => { if (!deviceLost(e)) pollRev(); }), 50); } });
@@ -1145,7 +1158,7 @@
       (canDelete(n) ? b('trashItem', '휴지통으로', 'danger') : '') + b('closeSheet', '닫기') + '</div>');
   }
   function editForm(n) {
-    const mem = (PF.members || []).map((m) => m.name), owners = mem.length ? mem : [];
+    const mem = (PF.mode === 'live' ? PF.members || [] : db.members || []).map((m) => m.name), owners = mem.length ? mem : [];
     openSheet('<h3>고치기 · ' + esc(code(n)) + '</h3><form id="editForm" data-id="' + esc(n.id) + '" style="display:flex;flex-direction:column;gap:12px">' +
       '<label class="field">제목<input name="title" maxlength="60" required value="' + esc(n.title) + '"></label>' +
       '<label class="field">분야<select name="field">' + Object.keys(FCODE).map((f) => '<option' + (n.field === f ? ' selected' : '') + '>' + f + '</option>').join('') + '</select></label>' +
@@ -1514,7 +1527,7 @@
       '<div class="field">화면 밝기<div class="seg" style="grid-template-columns:repeat(3,1fr)">' + [['system', '기기 설정'], ['light', '밝게'], ['dark', '어둡게']].map(([k, l]) => '<button type="button" data-theme="' + k + '" aria-pressed="' + (th === k) + '">' + l + '</button>').join('') + '</div></div>' +
       '</div>' +
       (PF.mode === 'live' ? '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>내 계정</b><span class="muted" style="font-size:13px">' + esc(PF.me.name) + ' · ' + esc(PF.me.role) + ' · 이 기기: ' + esc((PF.dev && PF.dev.label) || deviceLabel()) + '<br>개인 코드는 다른 기기에서 들어갈 때 학번과 함께 써요.</span><div class="btn-row"><button type="button" class="btn primary" data-act="myCode">내 개인 코드 보기</button><button type="button" class="btn" data-act="leaveDevice">이 기기에서 나가기</button></div></div>' :
-      '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>체험 데이터</b><span class="muted" style="font-size:13px">' + (PF.club ? '동아리 드라이브 연결 전까지 실험 목록은 예시 데이터로 보여요. 이 기기에만 저장됩니다.' : '지금은 이 브라우저에만 저장돼요.') + '</span><button type="button" class="btn" data-act="reset">예시로 되돌리기</button></div>');
+      '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>체험 데이터</b><span class="muted" style="font-size:13px">' + (PF.club ? '동아리 드라이브 연결 전까지 실험 목록은 예시 데이터로 보여요. 이 기기에만 저장됩니다.' : '북일고등학교 실험 동아리(가상)로 마음껏 만들고 고쳐 보세요. 이 브라우저에만 저장되고 매일 처음 상태로 돌아가요. 지금: ' + esc(meName()) + '') + '</span><button type="button" class="btn" data-act="reset">예시로 되돌리기</button></div>');
   }
   /* 설정 맨 위: 드라이브 연결 (동아리마다 따로) */
   function driveCard() {
@@ -1585,7 +1598,7 @@
     const st = brand();
     const pill = $('#demoPill');
     pill.hidden = GATE.has(PF.mode);
-    pill.textContent = PF.mode === 'live' ? (PF.busy ? '저장 중…' : PF.refreshing ? '최신으로 맞추는 중…' : PF.me.name + (PF.me.role !== '부원' ? ' · ' + PF.me.role : '')) : PF.club ? '드라이브 연결 전' : '체험 모드';
+    pill.textContent = PF.mode === 'live' ? (PF.busy ? '저장 중…' : PF.refreshing ? '최신으로 맞추는 중…' : PF.me.name + (PF.me.role !== '부원' ? ' · ' + PF.me.role : '')) : PF.club ? '드라이브 연결 전' : '체험 · ' + meName() + ' ▾';
     pill.classList.toggle('live', PF.mode === 'live');
     document.documentElement.style.setProperty('--brand', st.color || '#C26A00');
     $('#clubName').textContent = st.clubName; $('#clubLogo').innerHTML = logoInner();
@@ -1764,6 +1777,8 @@
     if (['resetCode', 'setRole', 'setStatus'].includes(act)) return peopleAction(a);
     if (['fileFull', 'fileCap', 'fileDel'].includes(act)) return fileAct(act, a.dataset.fid);
     if (flowAct(act, a, ['item', 'run', 'report'].includes(cur().s) ? byId(cur().arg) : null)) return;
+    if (act === 'demoMe') { prefs.demoMe = a.dataset.name; savePrefs(); closeSheet(); render(); return toast(a.dataset.name + '(으)로 체험해요'); }
+    if (act === 'demoReset') { if (!confirm('체험 데이터를 처음 상태로 되돌릴까요?')) return; db = freshSample(); save(); closeSheet(); nav = [{ s: 'home' }]; render(true); return toast('처음 상태로 되돌렸어요'); }
     if (act === 'shareCode') { const t = a.dataset.text; if (navigator.share) navigator.share({ text: t }).catch(() => {}); else (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('복사했어요'), () => {}); }
   });
   $('#screen').addEventListener('submit', (e) => { if (flowSubmit(e)) return;
