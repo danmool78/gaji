@@ -30,7 +30,11 @@
     window.addEventListener('error', (e) => dbg('오류', e.message));
     setInterval(() => dbg(), 1000);
   }
-  function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (t.hidden = true), 2000); }
+  function toast(msg, action) {
+    const t = $('#toast'); t.textContent = msg;
+    if (action) { const b = document.createElement('button'); b.type = 'button'; b.className = 'toast-act'; b.textContent = action.label; b.onclick = () => { t.hidden = true; action.fn(); }; t.appendChild(b); }
+    t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (t.hidden = true), action ? 8000 : 2400);
+  }
 
   /* ---------- 저장 (체험 모드: 이 브라우저에만) ---------- */
   const KEY = 'gaji-demo-v1';
@@ -46,7 +50,7 @@
   function save() { if (PF.mode === 'live') return scheduleSync(); try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {} }
   let db = load();
   /* 실제 동아리 주소(/c/주소)로 열렸을 때 platform.js 가 채워 줌 */
-  const PF = { club: null, isMaster: false, api: null, slug: null, handover: null, mode: 'demo', me: null, dev: null, rev: 0, base: null, busy: false, newDevices: [], people: null,
+  const PF = { club: null, isMaster: false, api: null, slug: null, handover: null, mode: 'demo', me: null, dev: null, rev: 0, base: null, busy: false, newDevices: [], people: null, myMoves: {},
     approveId: new URLSearchParams(location.search).get('approve') };
   window.GAJI_APP = {
     setClub(club, isMaster, api, slug) { PF.club = club; PF.isMaster = !!isMaster; PF.api = api; PF.slug = slug; dbg('동아리설정'); startClub(); },
@@ -84,12 +88,30 @@
     if (/Android/.test(u)) return /Mobile/.test(u) ? '안드로이드 휴대폰' : '안드로이드 태블릿';
     if (/CrOS/.test(u)) return '크롬북'; if (/Windows/.test(u)) return 'Windows PC'; if (/Mac/.test(u)) return 'Mac'; return '기기';
   }
-  async function rpc(action, data, url) {
-    let j;
+  /* 기다리는 동안: 누른 버튼에 스피너 + 화면 위 진행 막대 (뒤에서 몰래 하는 확인은 quiet) */
+  const SPIN = '<span class="spin" aria-hidden="true"></span>';
+  let lastBtn = null, lastAt = 0, pending = 0;
+  document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('button,a.btn'); if (b) { lastBtn = b; lastAt = Date.now(); } }, true);
+  document.addEventListener('submit', (e) => { const b = e.submitter || e.target.querySelector('[type=submit]'); if (b) { lastBtn = b; lastAt = Date.now(); } }, true);
+  function busyStart(quiet) {
+    if (quiet) return null;
+    pending++; document.documentElement.classList.add('loading');
+    const b = Date.now() - lastAt < 1500 && lastBtn && document.contains(lastBtn) ? lastBtn : null;
+    if (b && !b.classList.contains('busy')) { b.classList.add('busy'); b.setAttribute('aria-busy', 'true'); if (b.tagName === 'BUTTON') b.disabled = true; return b; }
+    return null;
+  }
+  function busyEnd(quiet, b) {
+    if (quiet) return;
+    pending = Math.max(0, pending - 1); if (!pending) document.documentElement.classList.remove('loading');
+    if (b) { b.classList.remove('busy'); b.removeAttribute('aria-busy'); if (b.tagName === 'BUTTON') b.disabled = false; }
+  }
+  async function rpc(action, data, url, opt) {
+    let j; const quiet = !!(opt && opt.quiet), btnBusy = busyStart(quiet);
     try {
       const r = await fetch(url || PF.club.connector, { method: 'POST', body: JSON.stringify(Object.assign({ action, device: PF.dev ? { id: PF.dev.id, secret: PF.dev.secret } : null }, data || {})) });
       j = await r.json();
-    } catch (e) { const x = new Error('연결기에 닿지 않아요. 인터넷이나 연결기 주소를 확인해 주세요'); x.code = 'network'; throw x; }
+    } catch (e) { busyEnd(quiet, btnBusy); const x = new Error('연결기에 닿지 않아요. 인터넷이나 연결기 주소를 확인해 주세요'); x.code = 'network'; throw x; }
+    busyEnd(quiet, btnBusy);
     if (j && !j.ok && (j.code === 'core' || j.code === 'core_perm')) { PF.connAuth = 'core'; const x = new Error(j.code === 'core_perm' || /permission|권한/i.test(j.message || '') ? '연결기에 외부 연결 권한이 없어요 · 설정 → 드라이브 연결의 안내대로 권한허용을 실행해 주세요' : (j.message || '연결기가 가지 본체를 받지 못했어요')); x.code = j.code; throw x; }
     if (!j || !j.ok) { const x = new Error(j && j.code === 'unknown' ? '연결기가 예전 판이라 이 기능이 없어요. 마스터가 연결기를 업데이트해야 해요 (설정 → 드라이브 연결)' : (j && j.message) || '연결기에서 문제가 생겼어요'); x.code = (j && j.code) || 'error'; throw x; }
     return j.data;
@@ -118,7 +140,7 @@
     pollPending.t = setTimeout(async () => {
       if (PF.mode !== 'pending') return;
       if (document.visibilityState === 'visible') {
-        try { const st = await rpc('status'); if (st.status === '승인') { toast('승인됐어요!'); return liveLoad(); } }
+        try { const st = await rpc('status', null, null, { quiet: true }); if (st.status === '승인') { toast('승인됐어요!'); return liveLoad(); } }
         catch (e) { if (deviceLost(e)) return; }
       }
       pollPending();
@@ -166,18 +188,18 @@
     pollRev.t = setTimeout(async () => {
       if (PF.mode !== 'live') return;
       if (document.visibilityState === 'visible' && !PF.busy && !dirty() && $('#sheet').hidden) {
-        try { const r = await rpc('rev'); if (r.rev !== PF.rev) return liveLoad(); } catch (e) { if (deviceLost(e)) return; }
+        try { const r = await rpc('rev', null, null, { quiet: true }); if (r.rev !== PF.rev) return liveLoad(); } catch (e) { if (deviceLost(e)) return; }
       }
       pollRev();
     }, 15000);
   }
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && PF.mode === 'live') { clearTimeout(pollRev.t); pollRev.t = setTimeout(() => rpc('rev').then((r) => { if (r.rev !== PF.rev && !dirty()) liveLoad(); else pollRev(); }, (e) => { if (!deviceLost(e)) pollRev(); }), 50); } });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && PF.mode === 'live') { clearTimeout(pollRev.t); pollRev.t = setTimeout(() => rpc('rev', null, null, { quiet: true }).then((r) => { if (r.rev !== PF.rev && !dirty()) liveLoad(); else pollRev(); }, (e) => { if (!deviceLost(e)) pollRev(); }), 50); } });
 
   /* ---------- 들어가기 화면 (탭 없이 한 장) ---------- */
   function gateCard(inner) { return '<div class="gate"><span class="logo gate-logo">' + logoInner() + '</span><b class="gate-name">' + esc(brand().clubName) + '</b>' + inner + '</div>'; }
   function viewGate() {
     const m = PF.mode;
-    if (m === 'loading') return gateCard('<p class="muted">동아리 드라이브에 연결하는 중…</p>');
+    if (m === 'loading') return gateCard('<p class="muted loading-line">' + SPIN + '동아리 드라이브에 연결하는 중…</p>');
     if (m === 'error') {
       if (PF.isMaster) fetchGs();
       const core = PF.connAuth === 'core';
@@ -260,7 +282,7 @@
   /* ---------- 승인 (관리자) ---------- */
   async function openApprove(id) {
     if (!isAdmin()) return toast('기기 승인은 관리자만 할 수 있어요');
-    openSheet('<h3>기기 승인</h3><p class="muted">불러오는 중…</p>');
+    openSheet('<h3>기기 승인</h3><p class="muted loading-line">' + SPIN + '불러오는 중…</p>');
     try {
       const d = await rpc('getDevice', { id });
       if (d.status !== '대기') return openSheet('<h3>기기 승인</h3><p>' + esc(d.member) + ' · ' + esc(d.label) + '</p><p class="muted">이미 처리된 요청이에요 (' + esc(d.status) + ').</p><div class="btn-row"><button type="button" class="btn" data-act="closeSheet">닫기</button></div>');
@@ -287,7 +309,7 @@
   }
   function viewPeople() {
     if (!isAdmin()) return '<div class="card empty">관리자만 볼 수 있어요.</div>';
-    if (!PF.people) { loadPeople(); return '<div class="card empty">부원 명단을 불러오는 중…</div>'; }
+    if (!PF.people) { loadPeople(); return '<div class="card empty loading-line">' + SPIN + '부원 명단을 불러오는 중…</div>'; }
     const p = PF.people, wait = p.devices.filter((d) => d.status === '대기'), act = p.members.filter((m) => m.status === '활동'), off = p.members.filter((m) => m.status !== '활동');
     const ROLE = { '마스터': 't-info', '관리자': 't-ok', '부원': 't-neutral' };
     return '<div class="btn-row"><button type="button" class="btn primary" data-act="addMember">부원 추가</button><button type="button" class="btn" data-act="refreshPeople">새로 고침</button></div>' +
@@ -615,11 +637,19 @@
     h += '<div class="card"><div class="panel-title"><span>관련된 것</span><span>누르면 이동</span></div>' + relationSvg(n) + '</div>';
     return h;
   }
+  // 단계 되돌리기: 체험 모드는 누구나, 연결된 동아리는 관리자 또는 10분 안에 내가 옮긴 단계
+  function canBack(n) {
+    const i = STAGES.indexOf(n.status); if (n.type !== 'exp' || i < 2) return false;
+    if (PF.mode !== 'live') return true;
+    return isAdmin() || (PF.myMoves[n.id] && Date.now() - PF.myMoves[n.id] < 10 * 60000);
+  }
   function actions(n) {
     if (n.type === 'idea') { const ok = ready(n).every(Boolean);
       return '<button type="button" class="btn" data-act="fan">같이 해요 +1</button>' + (ok ? '<button type="button" class="btn primary" data-act="convert">계획서로 만들기</button>' : (!n.volunteer ? '<button type="button" class="btn" data-act="volunteer">담당 지원</button>' : '<button type="button" class="btn" data-act="equip">장비 확인</button>')); }
     if (n.type === 'exp' && n.status !== '취소') { const i = STAGES.indexOf(n.status);
-      return (i > 0 && i < STAGES.length - 1 ? '<button type="button" class="btn blue" data-act="advance">다음 단계: ' + STAGES[i + 1] + '</button>' : '') + '<button type="button" class="btn" data-act="branch">이어서 가지 치기</button>'; }
+      return (i > 0 && i < STAGES.length - 1 ? '<button type="button" class="btn blue" data-act="advance">다음 단계: ' + STAGES[i + 1] + '</button>' : '') +
+        (canBack(n) ? '<button type="button" class="btn" data-act="stageBack">이전 단계로: ' + STAGES[i - 1] + '</button>' : '') +
+        '<button type="button" class="btn" data-act="branch">이어서 가지 치기</button>'; }
     if (n.type === 'q' && n.status !== '해결') return '<button type="button" class="btn primary" data-act="solve">해결됨으로 표시</button><button type="button" class="btn" data-act="toIdea">실험 아이디어로</button>';
     return '';
   }
@@ -849,7 +879,12 @@
     if (act === 'volunteer') { n.volunteer = meName(); toast('담당으로 지원했어요'); }
     if (act === 'equip') { n.equip = true; toast('장비 확인 완료'); }
     if (act === 'convert') { n.type = 'exp'; n.status = '계획 작성'; n.owner = n.volunteer; n.signal = 0; n.review = 0; toast('계획서가 됐어요 · 번호 ' + code(n) + ' 그대로'); }
-    if (act === 'advance') { const i = STAGES.indexOf(n.status); n.status = STAGES[i + 1]; if (n.status === '준비 중') n.signal = n.signal || 2; toast(n.status + ' 단계로 옮겼어요'); }
+    if (act === 'advance') {
+      const i = STAGES.indexOf(n.status), prev = { status: n.status, signal: n.signal }, id = n.id;
+      n.status = STAGES[i + 1]; if (n.status === '준비 중') n.signal = n.signal || 2; PF.myMoves[id] = Date.now();
+      toast(n.status + ' 단계로 옮겼어요', { label: '되돌리기', fn: () => { const x = byId(id); if (!x) return; Object.assign(x, prev); save(); render(); toast(prev.status + ' 단계로 되돌렸어요'); } });
+    }
+    if (act === 'stageBack') { const i = STAGES.indexOf(n.status); if (i >= 2) { n.status = STAGES[i - 1]; if (!isAdmin()) delete PF.myMoves[n.id]; toast(n.status + ' 단계로 되돌렸어요'); } }
     if (act === 'solve') { n.status = '해결'; toast('해결됨으로 표시했어요'); }
     if (act === 'branch') { save(); return newForm('idea', n); }
     if (act === 'toIdea') { save(); return newForm('idea', n); }

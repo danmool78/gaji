@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.0.0';
+var GAJI_CONNECTOR_VERSION = '2.1.0';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util) {
@@ -161,7 +161,11 @@ function GajiCore(store, util) {
         NODE_FIELDS.forEach(function (f) {
           if (!(f in c) || str(c[f]) === str(old[f])) return;
           if (!admin && f === 'verdict') { rejected.push(old.id + ':verdict'); return; }
-          if (!admin && f === 'status' && STAGES.indexOf(c.status) >= 0 && STAGES.indexOf(c.status) < STAGES.indexOf(old.status)) { rejected.push(old.id + ':status'); return; }
+          if (!admin && f === 'status' && STAGES.indexOf(c.status) >= 0 && STAGES.indexOf(c.status) < STAGES.indexOf(old.status)) {
+            // 부원: 내가 방금(10분 안) 옮긴 단계는 한 단계만 되돌릴 수 있음 (실수 되돌리기)
+            var mine = old.updatedBy === me.name && (Date.parse(util.now()) - Date.parse(old.updatedAt || 0)) < 10 * 60000 && STAGES.indexOf(c.status) === STAGES.indexOf(old.status) - 1;
+            if (!mine) { rejected.push(old.id + ':status'); return; }
+          }
           if (!admin && f === 'status' && c.status === '취소') { rejected.push(old.id + ':cancel'); return; }
           if (f === 'type' && !((old.type === 'idea' && c.type === 'exp') || old.type === c.type)) return;
           if (f === 'private' && !admin && old.owner !== me.name) return;

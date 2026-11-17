@@ -169,7 +169,24 @@ const mc2 = call({ action: 'myCode', device: r9b.data.device });
 ok('old code renewed', mc2.ok && mc2.data.renewed && /^\d{4}$/.test(mc2.data.code), mc2);
 ok('device kept after renew', call({ action: 'load', device: r9b.data.device }).ok);
 ok('new code works', call({ action: 'register', studentId: '20399', code: mc2.data.code }).ok);
-ok('ping version', call({ action: 'ping' }).data.version === '2.0.0');
+ok('ping version', call({ action: 'ping' }).data.version === '2.1.0');
+
+// 실수 되돌리기: 내가 10분 안에 옮긴 단계는 한 단계 되돌리기 가능
+call({ action: 'sync', device: M, nodes: [{ id: 'u1', type: 'exp', title: '되돌리기 시험', status: '검토 중' }] });
+call({ action: 'sync', device: r9b.data.device, nodes: [{ id: 'u1', title: '되돌리기 시험', status: '준비 중' }] });
+let ub = call({ action: 'sync', device: r9b.data.device, nodes: [{ id: 'u1', title: '되돌리기 시험', status: '검토 중' }] });
+ok('member undo own move within 10 min', ub.data.rejected.length === 0, ub);
+call({ action: 'sync', device: r9b.data.device, nodes: [{ id: 'u1', title: '되돌리기 시험', status: '준비 중' }] });
+ub = call({ action: 'sync', device: r9b.data.device, nodes: [{ id: 'u1', title: '되돌리기 시험', status: '계획 작성' }] });
+ok('member cannot jump back 2 steps', ub.data.rejected.includes('u1:status'), ub);
+clock += 11 * 60000;
+ub = call({ action: 'sync', device: r9b.data.device, nodes: [{ id: 'u1', title: '되돌리기 시험', status: '검토 중' }] });
+ok('member cannot undo after 10 min', ub.data.rejected.includes('u1:status'), ub);
+call({ action: 'sync', device: M, nodes: [{ id: 'u1', title: '되돌리기 시험', status: '준비 중' }] });
+ub = call({ action: 'sync', device: r9b.data.device, nodes: [{ id: 'u1', title: '되돌리기 시험', status: '검토 중' }] });
+ok('member cannot undo someone else\'s move', ub.data.rejected.includes('u1:status'), ub);
+ub = call({ action: 'sync', device: M, nodes: [{ id: 'u1', title: '되돌리기 시험', status: '검토 중' }] });
+ok('admin can always go back', ub.data.rejected.length === 0, ub);
 
 console.log(`connector: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
