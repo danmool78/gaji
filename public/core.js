@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.6.0';
+var GAJI_CONNECTOR_VERSION = '2.6.1';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
@@ -350,7 +350,7 @@ function GajiCore(store, util, drive) {
     try { return fn(); } catch (e) {
       if (e.code) throw e;
       var m = String(e.message || e);
-      if (/permission|권한|authoriz|DriveApp/i.test(m)) err('drive_perm', '연결기에 드라이브 권한이 없어요. 동아리 마스터가 연결기 코드를 새로 붙여 넣고 권한허용을 실행해야 해요');
+      if (/permission|권한|authoriz/i.test(m)) err('drive_perm', '연결기에 드라이브 권한이 없어요. 동아리 마스터가 Apps Script에서 권한허용을 실행해야 해요 (' + m.slice(0, 160) + ')');
       err('drive', '드라이브에 저장하지 못했어요: ' + m.slice(0, 80));
     }
   }
