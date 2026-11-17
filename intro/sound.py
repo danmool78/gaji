@@ -1,0 +1,128 @@
+# 소개 영상에 소리 입히기: 직접 합성한 산뜻한 배경음악 + Gemini 성우 내레이션
+#   python3 intro/sound.py          → out/가지-소개-가로-소리.mp4
+#   python3 intro/sound.py short    → out/가지-소개-쇼츠-소리.mp4
+# 배경음악은 코드로 만든 것이라 저작권 걱정이 없음. 내레이션은 장면 시작 시각에 맞춰 붙이고, 말할 때는 음악을 줄임.
+import os, sys, wave, subprocess, numpy as np
+sys.path.insert(0, os.path.dirname(__file__)); import tts
+
+D = os.path.dirname(os.path.abspath(__file__)); OUT = os.path.join(D, 'out'); VO = os.path.join(OUT, 'voice'); os.makedirs(VO, exist_ok=True)
+SHORT = len(sys.argv) > 1 and sys.argv[1] == 'short'
+SR = 44100
+VOICE = os.environ.get('VOICE', 'Leda')
+
+# (시작 초, 이 장면이 끝나는 초, 대사)  ‘EPEC’은 ‘이펙’으로 읽게 씀
+LINES = [
+    (2.4, 7.0, '가지. 실험이 가지를 치며 자라는 곳.'),
+    (7.6, 15.0, '이펙 동아리의 실험 기록, 지금 어디에 있나요? 졸업하면, 기록도 함께 졸업합니다.'),
+    (15.6, 24.6, '가지에서는 하나의 질문이 다음 실험을 낳습니다. 동전 전지에서 레몬 전지로, 직렬에서 병렬로.'),
+    (25.2, 33.0, '선배가 남긴 실험에서 후배의 실험이 자라고, 다음 가지는 바로, 당신의 실험입니다.'),
+    (33.6, 45.0, '계획서를 쓰고, 팀 밖의 부원 두 명이 검토하고, 선생님이 최종 승인하면 시작합니다. 계획 없이 시작하지 않고, 결과 없이 끝내지 않습니다.'),
+    (45.6, 56.0, '측정값만 넣으면 그래프와 보고서가 자동으로. 한 실험의 모든 기록이, 보고서 한 편이 됩니다.'),
+    (56.6, 65.0, '십 년 뒤의 후배도, 검색 한 번으로 선배의 실험을 이어 갑니다.'),
+    (65.6, 73.0, '기록은 우리 동아리 드라이브에만. 매주 자동으로 백업합니다.'),
+    (74.6, 84.0, '한 번 하고 끝나는 실험 말고, 가지를 치며 자라는 연구. 이펙 기장 후보, 김승엽이 만들겠습니다.'),
+]
+LINES_SHORT = [
+    (0.6, 5.2, '이펙 동아리의 실험 기록, 졸업하면 어디로 갈까요?'),
+    (5.8, 17.0, '가지에서는 하나의 질문이 다음 실험을 낳고, 선배의 실험에서 후배의 실험이 자랍니다.'),
+    (17.4, 27.0, '팀 밖의 부원 두 명과 선생님의 승인을 받고 시작하고, 결과를 넣으면 보고서가 자동으로.'),
+    (27.4, 34.0, '십 년 뒤 후배도, 검색 한 번으로 이어 갑니다.'),
+    (34.6, 41.0, '가지를 치며 자라는 연구. 이펙 기장 후보, 김승엽.'),
+]
+
+def read_wav(p):
+    with wave.open(p) as w: r = w.getframerate(); x = np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(np.float32) / 32768
+    if r != SR: x = np.interp(np.arange(int(len(x) * SR / r)) * r / SR, np.arange(len(x)), x)
+    return x
+
+def trim(x, th=0.01):
+    i = np.where(np.abs(x) > th)[0]
+    return x[max(0, i[0] - 800): i[-1] + 2400] if len(i) else x
+
+def tempo(x, f):   # 말 빠르기만 살짝 올림 (ffmpeg atempo)
+    if f <= 1.0: return x
+    a, b = os.path.join(VO, '_a.wav'), os.path.join(VO, '_b.wav')
+    with wave.open(a, 'wb') as w: w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR); w.writeframes((np.clip(x, -1, 1) * 32767).astype(np.int16).tobytes())
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', a, '-filter:a', 'atempo=%.3f' % f, b], check=True)
+    return read_wav(b)
+
+# ---------- 배경음악: C장조 I–V–vi–IV, 112bpm, 플럭 아르페지오 + 패드 + 베이스 + 가벼운 리듬 ----------
+def bgm(length):
+    n = int(length * SR); t = np.arange(n) / SR; out = np.zeros(n, np.float32)
+    bpm = 112; beat = 60 / bpm; bar = beat * 4
+    f = lambda m: 440 * 2 ** ((m - 69) / 12)
+    chords = [[60, 64, 67], [55, 59, 62], [57, 60, 64], [53, 57, 60]]   # C G Am F
+    roots = [36, 43, 45, 41]
+    def note(start, dur, freq, amp, kind='pluck'):
+        i0 = int(start * SR); m = min(n - i0, int((dur + 1.2) * SR))
+        if m <= 0: return
+        tt = np.arange(m) / SR
+        if kind == 'pluck':
+            env = np.exp(-tt * 5.5) * np.minimum(1, tt * 200)
+            w = np.sin(2 * np.pi * freq * tt) + 0.35 * np.sin(4 * np.pi * freq * tt) + 0.12 * np.sin(6 * np.pi * freq * tt)
+        elif kind == 'bell':
+            env = np.exp(-tt * 2.6) * np.minimum(1, tt * 300)
+            w = np.sin(2 * np.pi * freq * tt) + 0.5 * np.sin(2 * np.pi * freq * 2.76 * tt) * np.exp(-tt * 6)
+        elif kind == 'bass':
+            env = np.exp(-tt * 3.0) * np.minimum(1, tt * 120)
+            w = np.sin(2 * np.pi * freq * tt) + 0.25 * np.sin(4 * np.pi * freq * tt)
+        else:   # pad
+            env = np.minimum(1, tt / 0.6) * np.clip((dur + 0.6 - tt) / 0.6, 0, 1)
+            w = np.sin(2 * np.pi * freq * tt) + 0.3 * np.sin(2 * np.pi * freq * 1.003 * tt)
+        out[i0:i0 + m] += (amp * env * w).astype(np.float32)
+    rng = np.random.default_rng(7)
+    def hat(start, amp):
+        i0 = int(start * SR); m = min(n - i0, int(0.06 * SR))
+        if m <= 0: return
+        z = rng.standard_normal(m); z = np.diff(np.concatenate([[0], z]))   # 높은 소리만
+        out[i0:i0 + m] += (amp * z * np.exp(-np.arange(m) / SR * 70)).astype(np.float32)
+    def kick(start, amp):
+        i0 = int(start * SR); m = min(n - i0, int(0.25 * SR))
+        if m <= 0: return
+        tt = np.arange(m) / SR; ph = 2 * np.pi * (50 * tt + 60 * (1 - np.exp(-tt * 30)) / 30)
+        out[i0:i0 + m] += (amp * np.sin(ph) * np.exp(-tt * 14)).astype(np.float32)
+    drums_from = 7.0 if not SHORT else 5.6
+    melody = [76, 79, 81, 79, 76, 74, 72, 74]   # 짧은 종소리 동기 (2마디마다)
+    b = 0; s = 0.0
+    end = length - 2.5
+    while s < end:
+        c = chords[b % 4]
+        note(s, bar, f(c[0] - 12), 0.05, 'pad'); note(s, bar, f(c[1] - 12), 0.04, 'pad'); note(s, bar, f(c[2] - 12), 0.04, 'pad')
+        arp = [c[0], c[1], c[2], c[1] + 12, c[2], c[1], c[0] + 12, c[2]]
+        for k in range(8): note(s + k * beat / 2, beat / 2, f(arp[k]), 0.10 if k % 2 == 0 else 0.07)
+        if s >= drums_from - 0.01:
+            note(s, beat * 1.5, f(roots[b % 4]), 0.20, 'bass'); note(s + beat * 2, beat * 1.5, f(roots[b % 4]), 0.16, 'bass')
+            for k in range(4): kick(s + k * beat, 0.30 if k % 2 == 0 else 0.0)
+            for k in range(8): hat(s + k * beat / 2 + (beat / 4 if k % 2 else 0), 0.05 if k % 2 else 0.025)
+        if b % 2 == 1 and s >= drums_from:
+            for k, mnote in enumerate(melody[(b // 2 % 2) * 4:(b // 2 % 2) * 4 + 4]): note(s + k * beat, beat, f(mnote), 0.06, 'bell')
+        b += 1; s += bar
+    note(end, 2.4, f(48), 0.10, 'pad'); note(end, 2.4, f(55), 0.08, 'pad'); note(end, 2.4, f(64), 0.08, 'pad'); note(end, 1.0, f(72), 0.08, 'bell')
+    fade = np.ones(n, np.float32); fi = int(1.5 * SR); fo = int(2.0 * SR)
+    fade[:fi] = np.linspace(0, 1, fi); fade[-fo:] = np.linspace(1, 0, fo)
+    out *= fade
+    return out / (np.abs(out).max() + 1e-9) * 0.9
+
+def main():
+    vid = os.path.join(OUT, '가지-소개-쇼츠.mp4' if SHORT else '가지-소개-가로.mp4')
+    length = float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', vid], capture_output=True, text=True).stdout)
+    n = int(length * SR); voice = np.zeros(n, np.float32); active = np.zeros(n, np.float32)
+    for i, (st, en, text) in enumerate(LINES_SHORT if SHORT else LINES):
+        p = os.path.join(VO, ('s' if SHORT else 'h') + '%02d.wav' % i)
+        if not os.path.exists(p): tts.tts(text, p, VOICE, style='')
+        x = trim(read_wav(p)); slot = en - st - 0.2; dur = len(x) / SR
+        if dur > slot: x = tempo(x, min(1.3, dur / slot)); print('  빠르게 %.2f배: %s' % (min(1.3, dur / slot), text[:20]))
+        i0 = int(st * SR); m = min(len(x), n - i0); voice[i0:i0 + m] += x[:m]; active[i0:i0 + m] = 1
+        print('%5.1f초 %4.1f초/%4.1f초  %s' % (st, len(x) / SR, slot + 0.2, text))
+    # 말할 때 음악을 줄임 (부드럽게)
+    k = int(0.35 * SR); env = np.convolve(active, np.ones(k) / k, mode='same')
+    music = bgm(length) * (0.42 - 0.30 * np.clip(env * 1.6, 0, 1))
+    voice = voice / (np.abs(voice).max() + 1e-9) * 0.92
+    mix = voice + music; mix = mix / max(1.0, np.abs(mix).max() / 0.89)   # 찌그러지지 않게
+    wav = os.path.join(OUT, '_mix.wav')
+    with wave.open(wav, 'wb') as w: w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR); w.writeframes((mix * 32767).astype(np.int16).tobytes())
+    dst = vid.replace('.mp4', '-소리.mp4')
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', vid, '-i', wav, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-ac', '2', '-shortest', '-movflags', '+faststart', dst], check=True)
+    print('완료:', dst)
+
+if __name__ == '__main__': main()
