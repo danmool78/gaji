@@ -41,7 +41,7 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) process
   let t = await body(); ok(t.includes('검토를 요청해요') && t.includes('반응성 차이'), '계획서 저장 → 검토 요청 안내');
   await shot('02-plan-saved');
   // 2. 검토 요청 → 승인 · 수정 요청 → 고치기
-  await click('[data-act=askReview]'); t = await body(); ok(t.includes('검토 중 · 승인 0/2'), '검토 중');
+  await click('[data-act=askReview]'); t = await body(); ok(t.includes('검토 중 · 부원 0/2 · 선생님 대기'), '검토 중');
   const who = async (name) => { await click('#demoPill'); await click('#sheet [data-act=demoMe][data-name="' + name + '"]'); };
   ok(!(await p.$('[data-act=approve]')), '내 실험은 내가 승인 못 함');
   await who('홍교사');
@@ -52,7 +52,11 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) process
   await click('[data-act=plan]'); await p.fill('#planForm [name=ctrl]', plan.ctrl + ', 레몬 온도(실온 22℃)'); await click('#planForm [type=submit]');
   await click('#comments [data-act=cmResolve]'); t = await body(); ok(!t.includes('고칠 곳 1개'), '고쳤어요 → 해결');
   await who('홍교사');
-  await click('[data-act=approve]'); t = await body(); ok(t.includes('승인 1/2'), '승인 1/2');
+  await click('[data-act=approve]'); ok((await p.textContent('#toast')).includes('먼저 승인해야'), '선생님은 부원 승인 뒤에 최종 승인');
+  await who('박준서'); await click('[data-act=approve]'); t = await body(); ok(t.includes('부원 1/2'), '부원 1/2');
+  await who('최윤아'); await click('[data-act=approve]'); t = await body(); ok(t.includes('부원 2/2') && t.includes('최종 승인만 남았어요'), '부원 2/2 → 선생님 차례');
+  await who('김기장'); ok(!(await p.$('[data-act=advance]')), '선생님 승인 전에는 준비 시작 못 함');
+  await who('홍교사'); await click('[data-act=approve]'); t = await body(); ok(t.includes('선생님 ✓'), '선생님 최종 승인');
   await who('김기장');
   await shot('03-review');
   await click('[data-act=advance]'); t = await body(); ok(t.includes('준비물을 챙겨요'), '준비 중');

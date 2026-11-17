@@ -185,7 +185,7 @@ function GajiCore(store, util, drive) {
   function stageBlock(old, u, admin, contentOnly) {
     var a = STAGES.indexOf(old.status), b = STAGES.indexOf(u.status);
     if (u.type !== 'exp' || b < 0 || b <= a) return '';
-    if (!admin && b - Math.max(a, 1) > 1) return 'skip';
+    // 여러 단계를 한 번에 보내도(실험 끝 → 바로 결과 기록) 지나는 단계마다 아래 조건을 모두 확인
     if (b >= 2 && !planOk(u.plan)) return 'plan';
     if (b >= 3 && a < 3 && !contentOnly && !(admin && rules().skip)) {
       if (approvalsOf(old) < rules().peers) return 'review';

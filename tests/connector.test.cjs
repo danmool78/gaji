@@ -424,7 +424,7 @@ ok('plan written → review ok', !sg.data.rejected.length && call({ action: 'loa
 ok('no 2 approvals → cannot start prep', call({ action: 'sync', device: MEM, nodes: [{ id: 's1', title: '빈 실험', status: '준비 중' }] }).data.rejected.includes('s1:stage:review'));
 call({ action: 'comment', device: OTH, node: 's1', kind: 'approve' }); call({ action: 'comment', device: ADM, node: 's1', kind: 'approve' });
 ok('2 approvals → prep', !call({ action: 'sync', device: MEM, nodes: [{ id: 's1', title: '빈 실험', status: '준비 중' }] }).data.rejected.length);
-ok('member cannot skip 2 steps', call({ action: 'sync', device: MEM, nodes: [{ id: 's1', title: '빈 실험', status: '기록 완료' }] }).data.rejected.includes('s1:stage:skip'));
+ok('member cannot jump to 기록 완료 without result', call({ action: 'sync', device: MEM, nodes: [{ id: 's1', title: '빈 실험', status: '기록 완료' }] }).data.rejected.includes('s1:stage:result'));
 call({ action: 'sync', device: MEM, nodes: [{ id: 's1', title: '빈 실험', status: '실험 완료' }] });
 ok('no result → cannot finish', call({ action: 'sync', device: MEM, nodes: [{ id: 's1', title: '빈 실험', status: '기록 완료' }] }).data.rejected.includes('s1:stage:result'));
 ok('result without conclusion → cannot finish', call({ action: 'sync', device: MEM, nodes: [{ id: 's1', title: '빈 실험', report: { summary: '값' }, status: '기록 완료' }] }).data.rejected.includes('s1:stage:result'));
