@@ -5,12 +5,12 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.9.1';
+var GAJI_CONNECTOR_VERSION = '2.10.0';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
   var STAGES = ['아이디어', '계획 작성', '검토 중', '준비 중', '실험 완료', '기록 완료'];
-  var ADMIN = { '관리자': 1, '마스터': 1 };
+  var ADMIN = { '관리자': 1, '마스터': 1, '교사': 1 };
   var EXPIRE_DAYS = 60, LOCK_FAILS = 5, LOCK_MIN = 30;
 
   function err(code, msg) { var e = new Error(msg || code); e.code = code; throw e; }
@@ -139,7 +139,7 @@ function GajiCore(store, util, drive) {
     var mine = store.rows('devices').filter(function (d) { return d.memberId === me.id; });
     var notice = mine.filter(function (d) { return d.id !== me.deviceId && d.status === '승인' && days(d.approvedAt) < 7; }).map(function (d) { return { id: d.id, label: d.label, at: d.approvedAt }; });
     return {
-      rev: Number(setting('rev', '0')), me: { id: me.id, name: me.name, role: me.role }, nodes: nodes,
+      rev: Number(setting('rev', '0')), me: { id: me.id, name: me.name, role: me.role }, rules: rules(), nodes: nodes,
       links: store.rows('links').filter(function (l) { return !util.bool(l.off); }).map(function (l) { return { id: l.id, s: l.s, t: l.t, k: l.k }; }),
       files: (function () { var seen = {}; nodes.forEach(function (n) { seen[n.id] = 1; });
         return store.rows('files').filter(function (f) { return !util.bool(f.off) && seen[f.node]; }).map(fileOut); })(),
@@ -165,13 +165,32 @@ function GajiCore(store, util, drive) {
      검토 중 이상 = 계획서(목적 · 방법) / 준비 중 = 승인 2명 (관리자는 건너뛸 수 있음) / 기록 완료 = 결과(요약 · 측정값 · 관찰 중 하나 + 결론) */
   function planOk(p) { return !!(p && p.purpose && p.steps && p.steps.length); }
   function resultOk(r) { return !!(r && (r.summary || (r.table && r.table.rows && r.table.rows.length) || r.observe) && r.claim); }
-  function approvalsOf(n) { var k = store.rows('comments').filter(function (c) { return c.node === n.id && c.kind === 'approve' && !util.bool(c.off) && !inTeam(n, { name: c.by }); }).length; return Math.max(k, Number(n.review) || 0); }
-  function stageBlock(old, u, admin) {
+  /* 승인 규칙 (동아리마다 설정 → 실험 승인 규칙, 마스터 · 선생님이 바꿈)
+     peers: 부원 승인 몇 명 (0~5, 기본 2) / team: 함께하는 사람 승인도 셈 (기본 아니오)
+     teacher: 'final' 부원 승인 뒤 선생님 최종 승인 필수(기본) · 'none' 필요 없음 / skip: 기장 · 관리자 · 선생님이 건너뛸 수 있음 (기본 아니오)
+     선생님(역할 '교사')이 아직 없으면 선생님 승인은 빼고 적용 */
+  function rules() {
+    var p = Math.round(Number(setting('approvePeers', '2'))); if (!(p >= 0 && p <= 5)) p = 2;
+    return { peers: p, team: setting('approveTeam', 'off') === 'on', teacher: setting('approveTeacher', 'final') === 'none' ? 'none' : 'final', skip: setting('approveSkip', 'off') === 'on' };
+  }
+  function approvalsOf(n) {
+    var R = rules(), t = teachers();
+    var k = store.rows('comments').filter(function (c) { return c.node === n.id && c.kind === 'approve' && !util.bool(c.off) && c.by !== n.owner && c.by !== n.createdBy && t.indexOf(c.by) < 0 && (R.team || !inTeam(n, { name: c.by })); }).length;
+    return Math.max(k, Number(n.review) || 0);
+  }
+  function teacherNeeded() { return rules().teacher === 'final' && teachers().length > 0; }
+  // 지도 선생님(역할 '교사')이 있으면 선생님 승인이 꼭 있어야 준비 시작 (선생님이 아직 없으면 승인 2명으로)
+  function teachers() { return store.rows('members').filter(function (m) { return m.role === '교사' && m.status === '활동'; }).map(function (m) { return m.name; }); }
+  function teacherOk(n) { var t = teachers(); if (!teacherNeeded()) return true; return store.rows('comments').some(function (c) { return c.node === n.id && c.kind === 'approve' && !util.bool(c.off) && t.indexOf(c.by) >= 0; }); }
+  function stageBlock(old, u, admin, contentOnly) {
     var a = STAGES.indexOf(old.status), b = STAGES.indexOf(u.status);
     if (u.type !== 'exp' || b < 0 || b <= a) return '';
     if (!admin && b - Math.max(a, 1) > 1) return 'skip';
     if (b >= 2 && !planOk(u.plan)) return 'plan';
-    if (b >= 3 && a < 3 && !admin && approvalsOf(old) < 2) return 'review';
+    if (b >= 3 && a < 3 && !contentOnly && !(admin && rules().skip)) {
+      if (approvalsOf(old) < rules().peers) return 'review';
+      if (!teacherOk(old)) return 'teacher';
+    }
     if (b >= 5 && !resultOk(u.report)) return 'result';
     return '';
   }
@@ -192,7 +211,8 @@ function GajiCore(store, util, drive) {
           var n = { id: String(c.id).slice(0, 40), no: no, created: util.today(), createdBy: me.name, updatedAt: util.now(), updatedBy: me.name };
           NODE_FIELDS.forEach(function (f) { if (f in c) n[f] = c[f]; });
           if (!admin) n.verdict = '';
-          if (n.type === 'exp' && STAGES.indexOf(n.status) > 1 && stageBlock({ id: n.id, status: '계획 작성' }, n, true)) { n.status = '계획 작성'; rejected.push(n.id + ':stage'); }
+          if (n.type === 'exp' && !admin && STAGES.indexOf(n.status) > 2) { n.status = '검토 중'; rejected.push(n.id + ':stage:review'); }   // 새로 만들 때 검토를 건너뛸 수 없음
+          if (n.type === 'exp' && STAGES.indexOf(n.status) > 1 && stageBlock({ id: n.id, status: '계획 작성' }, n, true, true)) { n.status = '계획 작성'; rejected.push(n.id + ':stage'); }
           store.append('nodes', n); assigned[n.id] = no; log(me, '새로 만듦', n.title);
           return;
         }
@@ -356,6 +376,17 @@ function GajiCore(store, util, drive) {
     });
   };
 
+  A.rulesSet = function (q) {
+    var me = deviceOf(q);
+    if (me.role !== '마스터' && me.role !== '교사') err('not_master', '승인 규칙은 동아리 마스터나 지도 선생님만 바꿀 수 있어요');
+    if ('peers' in q) { var p = Math.round(Number(q.peers)); if (!(p >= 0 && p <= 5)) err('bad', '부원 승인은 0~5명이에요'); setSetting('approvePeers', p); }
+    if ('team' in q) setSetting('approveTeam', q.team ? 'on' : 'off');
+    if ('teacher' in q) setSetting('approveTeacher', q.teacher === 'none' ? 'none' : 'final');
+    if ('skip' in q) setSetting('approveSkip', q.skip ? 'on' : 'off');
+    bump(); var R = rules(); log(me, '승인 규칙', '부원 ' + R.peers + ' · 팀 ' + (R.team ? '인정' : '제외') + ' · 선생님 ' + R.teacher + ' · 건너뛰기 ' + (R.skip ? '허용' : '안 됨'));
+    return R;
+  };
+
   A.tidy = function (q) {
     var me = deviceOf(q); var today = util.today();
     if (setting('tidyAt', '') === today && !q.force) return { done: false, reason: 'today' };
@@ -436,7 +467,10 @@ function GajiCore(store, util, drive) {
         var kind = KINDS[q.kind] ? q.kind : 'note', text = String(q.text || '').trim().slice(0, 1000);
         if (!text && kind !== 'approve') err('bad', '내용을 써 주세요');
         if (kind === 'approve') {
-          if (inTeam(n, me)) err('self', '내 실험 · 함께하는 실험은 승인할 수 없어요 · 다른 부원이 검토해야 해요');
+          if (mineNode(n, me)) err('self', '내 실험은 내가 승인할 수 없어요');
+          var R = rules(), isT = teachers().indexOf(me.name) >= 0;
+          if (!isT && !R.team && inTeam(n, me)) err('team', '함께하는 사람은 승인할 수 없어요 · 팀 밖의 부원이 검토해요');
+          if (isT && teacherNeeded() && approvalsOf(n) < R.peers) err('order', '부원 ' + R.peers + '명이 먼저 승인해야 선생님이 최종 승인할 수 있어요');
           if (n.status !== '검토 중' || !planOk(n.plan)) err('not_ready', '계획서를 다 쓰고 검토를 요청한 실험만 승인할 수 있어요');
           rows.forEach(function (c) { if (c.node === n.id && c.kind === 'approve' && c.byId === me.id && !util.bool(c.off)) { c.off = 'true'; store.update('comments', c._row, c); } });
         }
@@ -548,7 +582,7 @@ function GajiCore(store, util, drive) {
     var me = deviceOf(q); needAdmin(me);
     var m = store.rows('members').filter(function (x) { return x.id === q.id; })[0]; if (!m) err('bad');
     if (m.role === '마스터') err('bad', '마스터는 바꿀 수 없어요');
-    if (q.role && q.role !== m.role) { if (me.role !== '마스터') err('not_master', '역할은 마스터만 바꿀 수 있어요'); if (['부원', '관리자'].indexOf(q.role) < 0) err('bad'); m.role = q.role; }
+    if (q.role && q.role !== m.role) { if (me.role !== '마스터') err('not_master', '역할은 마스터만 바꿀 수 있어요'); if (['부원', '관리자', '교사'].indexOf(q.role) < 0) err('bad'); m.role = q.role; }
     if (q.status && q.status !== m.status) { m.status = q.status === '중지' ? '중지' : '활동';
       if (m.status === '중지') store.rows('devices').forEach(function (d) { if (d.memberId === m.id && d.status !== '차단') { d.status = '차단'; store.update('devices', d._row, d); } }); }
     store.update('members', m._row, m); bump(); log(me, '부원 변경', m.name + ' ' + m.role + ' ' + m.status);

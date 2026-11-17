@@ -21,12 +21,16 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) process
   ok(t.includes(String(y)), '날짜가 올해로 옮겨짐');
   // 검토 중인 병렬 연결: 홍교사 승인 1/2, 김기장 수정 요청
   await click('.tabs [data-tab="find"]'); await p.fill('#q', '병렬'); await p.waitForTimeout(100); await click('.day-list .srow');
-  t = await body(); ok(t.includes('승인 1/2') && t.includes('고칠 곳 1개'), '병렬 연결: 검토 중 · 승인 1/2 · 고칠 곳 1');
+  t = await body(); ok(t.includes('부원 1/2') && t.includes('고칠 곳 1개'), '병렬 연결: 검토 중 · 승인 1/2 · 고칠 곳 1');
   // 홍교사로 바꿔 댓글
   await click('#demoPill'); await click('#sheet [data-act=demoMe][data-name="홍교사"]');
   ok((await p.textContent('#demoPill')).includes('홍교사'), '홍교사로 바꿈');
   await p.fill('#comments .cm-add [name=text]', '연결 그림을 넣으면 승인할게요'); await click('#comments .cm-add button[value=note]');
   t = await body(); ok(t.includes('연결 그림을 넣으면') && /홍교사[\s\S]{0,40}연결 그림을 넣으면/.test(t), '홍교사 이름으로 댓글');
+  // 승인 규칙(기본): 부원 2명 → 선생님 최종 승인. 부원 1명뿐이면 선생님도 못 함
+  ok(!!(await p.$('[data-act=approve]')) && (await p.textContent('[data-act=approve]')).includes('최종 승인'), '홍교사: 최종 승인 버튼');
+  await click('[data-act=approve]'); await p.waitForTimeout(150); ok((await p.textContent('#toast')).includes('먼저 승인해야'), '부원 2명 전에는 선생님 최종 승인 안 됨');
+  ok(!(await p.$('[data-act=advance]')), '승인 전에는 준비 시작 버튼 없음');
   // 기록 대기 실험(적양배추)에서 결과 기록하기
   await click('.tabs [data-tab="home"]'); t = await body(); ok(t.includes('적양배추') || t.includes('결과 기록'), '홈: 지금 챙길 것');
   // 매일 리셋: 저장된 날짜를 어제로 바꾸고 다시 열면 처음 상태
@@ -36,6 +40,9 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) process
   ok(!(await p.textContent('.day-list')).includes('병렬'), '날짜가 바뀌면 처음 상태 (댓글 사라짐)');
   await click('.tabs [data-tab="more"]'); await click('[data-go-screen="settings"]'); t = await body();
   ok(t.includes('체험용 가상 동아리') && !(await p.$('a[href="/new"]')), '체험 설정: 안내만 · 동아리 만들기 버튼 없음');
+  ok(t.includes('실험 승인 규칙') && t.includes('팀 밖의 부원 2명 승인 → 지도 선생님 최종 승인'), '설정: 승인 규칙 카드');
+  await click('[data-rule-peers="1"]'); ok((await body()).includes('부원 1명 승인'), '규칙 바꾸기: 부원 1명');
+  await click('[data-rule-peers="2"]');
   await click('[data-act=demoWho]'); ok((await p.textContent('#sheet')).includes('누구로 체험할까요'), '설정에서 누구로 체험할지 바꾸기');
   // 권한: 부원(박준서)로 바꾸면 남의 실험은 읽기만, 비공개는 안 보임, 검토 요청이 내 할 일에
   await click('#sheet [data-act=closeSheet]').catch(() => {});

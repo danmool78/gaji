@@ -41,7 +41,7 @@ window.GAJI_SAMPLE = {
 (function (S) {
   S.settings = { clubName: '북일고등학교 실험 동아리', color: '#1F8F5A', logo: '' };
   S.members = [
-    { name: '김기장', role: '마스터', note: '기장' }, { name: '홍교사', role: '관리자', note: '지도교사' }, { name: '이하늘', role: '부원' }, { name: '박준서', role: '부원' },
+    { name: '김기장', role: '마스터', note: '기장' }, { name: '홍교사', role: '교사', note: '지도교사' }, { name: '이하늘', role: '부원' }, { name: '박준서', role: '부원' },
     { name: '최윤아', role: '부원' }, { name: '정다온', role: '부원' }, { name: '오세린', role: '부원' }, { name: '한결', role: '부원' }, { name: '윤서연', role: '부원' }
   ];
   const rename = { '윤OO': '윤서연', '김OO': '김기장', '박OO': '박준서', '이OO': '이하늘', '정OO': '정다온', '최OO': '최윤아', '한OO': '한결' };
@@ -103,15 +103,15 @@ window.GAJI_SAMPLE = {
   );
   S.links.push({ s: 'b1', t: 'b2', k: 'next' }, { s: 'b2', t: 'b5', k: 'next' }, { s: 'b2', t: 'bq', k: 'q' }, { s: 'b3', t: 'b6', k: 'next' });
   S.comments = [
-    { id: 'c1', node: 'b1', sec: 'plan.ctrl', kind: 'change', text: '통제 변인에 “금속판을 사포로 닦기”를 넣어 주세요. 산화막 때문에 값이 달라져요.', by: '홍교사', role: '관리자', at: T('2026-10-29', '05:00'), resolved: true },
-    { id: 'c2', node: 'b1', sec: '', kind: 'approve', text: '', by: '홍교사', role: '관리자', at: T('2026-10-30', '05:00'), resolved: false },
+    { id: 'c1', node: 'b1', sec: 'plan.ctrl', kind: 'change', text: '통제 변인에 “금속판을 사포로 닦기”를 넣어 주세요. 산화막 때문에 값이 달라져요.', by: '홍교사', role: '교사', at: T('2026-10-29', '05:00'), resolved: true },
+    { id: 'c2', node: 'b1', sec: '', kind: 'approve', text: '', by: '홍교사', role: '교사', at: T('2026-10-30', '05:00'), resolved: false },
     { id: 'c3', node: 'b1', sec: '', kind: 'approve', text: '', by: '박준서', role: '부원', at: T('2026-10-30', '06:00'), resolved: false },
-    { id: 'c4', node: 'b1', sec: 'report.discuss', kind: 'fix', text: '산화막을 어떻게 확인했는지 근거를 한 줄 더 써 주세요.', by: '홍교사', role: '관리자', at: T('2026-11-12', '05:00'), resolved: true },
+    { id: 'c4', node: 'b1', sec: 'report.discuss', kind: 'fix', text: '산화막을 어떻게 확인했는지 근거를 한 줄 더 써 주세요.', by: '홍교사', role: '교사', at: T('2026-11-12', '05:00'), resolved: true },
     { id: 'c5', node: 'b1', sec: '', kind: 'note', text: '알루미늄 결과가 재밌네요. 다음엔 사포로 닦기 전후를 따로 재 보면 좋겠어요.', by: '김기장', role: '마스터', at: T('2026-11-13', '09:00'), resolved: false },
-    { id: 'c6', node: 'b5', sec: '', kind: 'approve', text: '', by: '홍교사', role: '관리자', at: T('2026-11-15', '05:00'), resolved: false },
+    { id: 'c6', node: 'b5', sec: '', kind: 'approve', text: '', by: '윤서연', role: '부원', at: T('2026-11-15', '05:00'), resolved: false },
     { id: 'c7', node: 'b5', sec: 'plan.steps', kind: 'change', text: '전류를 재려면 멀티미터를 LED와 직렬로 연결해야 해요. 방법에 연결 그림이나 설명을 넣어 주세요.', by: '김기장', role: '마스터', at: T('2026-11-15', '06:00'), resolved: false },
-    { id: 'c8', node: 'bq', sec: '', kind: 'answer', text: '전압보다 전류가 문제예요. 레몬 전지는 내부 저항이 커서(수 kΩ) 전류가 1mA도 안 돼요. 병렬로 연결하면 전류를 키울 수 있어요.', by: '홍교사', role: '관리자', at: T('2026-11-12', '10:00'), resolved: false },
-    { id: 'c9', node: 'b4', sec: 'plan.safety', kind: 'fix', text: '황산구리 폐액은 과학실 중금속 폐액통에 버린다고 적어 주세요.', by: '홍교사', role: '관리자', at: T('2026-11-13', '05:00'), resolved: false },
+    { id: 'c8', node: 'bq', sec: '', kind: 'answer', text: '전압보다 전류가 문제예요. 레몬 전지는 내부 저항이 커서(수 kΩ) 전류가 1mA도 안 돼요. 병렬로 연결하면 전류를 키울 수 있어요.', by: '홍교사', role: '교사', at: T('2026-11-12', '10:00'), resolved: false },
+    { id: 'c9', node: 'b4', sec: 'plan.safety', kind: 'fix', text: '황산구리 폐액은 과학실 중금속 폐액통에 버린다고 적어 주세요.', by: '홍교사', role: '교사', at: T('2026-11-13', '05:00'), resolved: false },
     { id: 'c10', node: 'b6', sec: '', kind: 'note', text: '저도 해 보고 싶어요! 냉장고는 과학실 것을 빌릴 수 있대요.', by: '윤서연', role: '부원', at: T('2026-11-16', '04:00'), resolved: false }
   ];
   S.files = [

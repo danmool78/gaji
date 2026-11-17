@@ -96,7 +96,7 @@
   function getCache() { try { const c = JSON.parse(localStorage.getItem(cacheKey()) || 'null'); return c && c.url === PF.club.connector ? c : null; } catch (e) { return null; } }
   // 내 역할: 연결된 동아리는 연결기가 알려 준 역할, 체험은 고른 사람의 역할, 연결 전 마스터 미리 보기는 마스터
   const myRole = () => PF.mode === 'live' ? (PF.me && PF.me.role) || '부원' : PF.mode === 'preview' ? '마스터' : (((typeof db !== 'undefined' && db.members) || []).find((m) => m.name === meName()) || { role: '마스터' }).role;
-  const isAdmin = () => myRole() === '관리자' || myRole() === '마스터';
+  const isAdmin = () => myRole() === '관리자' || myRole() === '마스터' || myRole() === '교사';
   const meName = () => (PF.mode === 'live' && PF.me ? PF.me.name : prefs.demoMe || '김기장');
   const URL_RE = /^https:\/\/script\.google\.com\/(a\/[^/]+\/)?macros\/s\/[\w-]+\/exec$/;
   function deviceLabel() {
@@ -175,7 +175,7 @@
     if (PF.isMaster && PF.api && !PF.statsSent) { PF.statsSent = true; rpc('stats', null, null, { quiet: true }).then((st) => PF.api.saveStats(st)).catch(() => {}); }
   }
   function applyLoad(d) {
-    PF.me = d.me; PF.rev = d.rev; PF.newDevices = (d.newDevices || []).filter((x) => !(prefs.seenDev || []).includes(x.id));
+    PF.me = d.me; PF.rev = d.rev; PF.rules = d.rules || null; PF.newDevices = (d.newDevices || []).filter((x) => !(prefs.seenDev || []).includes(x.id));
     db = { settings: db.settings, nodes: d.nodes.map(fixNode), links: d.links, lines: d.lines || {}, lastNo: d.lastNo || { exp: 0, q: 0, res: 0 }, comments: d.comments || [], files: d.files || [] }; PF.members = d.members || [];
     PF.base = snapshot(); PF.mode = 'live';
   }
@@ -213,7 +213,7 @@
     try {
       const r = await rpc('sync', { nodes: sent, links, lines });
       PF.busy = false;
-      if (r.rejected && r.rejected.length) { const rj = r.rejected.join(' '); toast(/:stage:plan/.test(rj) ? '계획서(목적 · 방법)를 먼저 다 써야 다음 단계로 갈 수 있어요' : /:stage:review/.test(rj) ? '다른 부원 2명이 승인해야 준비를 시작할 수 있어요' : /:stage:result/.test(rj) ? '결과와 결론을 기록해야 기록 완료가 돼요' : /:stage/.test(rj) ? '단계는 하나씩, 내용을 채운 뒤에 넘어갈 수 있어요' : /:team/.test(rj) ? '담당 · 함께하는 사람 · 기장 · 선생님만 고칠 수 있어요' : /:final/.test(rj) ? '확정된 보고서예요 · 관리자가 확정을 풀어야 고칠 수 있어요' : '결과 판정 · 취소 · 단계 되돌리기는 관리자만 할 수 있어요'); return liveLoad(); }
+      if (r.rejected && r.rejected.length) { const rj = r.rejected.join(' '); toast(/:stage:teacher/.test(rj) ? '지도 선생님이 승인해야 준비를 시작할 수 있어요' : /:stage:plan/.test(rj) ? '계획서(목적 · 방법)를 먼저 다 써야 다음 단계로 갈 수 있어요' : /:stage:review/.test(rj) ? '다른 부원 2명이 승인해야 준비를 시작할 수 있어요' : /:stage:result/.test(rj) ? '결과와 결론을 기록해야 기록 완료가 돼요' : /:stage/.test(rj) ? '단계는 하나씩, 내용을 채운 뒤에 넘어갈 수 있어요' : /:team/.test(rj) ? '담당 · 함께하는 사람 · 기장 · 선생님만 고칠 수 있어요' : /:final/.test(rj) ? '확정된 보고서예요 · 관리자가 확정을 풀어야 고칠 수 있어요' : '결과 판정 · 취소 · 단계 되돌리기는 관리자만 할 수 있어요'); return liveLoad(); }
       sent.forEach((s) => { const no = r.assigned && r.assigned[s.id]; const n = byId(s.id); if (no) { s.no = no; if (n) n.no = no; } PF.base.nodes[s.id] = JSON.stringify(s); });
       links.forEach((l) => (l.off ? PF.base.links.delete(lkey(l)) : PF.base.links.add(lkey(l)))); PF.base.lines = JSON.stringify(lines);
       PF.rev = r.rev; render();
@@ -360,7 +360,7 @@
     if (!isAdmin()) return '<div class="card empty">관리자만 볼 수 있어요.</div>';
     if (!PF.people) { loadPeople(); return '<div class="card empty loading-line">' + SPIN + '부원 명단을 불러오는 중…</div>'; }
     const p = PF.people, wait = p.devices.filter((d) => d.status === '대기'), act = p.members.filter((m) => m.status === '활동'), off = p.members.filter((m) => m.status !== '활동');
-    const ROLE = { '마스터': 't-info', '관리자': 't-ok', '부원': 't-neutral' };
+    const ROLE = { '마스터': 't-info', '관리자': 't-ok', '교사': 't-warn', '부원': 't-neutral' };
     return '<div class="btn-row"><button type="button" class="btn primary" data-act="addMember">부원 추가</button><button type="button" class="btn" data-act="refreshPeople">새로 고침</button></div>' +
       (wait.length ? '<h2 class="sec">승인 기다리는 기기 <small>' + wait.length + '</small></h2>' + wait.map((d) => '<button type="button" class="srow" data-act="openApprove" data-id="' + esc(d.id) + '"><span class="tx"><b>' + esc(d.member) + ' · ' + esc(d.label) + '</b><small class="code">' + esc(d.studentId) + ' · 확인 숫자 ' + esc(d.confirm) + '</small></span><span class="badge t-warn">승인</span></button>').join('') : '') +
       '<h2 class="sec">부원 <small>' + act.length + '명</small></h2>' +
@@ -373,7 +373,7 @@
     const master = PF.me.role === '마스터';
     openSheet('<h3>' + esc(m.name) + ' <span class="code muted" style="font-size:14px">' + esc(m.studentId) + '</span></h3><p class="muted">' + esc(m.role) + ' · 승인된 기기 ' + m.devices + '대</p><div style="display:flex;flex-direction:column;gap:10px">' +
       (m.status === '활동' ? '<button type="button" class="btn" data-act="resetCode" data-id="' + esc(m.id) + '">개인 코드 다시 만들기</button><small class="muted">코드를 잊었거나 새어 나갔을 때. 이 부원의 기기는 모두 다시 승인받아야 해요.</small>' : '') +
-      (master && m.role !== '마스터' && m.status === '활동' ? '<button type="button" class="btn" data-act="setRole" data-id="' + esc(m.id) + '" data-role="' + (m.role === '관리자' ? '부원' : '관리자') + '">' + (m.role === '관리자' ? '부원으로 바꾸기' : '관리자로 지정') + '</button>' : '') +
+      (master && m.role !== '마스터' && m.status === '활동' ? '<div class="field">역할<div class="seg" style="grid-template-columns:repeat(3,1fr)">' + [['부원', '부원'], ['관리자', '관리자'], ['교사', '지도 선생님']].map(([r, l]) => '<button type="button" data-act="setRole" data-id="' + esc(m.id) + '" data-role="' + r + '" aria-pressed="' + (m.role === r) + '">' + l + '</button>').join('') + '</div><small class="muted">지도 선생님이 승인해야 실험 준비를 시작할 수 있어요.</small></div>' : '') +
       (m.role !== '마스터' ? '<button type="button" class="btn' + (m.status === '활동' ? ' danger' : '') + '" data-act="setStatus" data-id="' + esc(m.id) + '" data-status="' + (m.status === '활동' ? '중지' : '활동') + '">' + (m.status === '활동' ? '활동 중지 (기기 모두 차단)' : '다시 활동') + '</button>' : '') +
       '<button type="button" class="btn" data-act="closeSheet">닫기</button></div>');
   }
@@ -507,7 +507,7 @@
     if (n.status === '취소') return ['t-neutral', '취소'];
     if (n.status === '기록 완료') return n.verdict === '가설 기각' ? ['t-bad', '가설 기각'] : ['t-ok', n.verdict || '기록 완료'];
     if (n.status === '준비 중') { const s = signalOf(n); return s >= 5 ? ['t-ok', '● GO'] : (days(n.date) <= 7 ? ['t-bad', '● 위험 ' + s + '/5'] : ['t-warn', '● 준비 ' + s + '/5']); }
-    if (n.status === '검토 중') { const k = reviewCount(n); return k >= 2 ? ['t-ok', '검토 2/2'] : ['t-warn', '검토 ' + k + '/2']; }
+    if (n.status === '검토 중') { const k = reviewCount(n), P = rules().peers; return reviewDone(n) ? ['t-ok', '승인 끝'] : k < P ? ['t-warn', '검토 ' + k + '/' + P] : ['t-warn', '선생님 승인 대기']; }
     if (n.status === '실험 완료') return ['t-warn', '기록 대기'];
     return ['t-neutral', n.status];
   }
@@ -620,13 +620,17 @@
       const mine = inTeam(n), open = commentsOf(n.id).filter((c) => (c.kind === 'fix' || c.kind === 'change') && !c.resolved);
       if (n.type === 'exp' && mine) {
         if (n.status === '계획 작성') out.push({ n, why: planReady(n.plan) ? '계획서를 다 썼으면 검토를 요청해요' : '계획서를 써요', w: 2 });
-        if (n.status === '검토 중') out.push({ n, why: open.length ? '고칠 곳 ' + open.length + '개 · 승인 ' + Math.min(2, reviewCount(n)) + '/2' : '승인 기다리는 중 · ' + Math.min(2, reviewCount(n)) + '/2', w: open.length ? 1 : 6 });
+        if (n.status === '검토 중') out.push({ n, why: open.length ? '고칠 곳 ' + open.length + '개가 남아 있어요' : reviewDone(n) ? '승인 끝 · 준비를 시작해요' : reviewCount(n) < rules().peers ? '부원 승인 기다리는 중 · ' + reviewCount(n) + '/' + rules().peers : '선생님 최종 승인 기다리는 중', w: open.length ? 1 : reviewDone(n) ? 0 : 6 });
         if (n.status === '준비 중') { const st = prepState(n); out.push({ n, why: '준비 ' + st.k + '/' + st.total + ' · 실험 ' + (days(n.date) >= 0 ? 'D-' + days(n.date) : '날짜 지남'), w: days(n.date) }); }
         if (n.status === '실험 완료') out.push({ n, why: '결과를 기록해요', w: 0 });
         if (n.status === '기록 완료' && !isFinal(n) && open.length) out.push({ n, why: '보고서 첨삭 ' + open.length + '개', w: 3 });
       }
       if (n.type === 'idea' && mine && ready(n).every(Boolean)) out.push({ n, why: '계획서로 바꿀 수 있어요', w: 5 });
-      if (n.type === 'exp' && !mine && n.status === '검토 중' && planReady(n.plan) && !approvals(n).some((c) => c.by === me) && reviewCount(n) < 2) out.push({ n, why: '검토 요청 · 계획서를 읽고 승인하거나 고칠 곳을 남겨요', w: 4, req: true });
+      if (n.type === 'exp' && n.status === '검토 중' && planReady(n.plan) && n.owner !== me && n.createdBy !== me && !approvals(n).some((c) => c.by === me)) {
+        const isT = teacherNames().includes(me), R = rules();
+        if (isT && teacherNeeded() && reviewCount(n) >= R.peers) out.push({ n, why: '선생님 최종 승인 요청 · 부원 검토가 끝났어요', w: -1, req: true });
+        else if (!isT && (R.team || !mine) && reviewCount(n) < R.peers) out.push({ n, why: '검토 요청 · 계획서를 읽고 승인하거나 고칠 곳을 남겨요', w: 4, req: true });
+      }
       if (n.type === 'q' && n.createdBy === me && n.status !== '해결') { const a = commentsOf(n.id).filter((c) => c.kind === 'answer').length; if (a) out.push({ n, why: '답변 ' + a + '개가 달렸어요', w: 2 }); }
     });
     return out.sort((a, b) => a.w - b.w);
@@ -969,8 +973,17 @@
   const alive = () => db.nodes.filter((n) => !isDel(n) && !(PF.mode !== 'live' && isPriv(n) && !canWork(n)));   // 체험에서도 비공개는 팀 · 관리자만
   const allComments = () => db.comments || (db.comments = []);
   const commentsOf = (id, sec) => allComments().filter((c) => c.node === id && (sec === undefined || c.sec === sec));
-  const approvals = (n) => commentsOf(n.id).filter((c) => c.kind === 'approve' && !teamOf(n).includes(c.by));   // 교차 검토: 팀 사람 승인은 안 셈
-  const reviewCount = (n) => Math.max(+n.review || 0, approvals(n).length);
+  const approvals = (n) => commentsOf(n.id).filter((c) => c.kind === 'approve' && c.by !== n.owner && c.by !== n.createdBy);   // 담당 · 만든 사람 승인은 안 셈 (함께하는 사람은 됨)
+  // 지도 선생님: 역할 '교사'. 있으면 선생님 승인이 꼭 있어야 준비 시작
+  const teacherNames = () => ((PF.mode === 'live' ? PF.members : db.members) || []).filter((m) => m.role === '교사').map((m) => m.name);
+  // 승인 규칙 (동아리마다 설정 → 실험 승인 규칙). 기본: 팀 밖 부원 2명 → 선생님 최종 승인
+  const RULES0 = { peers: 2, team: false, teacher: 'final', skip: false };
+  const rules = () => Object.assign({}, RULES0, (PF.mode === 'live' ? PF.rules : db.rules) || {});
+  const teacherNeeded = () => rules().teacher === 'final' && teacherNames().length > 0;
+  const teacherOk = (n) => { const t = teacherNames(); return !teacherNeeded() || approvals(n).some((c) => t.includes(c.by)); };
+  const peerApprovals = (n) => { const R = rules(), t = teacherNames(); return approvals(n).filter((c) => !t.includes(c.by) && (R.team || !teamOf(n).includes(c.by))); };
+  const reviewCount = (n) => Math.max(+n.review || 0, peerApprovals(n).length);
+  const reviewDone = (n) => reviewCount(n) >= rules().peers && teacherOk(n);
   // 이 실험의 사람들: 담당 · 만든 사람 · 함께하는 사람 (아이디어는 담당 지원자도). 이 사람들과 기장 · 선생님만 고칠 수 있어요
   const teamOf = (n) => [n.owner, n.createdBy].concat(Array.isArray(n.team) ? n.team : []).concat(n.type === 'idea' && n.volunteer ? [n.volunteer] : []).filter(Boolean);
   const inTeam = (n) => !!n && teamOf(n).includes(meName());
@@ -1009,7 +1022,10 @@
     const a = STAGES.indexOf(n.status), b = STAGES.indexOf(to);
     if (b <= a) return '';
     if (b >= 2 && !planReady(n.plan)) return '계획서(목적 · 방법)를 먼저 다 써야 해요';
-    if (b >= 3 && a < 3 && !isAdmin() && reviewCount(n) < 2) return '다른 부원 2명이 승인해야 준비를 시작할 수 있어요';
+    if (b >= 3 && a < 3 && !(isAdmin() && rules().skip)) {
+      if (reviewCount(n) < rules().peers) return '부원 ' + rules().peers + '명이 승인해야 준비를 시작할 수 있어요';
+      if (!teacherOk(n)) return '지도 선생님의 최종 승인이 있어야 준비를 시작할 수 있어요';
+    }
     if (b >= 5 && !resultReady(n.report)) return '결과(측정값 · 관찰)와 결론을 기록해야 기록 완료가 돼요';
     return '';
   }
@@ -1047,11 +1063,16 @@
       if (!planReady(n.plan)) { title = '계획서를 써요'; body = '목적 · 가설 · 변인 · 준비물 · 방법을 정리하면 검토를 요청할 수 있어요.'; btns = b('plan', n.plan ? '계획서 이어 쓰기' : '계획서 쓰기', 'primary'); }
       else { title = '검토를 요청해요'; body = '계획서를 다 썼어요. 다른 부원 2명이 읽고 승인하면 준비를 시작해요.'; btns = b('askReview', '검토 요청하기', 'primary') + b('plan', '계획서 고치기'); }
     } else if (n.status === '검토 중') {
-      const ap = approvals(n), k = reviewCount(n), open = commentsOf(n.id).filter((c) => (c.kind === 'fix' || c.kind === 'change') && !c.resolved).length;
-      title = '검토 중 · 승인 ' + Math.min(k, 2) + '/2'; body = (ap.length ? '승인: ' + ap.map((c) => esc(c.by)).join(', ') + '. ' : '') + (open ? '고칠 곳 ' + open + '개가 남아 있어요.' : '계획서를 읽고 승인하거나 고칠 곳을 남겨 주세요.');
-      if (!inTeam(n)) btns += b('approve', approvals(n).some((c) => c.by === meName()) ? '승인함 ✓' : '승인', 'primary') + b('fixNote', '고칠 곳 남기기');
+      const R = rules(), ap = approvals(n), k = reviewCount(n), tn = teacherNames(), tNeed = teacherNeeded(), tOk = teacherOk(n), open = commentsOf(n.id).filter((c) => (c.kind === 'fix' || c.kind === 'change') && !c.resolved).length;
+      const mineOwn = n.owner === meName() || n.createdBy === meName(), iAmT = tn.includes(meName()), done = reviewDone(n);
+      title = '검토 중 · 부원 ' + Math.min(k, R.peers) + '/' + R.peers + (tNeed ? ' · 선생님 ' + (tOk ? '✓' : '대기') : '');
+      body = (ap.length ? '승인: ' + ap.map((c) => esc(c.by) + (tn.includes(c.by) ? '(선생님)' : '')).join(', ') + '. ' : '') + (open ? '고칠 곳 ' + open + '개가 남아 있어요. ' : '') +
+        (done ? '승인이 끝났어요. 준비를 시작해요.' : k < R.peers ? (R.team ? '' : '팀 밖의 ') + '부원 ' + (R.peers - k) + '명이 더 승인해야 해요' + (tNeed ? ', 그다음 선생님(' + tn.map(esc).join(' · ') + ')이 최종 승인해요.' : '.') : '이제 선생님(' + tn.map(esc).join(' · ') + ')의 최종 승인만 남았어요.');
+      const canApprove = !mineOwn && (iAmT ? tNeed : (R.team || !inTeam(n)));
+      if (canApprove) btns += b('approve', approvals(n).some((c) => c.by === meName()) ? '승인함 ✓' : (iAmT ? '최종 승인' : '승인'), 'primary') + b('fixNote', '고칠 곳 남기기');
+      else if (!mineOwn && !iAmT) btns += b('fixNote', '고칠 곳 남기기');
       if (canEdit(n)) btns += b('plan', '계획서 고치기');
-      if (canWork(n)) { if (k >= 2) btns += b('advance', '준비 시작', 'blue'); else if (isAdmin()) btns += b('advance', '검토 없이 준비 시작'); }
+      if (canWork(n)) { if (done) btns += b('advance', '준비 시작', 'blue'); else if (isAdmin() && R.skip) btns += b('advance', '검토 없이 준비 시작'); }
     } else if (n.status === '준비 중') {
       const s = prepState(n), go = s.total && s.k === s.total;
       title = go ? '준비 끝 · 실험을 시작해요' : '준비물을 챙겨요 · ' + s.k + '/' + s.total; body = go ? '진행 도우미가 방법을 한 단계씩 보여 줘요.' : '아래 준비 점검을 하나씩 체크하세요. 덜 됐어도 시작할 수는 있어요.';
@@ -1190,13 +1211,17 @@
   }
   async function addComment(nodeId, kind, sec, text) {
     text = String(text || '').trim(); if (!text && kind !== 'approve') { toast('내용을 써 주세요'); return false; }
-    if (kind === 'approve') { const an = byId(nodeId); if (!an || an.status !== '검토 중' || !planReady(an.plan)) { toast('계획서를 다 쓰고 검토를 요청한 실험만 승인할 수 있어요'); return false; } }
+    if (kind === 'approve') { const an = byId(nodeId); if (!an || an.status !== '검토 중' || !planReady(an.plan)) { toast('계획서를 다 쓰고 검토를 요청한 실험만 승인할 수 있어요'); return false; }
+      const isT = teacherNames().includes(meName());
+      if (an.owner === meName() || an.createdBy === meName()) { toast('내 실험은 내가 승인할 수 없어요'); return false; }
+      if (!isT && !rules().team && inTeam(an)) { toast('함께하는 사람은 승인할 수 없어요 · 팀 밖의 부원이 검토해요'); return false; }
+      if (isT && teacherNeeded() && reviewCount(an) < rules().peers) { toast('부원 ' + rules().peers + '명이 먼저 승인해야 선생님이 최종 승인할 수 있어요'); return false; } }
     if (PF.mode === 'live') {
       try { const r = await rpc('comment', { node: nodeId, kind, sec, text }); if (kind === 'approve') db.comments = allComments().filter((c) => !(c.node === nodeId && c.kind === 'approve' && c.by === meName())); allComments().push(r.comment); }
       catch (e) { if (!deviceLost(e)) toast(e.message); return false; }
     } else {
       if (kind === 'approve') db.comments = allComments().filter((c) => !(c.node === nodeId && c.kind === 'approve' && c.by === meName()));
-      allComments().push({ id: newCid(), node: nodeId, sec: sec || '', kind, text, by: meName(), role: '', at: nowIso(), resolved: false }); save();
+      allComments().push({ id: newCid(), node: nodeId, sec: sec || '', kind, text, by: meName(), role: myRole(), at: nowIso(), resolved: false }); save();
     }
     render(); return true;
   }
@@ -1334,7 +1359,7 @@
     if (!n) return false;
     switch (act) {
       case 'plan': if (!canEdit(n)) toast('확정된 보고서예요 · 관리자가 확정을 풀어야 고칠 수 있어요'); else planForm(n); return true;
-      case 'approve': addComment(n.id, 'approve', '', '').then((ok) => { if (ok) toast(reviewCount(n) >= 2 ? '승인했어요 · 이제 준비를 시작할 수 있어요' : '승인했어요'); }); return true;
+      case 'approve': addComment(n.id, 'approve', '', '').then((ok) => { if (ok) toast(reviewDone(n) ? '승인했어요 · 이제 준비를 시작할 수 있어요' : '승인했어요'); }); return true;
       case 'fixNote': fixSheet(n); return true;
       case 'secNotes': secSheet(n, a.dataset.sec); return true;
       case 'prepToggle': prepToggle(n, a.dataset.pi); return true;
@@ -1585,7 +1610,7 @@
   const COLORS = ['#C26A00', '#2F6FDB', '#1F8F5A', '#6E4FE0', '#D2394B', '#475467'];
   function viewSettings() {
     const st = brand(), th = prefs.theme || 'system', ed = canEditBrand(), dis = ed ? '' : ' disabled';
-    return driveCard() + (ed ? '' : '<div class="card muted" style="font-size:13px">동아리 이름 · 로고 · 색은 동아리 마스터만 바꿀 수 있어요. 화면 밝기는 이 기기에서 바로 바뀝니다.</div>') +
+    return driveCard() + rulesCard() + (ed ? '' : '<div class="card muted" style="font-size:13px">동아리 이름 · 로고 · 색은 동아리 마스터만 바꿀 수 있어요. 화면 밝기는 이 기기에서 바로 바뀝니다.</div>') +
       '<div class="card" style="display:flex;flex-direction:column;gap:16px">' +
       '<div class="logo-edit"><span class="logo" id="logoPreview">' + logoInner() + '</span><div style="display:flex;flex-direction:column;gap:6px">' + (ed ? '<label class="btn" for="logoFile" style="min-height:40px">로고 바꾸기</label><input id="logoFile" type="file" accept="image/*" hidden>' : '') + (ed && st.logo ? '<button type="button" class="chipbtn" data-act="logoClear">기본 로고로</button>' : '') + '</div></div>' +
       '<label class="field">동아리 이름<input id="clubInput" maxlength="30" value="' + esc(st.clubName) + '"' + dis + '></label>' +
@@ -1615,6 +1640,26 @@
        PF.links ? '<div class="btn-row">' + a(L.sheet, '가지 데이터 시트 열기') + a(L.script, '연결기(Apps Script) 열기') + a(L.folder || L.home, L.folder ? '사진 폴더 열기' : '동아리 폴더 열기') + '</div>' +
         '<span class="muted" style="font-size:12px;line-height:1.6">구글 계정에 이 시트 · 폴더의 편집 권한이 있어야 열려요. 시트를 직접 고치면 가지가 헷갈릴 수 있으니 보기만 하세요.</span>'
         : '<span class="muted loading-line">' + SPIN + '주소를 받는 중…</span>') + '</div>';
+  }
+  // 실험 승인 규칙: 학교마다 다름. 관리자는 보고, 마스터 · 지도 선생님이 바꿈
+  function rulesCard() {
+    if (PF.mode === 'live' ? !isAdmin() : !!PF.club) return '';
+    const R = rules(), ed = ['마스터', '교사'].includes(myRole()), dis = ed ? '' : ' disabled', tn = teacherNames();
+    const ck = (k, on, label) => '<label style="display:flex;gap:8px;align-items:flex-start;font-size:14px;line-height:1.5"><input type="checkbox" data-rule="' + k + '"' + (on ? ' checked' : '') + dis + ' style="margin-top:3px"> <span>' + label + '</span></label>';
+    const sum = (R.peers ? (R.team ? '' : '팀 밖의 ') + '부원 ' + R.peers + '명 승인' : '부원 승인 없음') + (R.teacher === 'final' ? ' → 지도 선생님 최종 승인' : '') + ' → 준비 시작';
+    return '<div class="card" style="display:flex;flex-direction:column;gap:12px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">실험 승인 규칙</b><span class="badge t-info">' + (ed ? '바꿀 수 있음' : '보기만') + '</span></div>' +
+      '<span style="font-size:14px;line-height:1.6;background:var(--surface-2);padding:10px 12px;border-radius:10px"><b>지금 규칙:</b> 계획서 → ' + esc(sum) + '</span>' +
+      '<div class="field">부원 승인<div class="seg" style="grid-template-columns:repeat(4,1fr)">' + [0, 1, 2, 3].map((k) => '<button type="button" data-rule-peers="' + k + '" aria-pressed="' + (R.peers === k) + '"' + dis + '>' + (k ? k + '명' : '없음') + '</button>').join('') + '</div></div>' +
+      ck('team', R.team, '함께하는 사람(팀원)의 승인도 인정 <small class="muted">끄면 팀 밖의 부원만 승인할 수 있어요 (교차 검토)</small>') +
+      ck('teacher', R.teacher === 'final', '부원 승인 뒤 <b>지도 선생님의 최종 승인</b>이 꼭 있어야 함' + (tn.length ? ' <small class="muted">선생님: ' + tn.map(esc).join(' · ') + '</small>' : ' <small class="muted" style="color:var(--warn-fg,#9A5B00)">지도 선생님이 아직 지정되지 않아 지금은 적용되지 않아요. 더 보기 → 부원 · 기기에서 역할을 ‘지도 선생님’으로 바꿔 주세요.</small>')) +
+      ck('skip', R.skip, '급할 때 기장 · 관리자 · 선생님이 검토 없이 준비를 시작할 수 있음') +
+      (ed ? '' : '<span class="muted" style="font-size:12px">동아리 마스터나 지도 선생님만 바꿀 수 있어요.</span>') +
+      '<span class="muted" style="font-size:12px;line-height:1.6">어떤 규칙이든 계획서(목적 · 방법)가 없으면 검토를 요청할 수 없고, 결과 · 결론이 없으면 기록 완료가 되지 않아요. 내 실험은 내가 승인할 수 없어요.</span></div>';
+  }
+  async function setRule(o) {
+    if (PF.mode === 'live') { try { PF.rules = await rpc('rulesSet', o); toast('승인 규칙을 바꿨어요'); } catch (e) { if (!deviceLost(e)) toast(e.message); } return render(); }
+    db.rules = Object.assign({}, rules(), o.teacher ? { teacher: o.teacher } : {}, 'peers' in o ? { peers: o.peers } : {}, 'team' in o ? { team: o.team } : {}, 'skip' in o ? { skip: o.skip } : {});
+    save(); render(); toast('승인 규칙을 바꿨어요');
   }
   // 관리자: 자동 백업 (일주일에 한 번 '가지 백업' 폴더 + 메일)
   function backupCard() {
@@ -1822,6 +1867,7 @@
     const vd = t.closest('[data-verdict]'); if (vd) { const it2 = cur().s === 'item' ? byId(cur().arg) : null; if (it2) { it2.verdict = vd.dataset.verdict; save(); render(); toast('판정: ' + it2.verdict); } return; }
     const ty = t.closest('[data-ty]'); if (ty) { prefs.ty = ty.dataset.ty; savePrefs(); return render(); }
     const col = t.closest('[data-color]'); if (col) return saveBrand({ color: col.dataset.color });
+    const rp = t.closest('[data-rule-peers]'); if (rp) return setRule({ peers: +rp.dataset.rulePeers });
     const nkb = t.closest('[data-nk]'); if (nkb) { const fm = nkb.closest('form'); fm.querySelector('[name=kind]').value = nkb.dataset.nk; fm.querySelectorAll('[data-nk]').forEach((x) => x.setAttribute('aria-pressed', String(x === nkb))); return; }
     const th = t.closest('button[data-theme]'); if (th) { prefs.theme = th.dataset.theme; savePrefs(); return render(); }
     const a = t.closest('[data-act]'); if (!a) return;
@@ -1944,6 +1990,7 @@
     e.preventDefault(); if (id === 'joinForm') submitJoin(e.target); else if (id === 'masterJoinForm') submitMasterJoin(e.target); else submitConnect(e.target);
   });
   document.addEventListener('change', (e) => { if (e.target.matches && e.target.matches('[data-bk-mail]')) return backupSet({ mail: e.target.checked });
+    if (e.target.matches && e.target.matches('[data-rule]')) { const k = e.target.dataset.rule, on = e.target.checked; return setRule(k === 'teacher' ? { teacher: on ? 'final' : 'none' } : { [k]: on }); }
     const q = e.target.closest && e.target.closest('input[data-upload-quick]'); if (q && q.files && q.files.length) { quickMany(q.dataset.uploadQuick, q.files); q.value = ''; return; }
     const u = e.target.closest && e.target.closest('input[data-upload]'); if (u && u.files && u.files.length) { pickFiles(u.dataset.upload, u.files); u.value = ''; } });
   $('#sheet').addEventListener('change', (e) => {
