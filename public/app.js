@@ -649,6 +649,30 @@
     });
     return out.sort((a, b) => a.w - b.w).slice(0, 3);
   }
+  /* 명예의 전당: 쌓인 기록에서 저절로 뽑음 */
+  function hallOfFame() {
+    const ex = alive().filter((n) => n.type === 'exp' && n.status !== '취소'), all = alive().filter((n) => n.status !== '취소');
+    const best = (list, f) => list.map((n) => [n, f(n)]).filter((x) => x[1] > 0).sort((a, b) => b[1] - a[1])[0];
+    const dd = (a, b) => Math.round((new Date(String(b).slice(0, 10)) - new Date(String(a).slice(0, 10))) / 864e5);
+    const cards = [];
+    const kids = best(all, (n) => childrenOf(n).length * 100 + (treeRows([n]).length - 1));
+    if (kids) cards.push({ n: kids[0], k: '가장 많이 가지를 뻗은 실험', v: '가지 ' + childrenOf(kids[0]).length + '개', s: '후속 실험 · 아이디어 모두 ' + (treeRows([kids[0]]).length - 1) + '개', ic: 'M6 3v12M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 9a9 9 0 0 1-9 9' });
+    const deep = best(all, (n) => lineage(n).length);
+    if (deep && deep[1] > 1) cards.push({ n: deep[0], k: '가장 긴 가지', v: deep[1] + '세대', s: lineage(deep[0])[0].title + '에서 시작', ic: 'M12 22V8M12 8l-4-4M12 8l4-4M12 14l-5-3M12 17l5-3' });
+    const long = best(ex.filter((n) => n.status === '기록 완료'), (n) => { const a = (n.plan && n.plan.at) || n.created, b = (n.report && n.report.at) || (n.run && n.run.ended) || n.date; return a && b ? dd(a, b) : 0; });
+    if (long) cards.push({ n: long[0], k: '최장기 실험', v: long[1] + '일', s: '계획서부터 기록 완료까지', ic: 'M12 6v6l4 2M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z' });
+    const fail = best(ex.filter((n) => (n.verdict || (n.report && n.report.claim)) === '가설 기각'), (n) => treeRows([n]).length - 1 + 0.5);
+    if (fail) cards.push({ n: fail[0], k: '실패가 낳은 발견', v: '가설 기각', s: fail[1] >= 1 ? '그 뒤로 ' + Math.floor(fail[1]) + '개의 연구가 이어졌어요' : '실패도 기록으로 남았어요', ic: 'M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.3 1.1 2.2v.5h5V16c0-.9.4-1.6 1.1-2.2A6 6 0 0 0 12 3z' });
+    const hot = best(all, (n) => commentsOf(n.id).filter((c) => c.kind !== 'approve').length);
+    if (hot) cards.push({ n: hot[0], k: '가장 뜨거운 토론', v: '댓글 · 첨삭 ' + hot[1] + '개', s: '서로 묻고 고치며 다듬었어요', ic: 'M21 12a8 8 0 0 1-11.6 7.1L4 21l1.9-5.4A8 8 0 1 1 21 12z' });
+    const cnt = {}; ex.filter((n) => n.status === '기록 완료').forEach((n) => { teamOf(n).filter((x, i, a) => a.indexOf(x) === i).forEach((w) => { cnt[w] = (cnt[w] || 0) + 1; }); });
+    const king = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0];
+    if (king) cards.push({ who: king[0], k: '연구왕', v: king[1] + '개 완성', s: '기록 완료까지 함께 해낸 실험 수', ic: 'M3 7l4 4 5-7 5 7 4-4-2 12H5z' });
+    if (!cards.length) return '';
+    return '<h2 class="sec">명예의 전당 <small>쌓인 기록에서 저절로 뽑아요</small></h2><div class="hof">' + cards.map((c, i) =>
+      '<button type="button" class="hof-card" ' + (c.n ? 'data-item="' + esc(c.n.id) + '"' : 'data-act="findPerson" data-name="' + esc(c.who) + '"') + ' style="--i:' + i + '"><span class="hof-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="' + c.ic + '"/></svg></span>' +
+      '<span class="hof-k">' + c.k + '</span><b class="hof-v">' + c.v + '</b>' + (c.n ? '<span class="hof-t">' + fieldTag(c.n) + esc(c.n.title) + '</span>' : '<span class="hof-t"><b>' + esc(c.who) + '</b></span>') + '<small class="muted">' + (c.n ? esc(c.s) : c.s) + '</small></button>').join('') + '</div>';
+  }
   function viewHome() {
     const t = myTodos(), club = isAdmin() ? todos().filter((x) => !t.some((y) => y.n.id === x.n.id)) : [], lines = computeLines().sort((a, b) => b.rows.length - a.rows.length || (a.state === 'done') - (b.state === 'done')).slice(0, 4);
     const reps = alive().filter((n) => n.type === 'exp' && n.status === '기록 완료' && resultReady(n.report)).sort((a, b) => (isFinal(b) - isFinal(a)) || String(b.date).localeCompare(String(a.date))).slice(0, 4);
@@ -668,7 +692,7 @@
       (reps.length ? '<h2 class="sec">완성된 보고서 <small>누르면 보고서가 열려요</small></h2><div class="rep-list">' + reps.map((n) => '<button type="button" class="rep-card" data-report="' + esc(n.id) + '"><span class="rep-ic">' + svgIcon('res', '#fff') + '</span><span class="tx"><small class="code">' + esc(code(n)) + ' · ' + esc(n.owner || '') + '</small><b>' + esc(n.title) + '</b><small>' + esc(lineName(lineage(n)[0].line)) + ' · ' + fmt(n.date) + '</small></span>' + (isFinal(n) ? '<span class="badge t-ok">확정</span>' : badge(n)) + '</button>').join('') + '</div>' : '') + '</div>' +
       '<div><h2 class="sec">연구 줄기 <small>큰 가지부터 · 누르면 펼쳐져요</small></h2>' + lines.map(lineCard).join('') +
       '<button type="button" class="fold" data-tab-go="tree">가지 전체 보기 →</button>' +
-'</div></div>';
+'</div></div>' + hallOfFame();
   }
 
   /* ---------- 가지 ---------- */
@@ -2070,6 +2094,7 @@
     const copyText = (txt, done) => (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast(done), () => toast('길게 눌러 복사해 주세요'));
     if (act === 'clearFilters') { ['fy', 'ff', 'fp', 'fs'].forEach((k) => delete prefs[k]); savePrefs(); return render(); }
     if (act === 'retry') return startClub();
+    if (act === 'findPerson') { prefs.fp = a.dataset.name; prefs.ty = 'all'; prefs.q = ''; savePrefs(); return tab('find'); }
     if (act === 'findMine') { prefs.ty = 'mine'; prefs.q = ''; savePrefs(); return tab('find'); }
     if (act === 'demoWho') return demoWho();
     if (act === 'pfLogin') return PF.api && PF.api.login();
