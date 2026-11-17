@@ -665,3 +665,10 @@ body { overscroll-behavior-y: none; }
 .notice-board.empty { background: var(--surface); border: 1px dashed var(--line); }
 .nb-ic { background: var(--surface); color: var(--brand); width: 38px; height: 38px; border-radius: 12px; }
 .notice-board p { font-weight: 500; }
+/* 넓은 화면 왼쪽 메뉴: 동아리 주도 색 바탕 + 밝은 색 글자 · 고른 칸은 밝은 색 바탕 */
+@media (min-width: 768px) {
+  .tabs { background: var(--brand); border-right: 0; gap: 8px; }
+  .tabs button { color: color-mix(in srgb, var(--on-brand, #fff) 70%, transparent); border-radius: 18px; margin: 0 4px; transition: background .15s, color .15s; }
+  .tabs button:hover { background: color-mix(in srgb, var(--on-brand, #fff) 12%, transparent); color: var(--on-brand, #fff); }
+  .tabs button[aria-current="page"] { background: var(--on-brand, #fff); color: var(--brand); box-shadow: 0 6px 16px rgba(0, 0, 0, .18); }
+}
