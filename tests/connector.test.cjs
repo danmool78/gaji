@@ -20,7 +20,7 @@ const util = {
   now: () => new Date(clock).toISOString(), today: () => new Date(clock).toISOString().slice(0, 10),
   random: Math.random, token: (n) => crypto.randomBytes(n).toString('base64url').slice(0, n),
   sha256: (s) => crypto.createHash('sha256').update(s).digest('hex'),
-  bool: (v) => v === true || v === 'true', lock: (fn) => fn(), secret: () => 'test-secret-123'
+  bool: (v) => v === true || v === 'true', lock: (fn) => fn(), secret: () => 'test-secret-123', links: () => ({ sheet: 'https://docs.google.com/spreadsheets/d/X/edit', script: 'https://script.google.com/home/projects/S/edit' })
 };
 // 가짜 드라이브: 폴더 · 파일을 메모리에
 const DRIVE = { files: {}, folders: {}, perm: true, n: 0 };
@@ -177,10 +177,10 @@ const mc2 = call({ action: 'myCode', device: r9b.data.device });
 ok('old code renewed', mc2.ok && mc2.data.renewed && /^\d{4}$/.test(mc2.data.code), mc2);
 ok('device kept after renew', call({ action: 'load', device: r9b.data.device }).ok);
 ok('new code works', call({ action: 'register', studentId: '20399', code: mc2.data.code }).ok);
-ok('ping version', call({ action: 'ping' }).data.version === '2.5.0');
+ok('ping version', call({ action: 'ping' }).data.version === '2.6.0');
 
 // 실수 되돌리기: 내가 10분 안에 옮긴 단계는 한 단계 되돌리기 가능
-call({ action: 'sync', device: M, nodes: [{ id: 'u1', type: 'exp', title: '되돌리기 시험', status: '검토 중' }] });
+call({ action: 'sync', device: M, nodes: [{ id: 'u1', type: 'exp', title: '되돌리기 시험', status: '검토 중', owner: '정다온' }] });
 call({ action: 'sync', device: r9b.data.device, nodes: [{ id: 'u1', title: '되돌리기 시험', status: '준비 중' }] });
 let ub = call({ action: 'sync', device: r9b.data.device, nodes: [{ id: 'u1', title: '되돌리기 시험', status: '검토 중' }] });
 ok('member undo own move within 10 min', ub.data.rejected.length === 0, ub);
@@ -218,7 +218,7 @@ const cs = call({ action: 'addMember', device: ADM, studentId: '20501', name: '�
 const rr = call({ action: 'register', studentId: '20501', code: cs.data.code }); call({ action: 'approve', device: ADM, id: rr.data.device.id });
 const OTH = rr.data.device;
 let sy = call({ action: 'sync', device: OTH, nodes: [{ id: 'b1', title: '레몬 전지 전극', deleted: 'true' }] });
-ok('other member cannot delete', sy.data.rejected.includes('b1:delete'), sy);
+ok('other member cannot delete', sy.data.rejected.includes('b1:delete') || sy.data.rejected.includes('b1:team'), sy);
 sy = call({ action: 'sync', device: MEM, nodes: [{ id: 'b1', title: '레몬 전지 전극', deleted: 'true' }] });
 ok('owner can delete', sy.data.rejected.length === 0 && call({ action: 'load', device: ADM }).data.nodes.find((n) => n.id === 'b1').deleted === 'true');
 call({ action: 'sync', device: ADM, nodes: [{ id: 'b1', title: '레몬 전지 전극', deleted: '' }] });
@@ -330,6 +330,38 @@ for (let i = 0; i < 230; i++) store._t.log.unshift({ at: '2025-01-01T00:00:00Z',
 store._t.settings.find((x) => x.key === 'tidyAt').value = '';
 const lg = call({ action: 'tidy', device: MEM }); ok('old logs moved to 기록 보관', lg.data.logs >= 230 && store._t.logArchive.length >= 230, lg);
 clock = nowSave;
+
+
+// ===== 2.6.0: 남의 실험은 못 고침 · 함께하는 사람 =====
+call({ action: 'sync', device: MEM, nodes: [{ id: 't1', type: 'exp', title: '정다온의 실험', status: '계획 작성', owner: '정다온', plan: { purpose: '원래 목적' } }, { id: 't2', type: 'idea', title: '정다온의 아이디어', status: '아이디어', fans: 1 }] });
+let ts = call({ action: 'sync', device: OTH, nodes: [{ id: 't1', title: '정다온의 실험', plan: { purpose: '남이 고침' } }] });
+ok('other member cannot edit plan', ts.data.rejected.includes('t1:team') && call({ action: 'load', device: ADM }).data.nodes.find((n) => n.id === 't1').plan.purpose === '원래 목적', ts);
+ts = call({ action: 'sync', device: OTH, nodes: [{ id: 't1', title: '정다온의 실험', status: '검토 중' }] });
+ok('other member cannot move stage', ts.data.rejected.includes('t1:team'));
+ts = call({ action: 'sync', device: OTH, nodes: [{ id: 't1', title: '정다온의 실험', report: { summary: '남이 쓴 결과' } }] });
+ok('other member cannot write results', ts.data.rejected.includes('t1:team'));
+ts = call({ action: 'sync', device: OTH, nodes: [{ id: 't2', title: '정다온의 아이디어', fans: 2, volunteer: '한결' }] });
+ok('anyone: idea 같이 해요 · 담당 지원(본인)', ts.data.rejected.length === 0 && call({ action: 'load', device: ADM }).data.nodes.find((n) => n.id === 't2').volunteer === '한결', ts);
+ts = call({ action: 'sync', device: OTH, nodes: [{ id: 't2', title: '정다온의 아이디어', volunteer: '정다온' }] });
+ok('cannot volunteer someone else', ts.data.rejected.includes('t2:team'));
+ts = call({ action: 'sync', device: OTH, nodes: [{ id: 't1', title: '정다온의 실험', team: ['한결'] }] });
+ok('other cannot add self to team', ts.data.rejected.includes('t1:team'));
+ts = call({ action: 'sync', device: MEM, nodes: [{ id: 't1', title: '정다온의 실험', team: ['한결'] }] });
+ok('owner adds team member', ts.data.rejected.length === 0);
+ts = call({ action: 'sync', device: OTH, nodes: [{ id: 't1', title: '정다온의 실험', plan: { purpose: '함께 고침' } }] });
+ok('team member can edit', ts.data.rejected.length === 0 && call({ action: 'load', device: ADM }).data.nodes.find((n) => n.id === 't1').plan.purpose === '함께 고침', ts);
+ts = call({ action: 'sync', device: OTH, nodes: [{ id: 't1', title: '정다온의 실험', private: 'true' }] });
+ok('team member cannot change private', ts.data.rejected.includes('t1:team'));
+ts = call({ action: 'sync', device: ADM, nodes: [{ id: 't1', title: '정다온의 실험', plan: { purpose: '관리자 고침' } }] });
+ok('admin can edit any', ts.data.rejected.length === 0);
+call({ action: 'sync', device: MEM, nodes: [{ id: 't1', title: '정다온의 실험', private: 'true' }] });
+ok('private visible to team', call({ action: 'load', device: OTH }).data.nodes.some((n) => n.id === 't1'));
+const add5 = call({ action: 'addMember', device: ADM, studentId: '20599', name: '남궁민' }); const r5 = call({ action: 'register', studentId: '20599', code: add5.data.code }); call({ action: 'approve', device: ADM, id: r5.data.device.id });
+ok('private hidden from non-team', !call({ action: 'load', device: r5.data.device }).data.nodes.some((n) => n.id === 't1'));
+ok('non-team can still comment on public', call({ action: 'comment', device: r5.data.device, node: 't2', text: '저도 해 보고 싶어요' }).ok);
+
+ok('links: admin gets sheet · script', call({ action: 'links', device: ADM }).data.sheet.includes('spreadsheets'));
+ok('links: member refused', call({ action: 'links', device: OTH }).code === 'not_admin');
 
 console.log(`connector: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

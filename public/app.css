@@ -437,6 +437,10 @@ mark { background: var(--warn-bg); color: var(--fg); border-radius: 3px; padding
 .rep-ic { width: 36px; height: 36px; border-radius: 10px; background: var(--done); display: grid; place-items: center; flex: none; } .rep-ic svg { width: 20px; height: 20px; fill: none; stroke-width: 2; }
 .line-meta { display: block; font-size: 12px; margin-top: -2px; }
 
+.todo-item.req { border-color: var(--warn); }
+.mine-tag { display: inline-block; color: var(--info); background: var(--info-bg); border-radius: 999px; padding: 0 8px; font-size: 11px; font-weight: 700; margin-top: 2px; width: fit-content; }
+.team-pick { display: flex; flex-wrap: wrap; gap: 6px; } .team-pick label { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; font-weight: 400; color: var(--fg); font-size: 14px; cursor: pointer; } .team-pick input { width: 16px; height: 16px; }
+
 /* 인쇄는 화면 밝기와 상관없이 언제나 흰 바탕 (어둡게 모드여도) */
 @media print {
   :root, :root[data-theme], :root[data-theme="dark"], :root:not([data-theme="light"]) {

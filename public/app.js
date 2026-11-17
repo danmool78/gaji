@@ -94,7 +94,9 @@
   // 마지막으로 불러온 데이터를 이 기기에 보관 → 다음에 열 때 바로 보여 주고 뒤에서 최신으로 맞춤
   function putCache(d) { try { localStorage.setItem(cacheKey(), JSON.stringify({ url: PF.club.connector, at: Date.now(), d })); } catch (e) {} }
   function getCache() { try { const c = JSON.parse(localStorage.getItem(cacheKey()) || 'null'); return c && c.url === PF.club.connector ? c : null; } catch (e) { return null; } }
-  const isAdmin = () => PF.mode === 'live' && PF.me && (PF.me.role === '관리자' || PF.me.role === '마스터');
+  // 내 역할: 연결된 동아리는 연결기가 알려 준 역할, 체험은 고른 사람의 역할, 연결 전 마스터 미리 보기는 마스터
+  const myRole = () => PF.mode === 'live' ? (PF.me && PF.me.role) || '부원' : PF.mode === 'preview' ? '마스터' : (((typeof db !== 'undefined' && db.members) || []).find((m) => m.name === meName()) || { role: '마스터' }).role;
+  const isAdmin = () => myRole() === '관리자' || myRole() === '마스터';
   const meName = () => (PF.mode === 'live' && PF.me ? PF.me.name : prefs.demoMe || '김기장');
   const URL_RE = /^https:\/\/script\.google\.com\/(a\/[^/]+\/)?macros\/s\/[\w-]+\/exec$/;
   function deviceLabel() {
@@ -211,7 +213,7 @@
     try {
       const r = await rpc('sync', { nodes: sent, links, lines });
       PF.busy = false;
-      if (r.rejected && r.rejected.length) { toast('결과 판정 · 취소 · 단계 되돌리기는 관리자만 할 수 있어요'); return liveLoad(); }
+      if (r.rejected && r.rejected.length) { const rj = r.rejected.join(' '); toast(/:team/.test(rj) ? '담당 · 함께하는 사람 · 기장 · 선생님만 고칠 수 있어요' : /:final/.test(rj) ? '확정된 보고서예요 · 관리자가 확정을 풀어야 고칠 수 있어요' : '결과 판정 · 취소 · 단계 되돌리기는 관리자만 할 수 있어요'); return liveLoad(); }
       sent.forEach((s) => { const no = r.assigned && r.assigned[s.id]; const n = byId(s.id); if (no) { s.no = no; if (n) n.no = no; } PF.base.nodes[s.id] = JSON.stringify(s); });
       links.forEach((l) => (l.off ? PF.base.links.delete(lkey(l)) : PF.base.links.add(lkey(l)))); PF.base.lines = JSON.stringify(lines);
       PF.rev = r.rev; render();
@@ -399,7 +401,7 @@
       '<span class="code muted" style="font-size:12px;word-break:break-all">' + esc(c.connector) + '</span>' +
       (PF.connAuth === 'core' ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기가 가지 본체를 받지 못해요 · 권한 허용이 필요해요</span><span style="font-weight:400;line-height:1.7">① Apps Script 화면 위쪽 <b>▷ 실행</b> 버튼 왼쪽의 함수 목록에서 <b>권한허용</b>(없으면 <b>doGet</b>) 고르기<br>② <b>▷ 실행</b> → <b>권한 검토</b> → 내 계정 → <b>고급 → 이동 → 허용</b><br>③ 여기서 <b>연결 시험</b> (다시 배포할 필요 없어요)</span></div>' : '') +
       (PF.connAuth === true ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기가 응답하지 않아요 · 권한 허용이 필요할 수 있어요</span><span style="font-weight:400;line-height:1.7">① <b>연결기 권한 확인</b>을 눌러 새 창 열기<br>② ‘권한 필요’ 또는 ‘액세스 승인’이 나오면 → <b>권한 검토</b> → 내 계정 → <b>고급 → 이동 → 허용</b><br>③ 새 창에 <b>"gaji":true</b> 글자가 보이면 성공 → 여기서 <b>연결 시험</b></span></div>' : '') +
-      (PF.connVer && !verOld(PF.connVer, LATEST_VER) && PF.connShell !== undefined && Number(PF.connShell || 0) < 4 ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>사진 올리기를 쓰려면 연결기를 한 번 더 배포해야 해요</span><span style="font-weight:400;line-height:1.7">① 아래 <b>연결기 코드 복사</b> → Apps Script에 덮어쓰고 저장<br>② 함수 목록에서 <b>권한허용</b> → ▷ 실행 → 허용<br>③ <b>배포 → 배포 관리</b> → 연필 모양 → 버전: <b>새 버전</b> → 배포 (주소는 그대로)<br>④ 여기서 <b>연결 시험</b></span></div>' : '') +
+      (PF.connVer && !verOld(PF.connVer, LATEST_VER) && PF.connShell !== undefined && Number(PF.connShell || 0) < 5 ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>사진 올리기를 쓰려면 연결기를 한 번 더 배포해야 해요</span><span style="font-weight:400;line-height:1.7">① 아래 <b>연결기 코드 복사</b> → Apps Script에 덮어쓰고 저장<br>② 함수 목록에서 <b>권한허용</b> → ▷ 실행 → 허용<br>③ <b>배포 → 배포 관리</b> → 연필 모양 → 버전: <b>새 버전</b> → 배포 (주소는 그대로)<br>④ 여기서 <b>연결 시험</b></span></div>' : '') +
       (PF.connVer ? (verOld(PF.connVer)
         ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기 업데이트 필요 · 지금 ' + esc(PF.connVer) + ' → 새 판 ' + NEED_VER + '</span><span style="font-weight:400;line-height:1.7">① 아래 <b>연결기 코드 복사</b> → Apps Script에 덮어쓰고 저장<br>② <b>배포 → 배포 관리</b> → 연필 모양(수정) → 버전: <b>새 버전</b> → 배포<br>③ 여기서 <b>연결 시험</b> → ' + NEED_VER + ' 확인</span></div>'
         : verOld(PF.connVer, LATEST_VER)
@@ -611,6 +613,24 @@
   function back() { const mi = mainIndex(); nav = nav.slice(0, Math.max(1, wide() ? mi : nav.length - 1)); render(true); }
 
   /* ---------- 홈 ---------- */
+  /* 내가 할 일: 내 실험의 다음 할 일 + 나에게 온 검토 요청 + 내 질문에 달린 답 */
+  function myTodos() {
+    const out = [], me = meName();
+    alive().forEach((n) => {
+      const mine = inTeam(n), open = commentsOf(n.id).filter((c) => (c.kind === 'fix' || c.kind === 'change') && !c.resolved);
+      if (n.type === 'exp' && mine) {
+        if (n.status === '계획 작성') out.push({ n, why: planReady(n.plan) ? '계획서를 다 썼으면 검토를 요청해요' : '계획서를 써요', w: 2 });
+        if (n.status === '검토 중') out.push({ n, why: open.length ? '고칠 곳 ' + open.length + '개 · 승인 ' + Math.min(2, reviewCount(n)) + '/2' : '승인 기다리는 중 · ' + Math.min(2, reviewCount(n)) + '/2', w: open.length ? 1 : 6 });
+        if (n.status === '준비 중') { const st = prepState(n); out.push({ n, why: '준비 ' + st.k + '/' + st.total + ' · 실험 ' + (days(n.date) >= 0 ? 'D-' + days(n.date) : '날짜 지남'), w: days(n.date) }); }
+        if (n.status === '실험 완료') out.push({ n, why: '결과를 기록해요', w: 0 });
+        if (n.status === '기록 완료' && !isFinal(n) && open.length) out.push({ n, why: '보고서 첨삭 ' + open.length + '개', w: 3 });
+      }
+      if (n.type === 'idea' && mine && ready(n).every(Boolean)) out.push({ n, why: '계획서로 바꿀 수 있어요', w: 5 });
+      if (n.type === 'exp' && !mine && n.status === '검토 중' && !approvals(n).some((c) => c.by === me) && reviewCount(n) < 2) out.push({ n, why: '검토 요청 · 계획서를 읽고 승인하거나 고칠 곳을 남겨요', w: 4, req: true });
+      if (n.type === 'q' && n.createdBy === me && n.status !== '해결') { const a = commentsOf(n.id).filter((c) => c.kind === 'answer').length; if (a) out.push({ n, why: '답변 ' + a + '개가 달렸어요', w: 2 }); }
+    });
+    return out.sort((a, b) => a.w - b.w);
+  }
   function todos() {
     const out = [];
     alive().forEach((n) => {
@@ -623,14 +643,17 @@
     return out.sort((a, b) => a.w - b.w).slice(0, 3);
   }
   function viewHome() {
-    const t = todos(), lines = computeLines().sort((a, b) => b.rows.length - a.rows.length || (a.state === 'done') - (b.state === 'done')).slice(0, 4);
+    const t = myTodos(), club = isAdmin() ? todos().filter((x) => !t.some((y) => y.n.id === x.n.id)) : [], lines = computeLines().sort((a, b) => b.rows.length - a.rows.length || (a.state === 'done') - (b.state === 'done')).slice(0, 4);
     const reps = alive().filter((n) => n.type === 'exp' && n.status === '기록 완료' && n.report).sort((a, b) => (isFinal(b) - isFinal(a)) || String(b.date).localeCompare(String(a.date))).slice(0, 4);
     const nd = PF.mode === 'live' ? PF.newDevices : [];
     return (nd.length ? '<div class="card notice"><b>내 이름으로 새 기기' + (nd.length > 1 ? ' ' + nd.length + '대가' : '가') + ' 승인됐어요</b><span class="muted" style="font-size:13px">내가 연 기기가 아니면 ‘내가 아님’을 눌러 바로 막으세요.</span>' +
       nd.map((d) => '<div class="nd-row"><span>' + esc(d.label || '기기') + ' · ' + esc(String(d.at).slice(5, 10).replace('-', '/')) + '</span><button type="button" class="chipbtn" data-act="notMe" data-id="' + esc(d.id) + '">내가 아님</button></div>').join('') +
       '<div class="btn-row"><button type="button" class="btn" data-act="seenAllDev">모두 내 기기예요 · 확인</button></div></div>' : '') +
-      '<div class="home-grid"><div><div class="hello"><span class="muted">' + (TODAY.getMonth() + 1) + '월 ' + TODAY.getDate() + '일 ' + WD[TODAY.getDay()] + '요일</span><b>지금 챙길 것 ' + t.length + '개</b></div>' +
-      '<div class="todo">' + (t.length ? t.map((x) => '<button type="button" class="todo-item" data-item="' + x.n.id + '">' + ico(x.n) + '<span class="tx"><b>' + esc(x.n.title) + '</b><small>' + esc(x.why) + '</small></span>' + badge(x.n) + '</button>').join('') : '<div class="card empty">지금 챙길 일이 없어요.</div>') + '</div>' +
+      '<div class="home-grid"><div><div class="hello"><span class="muted">' + (TODAY.getMonth() + 1) + '월 ' + TODAY.getDate() + '일 ' + WD[TODAY.getDay()] + '요일 · ' + esc(meName()) + '</span><b>내가 할 일 ' + t.length + '개</b></div>' +
+      '<div class="todo">' + (t.length ? t.slice(0, 6).map((x) => '<button type="button" class="todo-item' + (x.req ? ' req' : '') + '" data-item="' + x.n.id + '">' + ico(x.n) + '<span class="tx"><b>' + esc(x.n.title) + '</b><small>' + esc(x.why) + '</small></span>' + (x.req ? '<span class="badge t-warn">검토 요청</span>' : badge(x.n)) + '</button>').join('') +
+        (t.length > 6 ? '<button type="button" class="fold" data-act="findMine">내 것 모두 보기 (' + t.length + ') →</button>' : '')
+        : '<div class="card empty">지금 할 일이 없어요. 새 실험을 만들거나, 아이디어에 담당 지원해 보세요.</div>') + '</div>' +
+      (club.length ? '<h2 class="sec">동아리 챙길 것 <small>기장 · 선생님</small></h2><div class="todo">' + club.slice(0, 3).map((x) => '<button type="button" class="todo-item" data-item="' + x.n.id + '">' + ico(x.n) + '<span class="tx"><b>' + esc(x.n.title) + '</b><small>' + esc(x.why) + (x.n.owner ? ' · ' + esc(x.n.owner) : '') + '</small></span>' + badge(x.n) + '</button>').join('') + '</div>' : '') +
       '<div class="quick">' +
         '<button type="button" data-new="exp" style="background:#2F6FDB">' + svgIcon('exp', '#fff') + '새 실험</button>' +
         '<button type="button" data-new="idea" style="background:#B86200">' + svgIcon('idea', '#fff') + '아이디어</button>' +
@@ -683,7 +706,7 @@
     if (isArch(n) && PF.mode === 'live') { const head = '<div class="detail-head"><div class="idrow">' + ico(n) + '<span class="idchip">' + esc(code(n)) + '</span></div><h2>' + esc(n.title) + '</h2><div class="idrow">' + badge(n) + '</div></div>'; return head + archWait(n); }
     if (isDel(n)) return '<div class="card empty">휴지통에 있는 항목이에요. <button type="button" class="chipbtn" data-act="restore" data-id="' + esc(n.id) + '">되살리기</button></div>';
     let h = '<div class="detail-head"><div class="idrow">' + ico(n) + '<span class="idchip">' + esc(code(n)) + '</span><button type="button" class="chipbtn" data-act="copy">번호 복사</button><span class="muted" style="font-size:12px">' + TYPE[n.type].label + ' · ' + esc(n.field) + (n.owner ? ' · ' + esc(n.owner) : '') + '</span><button type="button" class="chipbtn more-btn" data-act="itemMenu" aria-label="더 보기">⋯ 관리</button></div>' +
-      '<h2>' + esc(n.title) + '</h2><div class="idrow">' + badge(n) + (n.type === 'exp' && tone(n)[1] !== n.status ? '<span class="badge t-info">' + esc(n.status) + '</span>' : '') + (isFinal(n) ? '<span class="badge t-ok">보고서 확정</span>' : '') + '</div></div>';
+      '<h2>' + esc(n.title) + '</h2><div class="idrow">' + badge(n) + (n.type === 'exp' && tone(n)[1] !== n.status ? '<span class="badge t-info">' + esc(n.status) + '</span>' : '') + (isFinal(n) ? '<span class="badge t-ok">보고서 확정</span>' : '') + (isPriv(n) ? '<span class="badge t-neutral">비공개</span>' : '') + (inTeam(n) ? '<span class="badge t-info">내 실험</span>' : '') + '</div></div>';
     h += nowCard(n);
     if (isExpLike(n)) { const rows = familyRows(n);
       h += '<div class="card"><div class="panel-title"><span>이 실험의 가지 · ' + lineage(n).length + '세대' + (after(n) ? ' · 후속 ' + after(n) + '개' : '') + '</span><span>' + esc(lineName(lineage(n)[0].line)) + '</span></div>' + branchSvg(rows, n.id) + '</div>'; }
@@ -705,16 +728,17 @@
   // 단계 되돌리기: 체험 모드는 누구나, 연결된 동아리는 관리자 또는 10분 안에 내가 옮긴 단계
   function canBack(n) {
     const i = STAGES.indexOf(n.status); if (n.type !== 'exp' || i < 2) return false;
+    if (!canWork(n)) return false;
     if (PF.mode !== 'live') return true;
     return isAdmin() || (PF.myMoves[n.id] && Date.now() - PF.myMoves[n.id] < 10 * 60000);
   }
   function actions(n) {
-    if (n.type === 'idea') { const ok = ready(n).every(Boolean);
-      return '<button type="button" class="btn" data-act="fan">같이 해요 +1</button>' + (ok ? '<button type="button" class="btn primary" data-act="convert">계획서로 만들기</button>' : (!n.volunteer ? '<button type="button" class="btn" data-act="volunteer">담당 지원</button>' : '<button type="button" class="btn" data-act="equip">장비 확인</button>')); }
+    const B = (act, label, cls) => '<button type="button" class="btn ' + (cls || '') + '" data-act="' + act + '">' + label + '</button>';
+    if (n.type === 'idea') { const ok = ready(n).every(Boolean), w = canWork(n);
+      return B('fan', '같이 해요 +1') + (!n.volunteer ? B('volunteer', '담당 지원') : w && !n.equip ? B('equip', '장비 확인') : '') + (ok && w ? B('convert', '계획서로 만들기', 'primary') : '') + B('branch', '이어서 가지 치기'); }
     if (n.type === 'exp' && n.status !== '취소') { const i = STAGES.indexOf(n.status);
-      return (canBack(n) ? '<button type="button" class="btn" data-act="stageBack">이전 단계로: ' + STAGES[i - 1] + '</button>' : '') +
-        '<button type="button" class="btn" data-act="branch">이어서 가지 치기</button>'; }
-    if (n.type === 'q') return n.status === '해결' ? '<button type="button" class="btn" data-act="toIdea">실험 아이디어로</button>' : '<button type="button" class="btn primary" data-act="solve">해결됨으로 표시</button><button type="button" class="btn" data-act="toIdea">실험 아이디어로</button>';
+      return (canBack(n) ? B('stageBack', '이전 단계로: ' + STAGES[i - 1]) : '') + B('branch', '이어서 가지 치기'); }
+    if (n.type === 'q') return (n.status !== '해결' && (n.createdBy === meName() || isAdmin()) ? B('solve', '해결됨으로 표시', 'primary') : '') + B('toIdea', '실험 아이디어로');
     return '';
   }
 
@@ -839,7 +863,7 @@
     if (done && !rep.claim) return toast('결론을 골라 주세요');
     if (n.report && n.report.final) rep.final = n.report.final;
     n.report = rep;
-    if (done && n.status === '실험 완료') { n.status = '기록 완료'; if (PF.mode !== 'live' || isAdmin()) n.verdict = rep.claim; PF.myMoves[n.id] = Date.now(); }
+    if (done && n.status === '실험 완료') { n.status = '기록 완료'; if (isAdmin()) n.verdict = rep.claim; PF.myMoves[n.id] = Date.now(); }
     save(); closeSheet(); render();
     toast(!done ? '임시 저장했어요' : (n.verdict ? '기록을 완료했어요' : '기록을 냈어요 · 관리자가 판정하면 확정돼요'));
   }
@@ -862,7 +886,7 @@
     if (r.discuss) h += '<div><small class="muted">고찰</small><p>' + para(r.discuss) + '</p></div>';
     if (r.conclusion) h += '<div><small class="muted">결론</small><p><b>' + para(r.conclusion) + '</b></p></div>';
     h += '<div class="rec-claim"><span>결론 제안 <b>' + esc(r.claim || '-') + '</b></span><span>판정 ' + (n.verdict ? '<span class="badge ' + (n.verdict === '가설 기각' ? 't-bad' : n.verdict === '가설 지지' ? 't-ok' : 't-warn') + '">' + esc(n.verdict) + '</span>' : '<span class="badge t-neutral">판정 대기</span>') + '</span></div>';
-    if (n.status === '기록 완료' && (PF.mode !== 'live' || isAdmin())) h += '<div class="seg" style="grid-template-columns:repeat(3,1fr)" aria-label="판정 (관리자)">' + CLAIMS.map((c) => '<button type="button" data-verdict="' + c + '" aria-pressed="' + (n.verdict === c) + '">' + c + '</button>').join('') + '</div>';
+    if (n.status === '기록 완료' && isAdmin()) h += '<div class="seg" style="grid-template-columns:repeat(3,1fr)" aria-label="판정 (관리자)">' + CLAIMS.map((c) => '<button type="button" data-verdict="' + c + '" aria-pressed="' + (n.verdict === c) + '">' + c + '</button>').join('') + '</div>';
     if (r.next) h += '<div><small class="muted">다음에 해 볼 것</small><p>' + esc(r.next) + '</p><button type="button" class="chipbtn" data-act="nextIdea">이걸로 아이디어 만들기</button></div>';
     return h + '</div>';
   }
@@ -942,15 +966,20 @@
    *   report += { discuss, conclusion, final: { by, at } }
    *   deleted = 'true' 이면 휴지통 */
   const isDel = (n) => !!n && (n.deleted === true || n.deleted === 'true');
-  const alive = () => db.nodes.filter((n) => !isDel(n));
+  const alive = () => db.nodes.filter((n) => !isDel(n) && !(PF.mode !== 'live' && isPriv(n) && !canWork(n)));   // 체험에서도 비공개는 팀 · 관리자만
   const allComments = () => db.comments || (db.comments = []);
   const commentsOf = (id, sec) => allComments().filter((c) => c.node === id && (sec === undefined || c.sec === sec));
   const approvals = (n) => commentsOf(n.id).filter((c) => c.kind === 'approve');
   const reviewCount = (n) => Math.max(+n.review || 0, approvals(n).length);
-  const isMine = (n) => PF.mode !== 'live' || n.owner === meName() || n.createdBy === meName();
+  // 이 실험의 사람들: 담당 · 만든 사람 · 함께하는 사람 (아이디어는 담당 지원자도). 이 사람들과 기장 · 선생님만 고칠 수 있어요
+  const teamOf = (n) => [n.owner, n.createdBy].concat(Array.isArray(n.team) ? n.team : []).concat(n.type === 'idea' && n.volunteer ? [n.volunteer] : []).filter(Boolean);
+  const inTeam = (n) => !!n && teamOf(n).includes(meName());
+  const canWork = (n) => isAdmin() || inTeam(n);
+  const isMine = inTeam;
+  const isPriv = (n) => n.private === true || n.private === 'true';
   const isFinal = (n) => !!(n.report && n.report.final);
-  const canEdit = (n) => !isFinal(n) || PF.mode !== 'live' || isAdmin();
-  const canDelete = (n) => PF.mode !== 'live' || isAdmin() || isMine(n);
+  const canEdit = (n) => canWork(n) && (!isFinal(n) || isAdmin());
+  const canDelete = (n) => isAdmin() || n.owner === meName() || n.createdBy === meName();
   const nowIso = () => new Date().toISOString();
   const hm = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
   const md = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : (d.getMonth() + 1) + '/' + d.getDate(); };
@@ -986,6 +1015,12 @@
   }
   function nowCard(n) {
     if (n.type !== 'exp' || n.status === '취소') return '';
+    if (!canWork(n) && n.status !== '검토 중') {
+      const who = teamOf(n).filter((x, i, a) => a.indexOf(x) === i).join(' · ') || '다른 부원';
+      const vb = (act, label, cls) => '<button type="button" class="btn ' + (cls || '') + '" data-act="' + act + '">' + label + '</button>';
+      return '<div class="card now-card">' + stepper(n) + '<b class="now-t">' + esc(who) + '의 실험이에요</b><span class="muted now-b">읽고 댓글 · 첨삭으로 도와줄 수 있어요. 고치기는 담당 · 함께하는 사람 · 기장 · 선생님만 할 수 있어요.</span><div class="btn-row">' +
+        (n.status === '기록 완료' ? vb('report', '보고서 보기', 'primary') : '') + (n.run && (n.run.started || (n.run.notes || []).length) ? vb('runOpen', '진행 노트 보기') : '') + '</div></div>';
+    }
     const b = (act, label, cls) => '<button type="button" class="btn ' + (cls || '') + '" data-act="' + act + '">' + label + '</button>';
     let title = '', body = '', btns = '';
     const lock = !canEdit(n);
@@ -995,9 +1030,9 @@
     } else if (n.status === '검토 중') {
       const ap = approvals(n), k = reviewCount(n), open = commentsOf(n.id).filter((c) => (c.kind === 'fix' || c.kind === 'change') && !c.resolved).length;
       title = '검토 중 · 승인 ' + Math.min(k, 2) + '/2'; body = (ap.length ? '승인: ' + ap.map((c) => esc(c.by)).join(', ') + '. ' : '') + (open ? '고칠 곳 ' + open + '개가 남아 있어요.' : '계획서를 읽고 승인하거나 고칠 곳을 남겨 주세요.');
-      if (PF.mode !== 'live' || !isMine(n)) btns += b('approve', approvals(n).some((c) => c.by === meName()) ? '승인함 ✓' : '승인', 'primary') + b('fixNote', '고칠 곳 남기기');
-      if (isMine(n)) btns += b('plan', '계획서 고치기');
-      if (k >= 2) btns += b('advance', '준비 시작', 'blue'); else if (isAdmin() || PF.mode !== 'live') btns += b('advance', '검토 없이 준비 시작' + (PF.mode !== 'live' ? ' (체험)' : ''));
+      if (!inTeam(n)) btns += b('approve', approvals(n).some((c) => c.by === meName()) ? '승인함 ✓' : '승인', 'primary') + b('fixNote', '고칠 곳 남기기');
+      if (canEdit(n)) btns += b('plan', '계획서 고치기');
+      if (canWork(n)) { if (k >= 2) btns += b('advance', '준비 시작', 'blue'); else if (isAdmin()) btns += b('advance', '검토 없이 준비 시작'); }
     } else if (n.status === '준비 중') {
       const s = prepState(n), go = s.total && s.k === s.total;
       title = go ? '준비 끝 · 실험을 시작해요' : '준비물을 챙겨요 · ' + s.k + '/' + s.total; body = go ? '진행 도우미가 방법을 한 단계씩 보여 줘요.' : '아래 준비 점검을 하나씩 체크하세요. 덜 됐어도 시작할 수는 있어요.';
@@ -1080,15 +1115,17 @@
   function viewRun(id) {
     const n = byId(id); if (!n) return '<div class="card empty">항목을 찾지 못했어요.</div>';
     const steps = (n.plan && n.plan.steps) || [], r = n.run || {}, done = r.done || {}, curI = steps.findIndex((_, i) => !done[i]), ended = !!r.ended;
+    const rw = canWork(n);
     let h = '<div class="run-head"><span class="idchip">' + esc(code(n)) + '</span><b>' + esc(n.title) + '</b><span class="muted">' + (r.started ? '시작 ' + md(r.started) + ' ' + hm(r.started) : '아직 시작 전') + (ended ? ' · 끝 ' + hm(r.ended) : '') + '</span></div>';
     if (!steps.length) h += '<div class="card muted">계획서에 실험 방법이 없어요. 계획서에 단계를 적으면 여기서 하나씩 체크할 수 있어요. <button type="button" class="chipbtn" data-act="plan">계획서 고치기</button></div>';
-    else h += '<div class="card run-steps">' + steps.map((s, i) => '<button type="button" class="rs' + (done[i] ? ' on' : '') + (i === curI && !ended ? ' cur' : '') + '" data-act="stepToggle" data-i="' + i + '"' + (ended && !isAdmin() && PF.mode === 'live' ? ' disabled' : '') + '><span class="rs-n">' + (done[i] ? '✓' : i + 1) + '</span><span class="rs-t">' + esc(s) + '</span>' + (done[i] ? '<small>' + hm(done[i]) + '</small>' : '') + '</button>').join('') + '</div>';
-    h += '<form id="noteForm" class="card note-form"><b>메모 남기기</b><div class="seg" style="grid-template-columns:repeat(3,1fr)">' + Object.entries(NOTE_KIND).map(([k, l], i) => '<button type="button" data-nk="' + k + '" aria-pressed="' + (i === 0) + '">' + l + '</button>').join('') + '</div><input type="hidden" name="kind" value="obs">' +
+    else h += '<div class="card run-steps">' + steps.map((s, i) => '<button type="button" class="rs' + (done[i] ? ' on' : '') + (i === curI && !ended ? ' cur' : '') + '" data-act="stepToggle" data-i="' + i + '"' + ((ended && !isAdmin()) || !rw ? ' disabled' : '') + '><span class="rs-n">' + (done[i] ? '✓' : i + 1) + '</span><span class="rs-t">' + esc(s) + '</span>' + (done[i] ? '<small>' + hm(done[i]) + '</small>' : '') + '</button>').join('') + '</div>';
+    if (!rw) h += '<div class="card muted" style="font-size:13px">' + esc(teamOf(n).join(' · ')) + '의 실험이에요. 진행 노트는 읽기만 할 수 있어요.</div>';
+    if (rw) h += '<form id="noteForm" class="card note-form"><b>메모 남기기</b><div class="seg" style="grid-template-columns:repeat(3,1fr)">' + Object.entries(NOTE_KIND).map(([k, l], i) => '<button type="button" data-nk="' + k + '" aria-pressed="' + (i === 0) + '">' + l + '</button>').join('') + '</div><input type="hidden" name="kind" value="obs">' +
       '<textarea name="text" rows="2" maxlength="500" placeholder="예: 3번째 레몬은 즙이 적어 전압이 낮게 나옴"></textarea><div class="btn-row"><button type="submit" class="btn">메모 남기기</button><button type="button" class="btn" data-act="record">측정값 넣기</button></div></form>';
     h += filesCard(n, true);
     const notes = (r.notes || []).slice().reverse();
-    if (notes.length) h += '<div class="card sec-card"><div class="sec-head"><b>진행 노트</b><span class="muted">' + notes.length + '개</span></div>' + notes.map((x) => '<div class="nt"><span class="badge ' + (x.kind === 'problem' ? 't-bad' : x.kind === 'change' ? 't-warn' : 't-info') + '">' + (NOTE_KIND[x.kind] || '메모') + '</span><span class="nt-t">' + para(x.text) + '<small class="muted">' + esc(x.by || '') + ' · ' + hm(x.at) + '</small></span>' + (x.by === meName() || isAdmin() || PF.mode !== 'live' ? '<button type="button" class="chipbtn" data-act="noteDel" data-nid="' + esc(x.id) + '">지우기</button>' : '') + '</div>').join('') + '</div>';
-    if (n.status === '준비 중') h += '<div class="btn-row"><button type="button" class="btn primary" data-act="runEnd">실험 끝내기 · 결과 기록으로</button></div>';
+    if (notes.length) h += '<div class="card sec-card"><div class="sec-head"><b>진행 노트</b><span class="muted">' + notes.length + '개</span></div>' + notes.map((x) => '<div class="nt"><span class="badge ' + (x.kind === 'problem' ? 't-bad' : x.kind === 'change' ? 't-warn' : 't-info') + '">' + (NOTE_KIND[x.kind] || '메모') + '</span><span class="nt-t">' + para(x.text) + '<small class="muted">' + esc(x.by || '') + ' · ' + hm(x.at) + '</small></span>' + (canWork(n) && (x.by === meName() || isAdmin()) ? '<button type="button" class="chipbtn" data-act="noteDel" data-nid="' + esc(x.id) + '">지우기</button>' : '') + '</div>').join('') + '</div>';
+    if (n.status === '준비 중' && rw) h += '<div class="btn-row"><button type="button" class="btn primary" data-act="runEnd">실험 끝내기 · 결과 기록으로</button></div>';
     return h;
   }
   function runStart(n) { if (n.run && n.run.started) return; n.run = Object.assign({ done: {}, notes: [] }, n.run || {}, { started: nowIso() }); save(); }
@@ -1108,10 +1145,10 @@
     return sec;
   }
   function commentHTML(c) {
-    const mine = c.by === meName() || PF.mode !== 'live', k = CKIND[c.kind] || CKIND.note;
+    const mine = c.by === meName(), k = CKIND[c.kind] || CKIND.note, nn = byId(c.node), canRes = mine || isAdmin() || (nn && inTeam(nn));
     return '<div class="cm' + (c.resolved ? ' done' : '') + '"><div class="cm-h"><span class="badge ' + k[1] + '">' + k[0] + '</span><b>' + esc(c.by) + '</b>' + (c.role && c.role !== '부원' ? '<small class="muted">' + esc(c.role) + '</small>' : '') + '<small class="muted">' + md(c.at) + ' ' + hm(c.at) + (c.editedAt ? ' · 고침' : '') + '</small>' + (c.sec ? '<small class="cm-sec">' + esc(secLabel(c.sec)) + '</small>' : '') + '</div>' +
       (c.text ? '<p>' + para(c.text) + '</p>' : '') + '<div class="cm-a">' +
-      (c.kind !== 'approve' && c.kind !== 'note' && c.kind !== 'answer' ? '<button type="button" class="chipbtn" data-act="cmResolve" data-cid="' + esc(c.id) + '">' + (c.resolved ? '다시 열기' : '고쳤어요') + '</button>' : '') +
+      (c.kind !== 'approve' && c.kind !== 'note' && c.kind !== 'answer' && canRes ? '<button type="button" class="chipbtn" data-act="cmResolve" data-cid="' + esc(c.id) + '">' + (c.resolved ? '다시 열기' : '고쳤어요') + '</button>' : '') +
       (mine && c.kind !== 'approve' ? '<button type="button" class="chipbtn" data-act="cmEdit" data-cid="' + esc(c.id) + '">고치기</button>' : '') +
       (mine || isAdmin() ? '<button type="button" class="chipbtn" data-act="cmDel" data-cid="' + esc(c.id) + '">지우기</button>' : '') + '</div></div>';
   }
@@ -1156,9 +1193,11 @@
   /* ---------- 고치기 · 가지 옮기기 · 휴지통 ---------- */
   function itemMenu(n) {
     const b = (act, label, cls) => '<button type="button" class="btn ' + (cls || '') + '" data-act="' + act + '">' + label + '</button>';
+    if (!canWork(n) && !canDelete(n)) return toast('담당 · 함께하는 사람 · 기장 · 선생님만 관리할 수 있어요');
     openSheet('<h3>' + esc(n.title) + '</h3><div style="display:flex;flex-direction:column;gap:10px">' +
-      (canEdit(n) ? b('editItem', '제목 · 날짜 · 담당 고치기') : '') + (isExpLike(n) ? b('moveItem', '가지 옮기기') : '') +
-      (n.type === 'exp' && n.status !== '취소' && (isAdmin() || PF.mode !== 'live') ? b('cancelExp', '실험 취소 (기록은 남김)') : '') +
+      (canEdit(n) ? b('editItem', '제목 · 날짜 · 담당 · 함께하는 사람') : '') + (isExpLike(n) && canWork(n) ? b('moveItem', '가지 옮기기') : '') +
+      (n.type === 'exp' && (isAdmin() || n.owner === meName() || n.createdBy === meName()) ? b('togglePrivate', isPriv(n) ? '공개로 바꾸기 (동아리 모두 보기)' : '비공개로 (팀 · 기장 · 선생님만)') : '') +
+      (n.type === 'exp' && n.status !== '취소' && isAdmin() ? b('cancelExp', '실험 취소 (기록은 남김)') : '') +
       (canDelete(n) ? b('trashItem', '휴지통으로', 'danger') : '') + b('closeSheet', '닫기') + '</div>');
   }
   function editForm(n) {
@@ -1169,6 +1208,7 @@
       '<label class="field">' + (n.type === 'exp' ? '실험 예정일' : '날짜') + '<input type="date" name="date" value="' + esc(n.date || '') + '"></label>' +
       (n.type !== 'q' ? '<label class="field">담당' + (owners.length ? '<select name="owner"><option value="">없음</option>' + owners.map((o) => '<option' + (n.owner === o ? ' selected' : '') + '>' + esc(o) + '</option>').join('') + '</select>' : '<input name="owner" maxlength="20" value="' + esc(n.owner || '') + '">') + '</label>' : '') +
       (isExpLike(n) && !parentOf(n) ? lineFields([...new Set(alive().map((x) => x.line).filter(Boolean))], n.line || '__new', '') + '<label class="field">이 줄기 이름 바꾸기<input name="lineName" maxlength="20" value="' + esc(lineName(n.line)) + '"></label>' : '') +
+      (n.type === 'exp' && (isAdmin() || n.owner === meName() || n.createdBy === meName()) && mem.length ? '<div class="field">함께하는 사람 <span class="muted" style="font-weight:400">이 실험을 같이 고칠 수 있어요</span><div class="team-pick">' + mem.filter((m) => m !== n.owner).map((m) => '<label><input type="checkbox" name="team" value="' + esc(m) + '"' + ((n.team || []).includes(m) ? ' checked' : '') + '>' + esc(m) + '</label>').join('') + '</div></div>' : '') +
       '<label class="field">설명<textarea name="desc" rows="3" maxlength="600">' + esc(n.desc || '') + '</textarea></label>' +
       '<div class="btn-row"><button type="button" class="btn" data-act="closeSheet">취소</button><button type="submit" class="btn primary">저장</button></div></form>');
   }
@@ -1176,6 +1216,7 @@
     const n = byId(fm.dataset.id); if (!n) return; const fd = new FormData(fm);
     n.title = String(fd.get('title')).trim().slice(0, 60) || n.title; n.field = String(fd.get('field') || n.field); if (fd.get('date')) n.date = String(fd.get('date'));
     if (fd.has('owner')) n.owner = String(fd.get('owner') || '').trim(); n.desc = String(fd.get('desc') || '').trim();
+    if (fm.querySelector('[name=team]')) n.team = fd.getAll('team').map(String).filter((x) => x !== n.owner);
     if (fd.has('line') && fd.get('line') !== n.line) { const ln = pickLine(fd, n.title); descendants(n).forEach((id) => { const x = byId(id); if (x) x.line = ln; }); }
     else if (fd.has('lineName') && n.line) { const ln = String(fd.get('lineName')).trim().slice(0, 20); if (ln) db.lines[n.line] = ln; }
     save(); closeSheet(); render(); toast('고쳤어요');
@@ -1242,7 +1283,7 @@
     const people = [...new Set([n.owner, p.by, r.by].concat(notes.map((x) => x.by)).filter(Boolean))];
     const missing = REPORT_SECS.length - (body.match(/class="rp-sec"/g) || []).length + (body.match(/class="miss"/g) || []).length;
     return '<div class="rp-bar no-print"><button type="button" class="btn" data-act="printReport">인쇄 · PDF 저장</button>' + (canEdit(n) ? '<button type="button" class="btn" data-act="record">결과 · 고찰 고치기</button><button type="button" class="btn" data-act="plan">계획서 고치기</button>' : '') +
-      ((isAdmin() || PF.mode !== 'live') && n.status === '기록 완료' ? (isFinal(n) ? '<button type="button" class="btn" data-act="unfinal">확정 풀기</button>' : '<button type="button" class="btn primary" data-act="final">보고서 확정</button>') : '') + '</div>' +
+      (isAdmin() && n.status === '기록 완료' ? (isFinal(n) ? '<button type="button" class="btn" data-act="unfinal">확정 풀기</button>' : '<button type="button" class="btn primary" data-act="final">보고서 확정</button>') : '') + '</div>' +
       (missing ? '<div class="card gate-note no-print" style="font-weight:400">아직 안 쓴 칸이 ' + missing + '개 있어요. ‘(아직 안 씀)’ 부분을 채우면 보고서가 완성돼요.</div>' : '') +
       '<article class="report"><header class="rp-cover"><small>' + esc(brand().clubName) + ' 실험 보고서' + (isFinal(n) ? ' · 확정' : ' · 초안') + '</small><h2>' + esc(n.title) + '</h2>' +
       '<dl><dt>실험 번호</dt><dd class="code">' + esc(code(n)) + ' (' + esc(uid(n)) + ')</dd><dt>분야</dt><dd>' + esc(n.field || '') + '</dd><dt>연구 줄기</dt><dd>' + esc(lineName(lin[0].line)) + (lin.length > 1 ? ' · ' + lin.length + '세대 (' + esc(code(lin[lin.length - 2])) + '에서 이어짐)' : '') + '</dd><dt>참여</dt><dd>' + esc(people.join(', ') || '-') + '</dd><dt>기간</dt><dd>' + esc(period(n)) + '</dd></dl></header>' + body +
@@ -1286,6 +1327,7 @@
         n.run = n.run || { done: {}, notes: [] }; n.run.ended = nowIso(); if (!n.run.started) n.run.started = n.run.ended; n.date = dstr(new Date(n.run.started)); n.status = '실험 완료'; PF.myMoves[n.id] = Date.now(); save(); back(); recordForm(n); return true;
       case 'itemMenu': itemMenu(n); return true;
       case 'editItem': editForm(n); return true;
+      case 'togglePrivate': n.private = isPriv(n) ? '' : 'true'; save(); closeSheet(); render(); toast(isPriv(n) ? '비공개로 바꿨어요 · 팀 · 기장 · 선생님만 볼 수 있어요' : '동아리 모두가 볼 수 있어요'); return true;
       case 'moveItem': moveSheet(n); return true;
       case 'trashItem': trashItem(n); return true;
       case 'cancelExp': if (confirm('이 실험을 취소할까요? 기록은 남아요.')) { n.status = '취소'; save(); closeSheet(); render(); toast('취소했어요'); } return true;
@@ -1400,7 +1442,7 @@
   function fillThumbs() { document.querySelectorAll('img[data-fid]:not([src])').forEach((img) => { const s = PF.thumbs[img.dataset.fid]; if (s) { img.src = s; const sp = img.parentNode.querySelector('.ph-spin'); if (sp) sp.remove(); } }); }
   function fileView(fid) {
     const f = (db.files || []).find((x) => x.id === fid); if (!f) return;
-    const n = byId(f.node), mine = PF.mode !== 'live' || f.by === meName() || isAdmin() || (n && isMine(n)), src = PF.fulls[fid] || thumbSrc(f);
+    const n = byId(f.node), mine = f.by === meName() || isAdmin() || (n && inTeam(n)), src = PF.fulls[fid] || thumbSrc(f);
     openSheet('<h3>' + esc(f.caption || FKIND[f.kind] || '사진') + '</h3>' +
       (f.mime === 'application/pdf' ? '<p class="muted">PDF 파일 · ' + esc(f.name) + '</p>' : '<img class="ph-big" alt="' + esc(f.caption || f.name) + '"' + (src ? ' src="' + src + '"' : '') + ' data-fid="' + esc(f.id) + '">') +
       '<p class="muted" style="font-size:12px;margin:6px 0">' + esc(FKIND[f.kind] || '') + ' · ' + esc(f.by || '') + ' · ' + md(f.at) + (f.size ? ' · ' + Math.round(f.size / 1024) + 'KB' : '') + '</p>' +
@@ -1458,7 +1500,7 @@
     const F = { fy: prefs.fy || '', ff: prefs.ff || '', fp: prefs.fp || '', fs: prefs.fs || '' };
     const list = [];
     all.forEach((n) => {
-      if (!(ty === 'all' || n.type === ty || (ty === 'exp' && n.type === 'idea'))) return;
+      if (ty === 'mine' ? !(inTeam(n) || (n.type === 'q' && n.createdBy === meName())) : !(ty === 'all' || n.type === ty || (ty === 'exp' && n.type === 'idea'))) return;
       if (F.fy && yearOf(n) !== F.fy) return; if (F.ff && n.field !== F.ff) return; if (F.fp && !peopleOf(n).includes(F.fp)) return; if (F.fs && stageOf(n) !== F.fs) return;
       if (!q) return list.push({ n, hit: null });
       const terms = q.split(/\s+/).filter(Boolean), parts = searchParts(n), blob = parts.map((x) => x[1]).join(' ').toLowerCase();
@@ -1470,7 +1512,7 @@
       const hits = (PF.archHits || {})[q];
       if (!hits) archSearch(q);
       else hits.forEach((h) => { const n = byId(h.id); if (!n || isDel(n) || list.some((x) => x.n.id === h.id)) return;
-        if (!(ty === 'all' || n.type === ty || (ty === 'exp' && n.type === 'idea'))) return; if (F.fy && yearOf(n) !== F.fy) return; if (F.ff && n.field !== F.ff) return; if (F.fs && stageOf(n) !== F.fs) return;
+        if (ty === 'mine' ? !(inTeam(n) || (n.type === 'q' && n.createdBy === meName())) : !(ty === 'all' || n.type === ty || (ty === 'exp' && n.type === 'idea'))) return; if (F.fy && yearOf(n) !== F.fy) return; if (F.ff && n.field !== F.ff) return; if (F.fs && stageOf(n) !== F.fs) return;
         list.push({ n, hit: ['지난 기록', h.snip], score: 2 }); });
     }
     list.sort((a, b) => (a.score || 0) - (b.score || 0) || String(b.n.date).localeCompare(String(a.n.date)));
@@ -1480,11 +1522,11 @@
     const chip = (k, label, c) => '<button type="button" class="chip" data-ty="' + k + '" aria-pressed="' + (ty === k) + '">' + (c ? '<i style="background:' + c + '"></i>' : '') + label + '</button>';
     const filtered = F.fy || F.ff || F.fp || F.fs;
     return '<label for="q" class="muted" style="font-size:13px;font-weight:700;margin:4px 2px -10px">제목 · 번호 · 내용으로 찾기</label><input id="q" class="search" type="search" placeholder="예: 전압, 레몬, CHE-019, 산화막" value="' + esc(prefs.q || '') + '">' +
-      '<div class="chips" role="group" aria-label="종류">' + chip('all', '전체') + chip('exp', '실험 · 아이디어', 'var(--exp)') + chip('q', '질문', 'var(--q)') + chip('res', '자료', 'var(--res)') + '</div>' +
+      '<div class="chips" role="group" aria-label="종류">' + chip('all', '전체') + chip('mine', '내 것') + chip('exp', '실험 · 아이디어', 'var(--exp)') + chip('q', '질문', 'var(--q)') + chip('res', '자료', 'var(--res)') + '</div>' +
       '<div class="fsels">' + opts('fy', '연도', years, F.fy) + opts('ff', '분야', fields, F.ff) + opts('fp', '사람', people, F.fp) + opts('fs', '단계', stages, F.fs) + '</div>' +
       '<div class="find-count muted">' + list.length + '개' + (q ? ' · ‘' + esc(prefs.q.trim()) + '’' : '') + (filtered ? ' <button type="button" class="chipbtn" data-act="clearFilters">거르기 풀기</button>' : '') + '</div>' +
       '<div class="day-list">' + (list.length ? list.map(({ n, hit }) => '<button type="button" class="srow" data-item="' + n.id + '">' + ico(n) + '<span class="tx"><small class="code">' + esc(code(n)) + ' · ' + esc(yearOf(n)) + (n.owner ? ' · ' + esc(n.owner) : '') + '</small><b>' + (q ? hiSnip(n.title, q.split(/\s+/)[0]) : esc(n.title)) + '</b>' +
-        (hit ? '<small class="snip"><em>' + esc(hit[0]) + '</em> ' + hiSnip(hit[1], String(hit[1]).toLowerCase().includes(q) ? q : q.split(/\s+/)[0]) + '</small>' : '') + '</span>' + badge(n) + '</button>').join('') : '<div class="card empty">찾는 항목이 없어요.</div>') + '</div>';
+        (inTeam(n) ? '<small class="mine-tag">내 실험</small>' : '') + (hit ? '<small class="snip"><em>' + esc(hit[0]) + '</em> ' + hiSnip(hit[1], String(hit[1]).toLowerCase().includes(q) ? q : q.split(/\s+/)[0]) + '</small>' : '') + '</span>' + badge(n) + '</button>').join('') : '<div class="card empty">찾는 항목이 없어요.</div>') + '</div>';
   }
 
   /* ---------- 더 보기 ---------- */
@@ -1492,7 +1534,7 @@
     const mi = (s, c, path, t, d) => '<button type="button" class="menu-item" data-go-screen="' + s + '"><span class="mi" style="background:' + c + '"><svg viewBox="0 0 24 24"><path d="' + path + '"/></svg></span><span class="tx"><b>' + t + '</b><small>' + d + '</small></span></button>';
     return '<div class="menu">' +
       (PF.isMaster ? mi('club', 'var(--brand)', 'M8 15a4 4 0 1 0 0-.01zM11 12l8.5-8.5M16.5 6.5l3 3M14 9l2 2', '동아리 관리', '동아리 주소 · 학교 계정 · 마스터 넘기기') : '') +
-      (isAdmin() ? mi('people', 'var(--done)', 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v1M17 11l2 2 4-4', '부원 · 기기', '부원 추가 · 개인 코드 · 기기 승인') : '') +
+      (PF.mode === 'live' && isAdmin() ? mi('people', 'var(--done)', 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v1M17 11l2 2 4-4', '부원 · 기기', '부원 추가 · 개인 코드 · 기기 승인') : '') +
       mi('settings', 'var(--club)', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z', '설정', (PF.isMaster ? '드라이브 연결 · ' : '') + '동아리 이름 · 로고 · 색 · 화면 밝기') +
       mi('board', 'var(--exp)', 'M3 4h5v16H3zM10 4h5v11h-5zM17 4h4v7h-4z', '보드', '단계별로 실험 카드 보기 (관리자용)') +
       mi('map', 'var(--q)', 'M12 12m-2.5 0a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0 -5 0M5 5m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M19 6m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M6 19m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M10.2 10.2L6.4 6.4M13.8 11l3.6-3.6M10.3 13.8L7.4 17.4', '전체 지도', '동아리 연구 전체를 한 장으로 (발표용)') +
@@ -1537,8 +1579,18 @@
   function driveCard() {
     const box = (badge, body) => '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">드라이브 연결</b>' + badge + '</div>' + body + '</div>';
     if (!PF.club) return box('<span class="badge t-neutral">체험</span>', '<span class="muted" style="font-size:13px;line-height:1.7">지금은 <b>체험용 가상 동아리(북일고등학교 실험 동아리)</b>예요. 드라이브 연결 없이 바로 써 볼 수 있어요. 바꾼 내용은 이 브라우저에만 저장되고 <b>매일 처음 상태로 돌아가요.</b></span><button type="button" class="btn" data-act="demoWho" style="align-self:flex-start">누구로 체험할지 바꾸기 · 처음 상태로</button>');
-    if (PF.isMaster) { fetchGs(); return connectCard(); }
-    return '';   // 부원 · 관리자에게는 보이지 않음 (연결은 동아리 마스터만)
+    if (PF.isMaster) { fetchGs(); return linksCard() + connectCard(); }
+    return linksCard();   // 관리자: 바로 열기만 · 부원에게는 보이지 않음
+  }
+  // 관리자: 동아리 데이터 바로 열기 (주소는 연결기가 알려 줌)
+  function linksCard() {
+    if (PF.mode !== 'live' || !isAdmin()) return '';
+    if (!PF.links && !PF.linksLoading) { PF.linksLoading = true; rpc('links', null, null, { quiet: true }).then((l) => { PF.links = l || {}; render(); }, () => { PF.links = {}; }).finally(() => { PF.linksLoading = false; }); }
+    const L = PF.links || {}, a = (href, label) => href ? '<a class="btn" href="' + esc(href) + '" target="_blank" rel="noopener">' + label + '</a>' : '';
+    return '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">동아리 데이터 바로 열기</b><span class="badge t-info">관리자</span></div>' +
+      (PF.links ? '<div class="btn-row">' + a(L.sheet, '가지 데이터 시트 열기') + a(L.script, '연결기(Apps Script) 열기') + a(L.folder || L.home, L.folder ? '사진 폴더 열기' : '동아리 폴더 열기') + '</div>' +
+        '<span class="muted" style="font-size:12px;line-height:1.6">구글 계정에 이 시트 · 폴더의 편집 권한이 있어야 열려요. 시트를 직접 고치면 가지가 헷갈릴 수 있으니 보기만 하세요.</span>'
+        : '<span class="muted loading-line">' + SPIN + '주소를 받는 중…</span>') + '</div>';
   }
   function viewClub() {
     if (!PF.isMaster) return '<div class="card empty">동아리 마스터만 볼 수 있어요.</div>';
@@ -1686,6 +1738,7 @@
     const copyText = (txt, done) => (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast(done), () => toast('길게 눌러 복사해 주세요'));
     if (act === 'clearFilters') { ['fy', 'ff', 'fp', 'fs'].forEach((k) => delete prefs[k]); savePrefs(); return render(); }
     if (act === 'retry') return startClub();
+    if (act === 'findMine') { prefs.ty = 'mine'; prefs.q = ''; savePrefs(); return tab('find'); }
     if (act === 'demoWho') return demoWho();
     if (act === 'pfLogin') return PF.api && PF.api.login();
     if (act === 'askApprove') return askApprove();

@@ -54,7 +54,7 @@
 ## 시험
 
 ```
-node tests/connector.test.cjs          # 연결기 본체 로직 (128개)
+node tests/connector.test.cjs          # 연결기 본체 로직 (143개)
 node tests/shell.test.cjs              # 연결기 껍데기: 본체 받기 · 보관 · 장애 · 멈춤 (14개)
 node tests/flow.check.cjs 390          # 화면: 실험 전 과정 + 찾기 (playwright)
 node tests/buttons.check.cjs           # 화면: 버튼 줄바꿈 · 넘침 점검 (playwright)

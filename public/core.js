@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.5.0';
+var GAJI_CONNECTOR_VERSION = '2.6.0';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
@@ -122,11 +122,18 @@ function GajiCore(store, util, drive) {
     return { code: code, name: me.name, studentId: me.studentId, renewed: renewed };
   };
 
+  // 기장 · 선생님: 시트 · 연결기 · 사진 폴더 바로 열기 주소
+  A.links = function (q) {
+    var me = deviceOf(q); needAdmin(me);
+    var l = {}; try { l = util.links ? util.links() : {}; } catch (e) {}
+    return l;
+  };
+
   A.rev = function (q) { deviceOf(q); return { rev: Number(setting('rev', '0')) }; };
 
   A.load = function (q) {
     var me = deviceOf(q), admin = !!ADMIN[me.role];
-    var nodes = store.rows('nodes').filter(function (n) { return !util.bool(n.private) || admin || n.owner === me.name; }).map(cleanNode);
+    var nodes = store.rows('nodes').filter(function (n) { return !util.bool(n.private) || admin || inTeam(n, me); }).map(cleanNode);
     var members = store.rows('members').filter(function (m) { return m.status === '활동'; }).map(function (m) { return { id: m.id, name: m.name, role: m.role }; });
     var mine = store.rows('devices').filter(function (d) { return d.memberId === me.id; });
     var notice = mine.filter(function (d) { return d.id !== me.deviceId && d.status === '승인' && days(d.approvedAt) < 7; }).map(function (d) { return { id: d.id, label: d.label, at: d.approvedAt }; });
@@ -144,10 +151,14 @@ function GajiCore(store, util, drive) {
   };
   function cleanNode(n) { var o = {}; Object.keys(n).forEach(function (k) { if (k !== '_row') o[k] = n[k]; }); return o; }
 
-  var NODE_FIELDS = ['type', 'title', 'field', 'status', 'line', 'date', 'owner', 'signal', 'review', 'verdict', 'fans', 'volunteer', 'equip', 'desc', 'private', 'report', 'plan', 'prep', 'run', 'deleted'];
+  var NODE_FIELDS = ['type', 'title', 'field', 'status', 'line', 'date', 'owner', 'signal', 'review', 'verdict', 'fans', 'volunteer', 'equip', 'desc', 'private', 'report', 'plan', 'prep', 'run', 'deleted', 'team'];
   var HEAVY = ['plan', 'prep', 'run', 'report', 'desc'];
   var LOCKED_FIELDS = { plan: 1, prep: 1, run: 1, report: 1, title: 1 };   // 보고서 확정 뒤에는 관리자만
   function mineNode(n, me) { return n.createdBy === me.name || n.owner === me.name; }
+  // 이 실험의 사람들: 담당 · 만든 사람 · 함께하는 사람 (아이디어는 담당 지원자도)
+  function teamOf(n) { var t = [n.owner, n.createdBy].concat(Array.isArray(n.team) ? n.team : []); if (n.type === 'idea' && n.volunteer) t.push(n.volunteer); return t.filter(Boolean); }
+  function inTeam(n, me) { return teamOf(n).indexOf(me.name) >= 0; }
+  var OPEN_FIELDS = { fans: 1, volunteer: 1, equip: 1 };   // 아이디어: 누구나 같이 해요 · 담당 지원 · 장비 확인
   function isFinal(n) { return !!(n.report && n.report.final); }
   A.sync = function (q) {
     var me = deviceOf(q), admin = !!ADMIN[me.role];
@@ -168,10 +179,15 @@ function GajiCore(store, util, drive) {
           store.append('nodes', n); assigned[n.id] = no; log(me, '새로 만듦', n.title);
           return;
         }
-        var u = cleanNode(old), changed = false;
+        var u = cleanNode(old), changed = false, team = admin || inTeam(old, me);
         NODE_FIELDS.forEach(function (f) {
           if (!(f in c) || val(c[f]) === val(old[f])) return;
-          if (wasArch && c.arch && HEAVY.indexOf(f) >= 0) return;   // 보관 내용을 아직 안 받은 기기: 무거운 칸은 건드리지 않음
+          if (wasArch && c.arch && HEAVY.indexOf(f) >= 0) return;
+          if (!team) {
+            if (!(old.type === 'idea' && OPEN_FIELDS[f])) { if (rejected.indexOf(old.id + ':team') < 0) rejected.push(old.id + ':team'); return; }
+          }
+          if (f === 'volunteer' && !admin && c.volunteer && c.volunteer !== me.name) { rejected.push(old.id + ':team'); return; }   // 담당 지원은 본인만
+          if ((f === 'team' || f === 'owner' || f === 'private') && !admin && !mineNode(old, me)) { rejected.push(old.id + ':team'); return; }   // 보관 내용을 아직 안 받은 기기: 무거운 칸은 건드리지 않음
           if (!admin && f === 'verdict') { rejected.push(old.id + ':verdict'); return; }
           if (!admin && f === 'status' && STAGES.indexOf(c.status) >= 0 && STAGES.indexOf(c.status) < STAGES.indexOf(old.status)) {
             // 부원: 내가 방금(10분 안) 옮긴 단계는 한 단계만 되돌릴 수 있음 (실수 되돌리기)
@@ -180,7 +196,7 @@ function GajiCore(store, util, drive) {
           }
           if (!admin && f === 'status' && c.status === '취소') { rejected.push(old.id + ':cancel'); return; }
           if (f === 'type' && !((old.type === 'idea' && c.type === 'exp') || old.type === c.type)) return;
-          if (f === 'private' && !admin && old.owner !== me.name) return;
+
           if (f === 'deleted' && !admin && !mineNode(old, me)) { rejected.push(old.id + ':delete'); return; }
           if (!admin && isFinal(old) && (LOCKED_FIELDS[f] || f === 'status')) { rejected.push(old.id + ':final'); return; }
           if (f === 'report' && !admin && c.report && c.report.final && !isFinal(old)) { rejected.push(old.id + ':final'); return; }
@@ -304,7 +320,7 @@ function GajiCore(store, util, drive) {
       var rows = store.rows('comments');
       if (op === 'add') {
         var n = store.rows('nodes').filter(function (x) { return x.id === q.node; })[0]; if (!n) err('bad', '항목을 찾을 수 없어요');
-        if (util.bool(n.private) && !admin && n.owner !== me.name) err('bad', '항목을 찾을 수 없어요');
+        if (util.bool(n.private) && !admin && !inTeam(n, me)) err('bad', '항목을 찾을 수 없어요');
         var kind = KINDS[q.kind] ? q.kind : 'note', text = String(q.text || '').trim().slice(0, 1000);
         if (!text && kind !== 'approve') err('bad', '내용을 써 주세요');
         if (kind === 'approve') {
@@ -340,7 +356,7 @@ function GajiCore(store, util, drive) {
   }
   function visibleNode(id, me, admin) {
     var n = store.rows('nodes').filter(function (x) { return x.id === id; })[0];
-    if (!n || (util.bool(n.private) && !admin && n.owner !== me.name)) err('bad', '항목을 찾을 수 없어요');
+    if (!n || (util.bool(n.private) && !admin && !inTeam(n, me))) err('bad', '항목을 찾을 수 없어요');
     return n;
   }
   A.upload = function (q) {
@@ -470,7 +486,7 @@ var GAJI_TABS = {
   settings: { name: '설정', cols: ['key', 'value'] },
   members: { name: '부원', cols: ['id', 'studentId', 'name', 'role', 'codeHash', 'status', 'createdAt', 'codeEnc'] },
   devices: { name: '기기', cols: ['id', 'memberId', 'label', 'secretHash', 'status', 'confirm', 'shared', 'createdAt', 'approvedAt', 'approvedBy', 'lastSeen'] },
-  nodes: { name: '실험', cols: ['id', 'no', 'type', 'title', 'field', 'status', 'line', 'date', 'owner', 'signal', 'review', 'verdict', 'fans', 'volunteer', 'equip', 'desc', 'private', 'report', 'created', 'createdBy', 'updatedAt', 'updatedBy', 'plan', 'prep', 'run', 'deleted', 'arch'] },
+  nodes: { name: '실험', cols: ['id', 'no', 'type', 'title', 'field', 'status', 'line', 'date', 'owner', 'signal', 'review', 'verdict', 'fans', 'volunteer', 'equip', 'desc', 'private', 'report', 'created', 'createdBy', 'updatedAt', 'updatedBy', 'plan', 'prep', 'run', 'deleted', 'arch', 'team'] },
   archive: { name: '보관', cols: ['id', 'data', 'comments', 'at'] },
   logArchive: { name: '기록 보관', cols: ['at', 'member', 'device', 'action', 'detail'] },
   links: { name: '연결', cols: ['id', 's', 't', 'k', 'createdBy', 'createdAt', 'off'] },
@@ -480,7 +496,7 @@ var GAJI_TABS = {
   log: { name: '기록', cols: ['at', 'member', 'device', 'action', 'detail'] }
 };
 var GAJI_NUM = { no: 1, signal: 1, review: 1, fans: 1, size: 1 };
-var GAJI_JSON = { report: 1, plan: 1, prep: 1, run: 1, data: 1, comments: 1 };
+var GAJI_JSON = { report: 1, plan: 1, prep: 1, run: 1, data: 1, comments: 1, team: 1 };
 
 function GajiSheetStore(ss) {
   var cache = {};
@@ -537,6 +553,12 @@ function gajiUtil() {
     sha256: function (s) { return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, s, Utilities.Charset.UTF_8).map(function (b) { return ('0' + (b & 255).toString(16)).slice(-2); }).join(''); },
     bool: function (v) { return v === true || String(v).toLowerCase() === 'true'; },
     secret: function () { var p = PropertiesService.getScriptProperties(), v = p.getProperty('GAJI_SECRET'); if (!v) { v = Utilities.getUuid() + Utilities.getUuid(); p.setProperty('GAJI_SECRET', v); } return v; },
+    links: function () {
+      var ss = SpreadsheetApp.getActiveSpreadsheet(), o = { sheet: ss.getUrl() };
+      try { o.script = 'https://script.google.com/home/projects/' + ScriptApp.getScriptId() + '/edit'; } catch (e) {}
+      try { var ps = DriveApp.getFileById(ss.getId()).getParents(); if (ps.hasNext()) { var par = ps.next(), it = par.getFoldersByName('가지 실험 파일'); o.home = par.getUrl(); if (it.hasNext()) o.folder = it.next().getUrl(); } } catch (e) {}
+      return o;
+    },
     lock: function (fn) { var l = LockService.getScriptLock(); l.waitLock(20000); try { return fn(); } finally { l.releaseLock(); } }
   };
 }

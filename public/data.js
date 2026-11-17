@@ -264,3 +264,12 @@ window.GAJI_SAMPLE = {
   // 지난해부터 이어진 실험은 뿌리가 지난해 것이 되도록 (줄기 이름은 그대로)
   ['e0', 'e4', 'e6', 'b1'].forEach((id) => { const n = S.nodes.find((x) => x.id === id); if (n) n.createdBy = n.createdBy || n.owner; });
 })(window.GAJI_SAMPLE);
+
+/* ===== 체험: 함께하는 사람 · 비공개 실험 ===== */
+(function (S) {
+  const set = (id, o) => { const n = S.nodes.find((x) => x.id === id); if (n) Object.assign(n, o); };
+  set('b1', { team: ['박준서'] }); set('b2', { team: ['오세린'] }); set('b5', { team: ['정다온'] }); set('g10', { team: ['한결'] }); set('g20', { team: ['최윤아'] }); set('b3', { team: ['한결'] });
+  S.nodes.push({ id: 'g23', no: 52, created: '2026-11-14', type: 'exp', title: '[과학전람회] 레몬 전지 내부 저항 정밀 측정', field: '물리', status: '계획 작성', line: 'battery', date: '2026-12-10', owner: '이하늘', createdBy: '이하늘', team: ['정다온'], private: 'true',
+    plan: { purpose: '과학전람회 출품을 위해 레몬 전지의 내부 저항을 부하 저항법으로 정밀하게 잰다.', hypo: '레몬 전지의 내부 저항은 수 kΩ일 것이다.', ind: '부하 저항 100Ω ~ 10kΩ', dep: '단자 전압 · 전류', materials: ['레몬', '가변 저항', '멀티미터 2대'], steps: ['부하 저항을 바꾼다', '전압과 전류를 동시에 잰다', 'V-I 그래프 기울기로 내부 저항을 구한다'], by: '이하늘', at: '2026-11-14T07:00:00.000Z' } });
+  S.links.push({ s: 'b5', t: 'g23', k: 'rel' });
+})(window.GAJI_SAMPLE);
