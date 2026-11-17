@@ -391,3 +391,5 @@ html.loading body::before { content: ''; position: fixed; top: 0; left: 0; width
 .find-count { font-size: 13px; display: flex; align-items: center; gap: 8px; margin: -4px 2px; }
 .snip { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .snip em { font-style: normal; font-weight: 700; color: var(--info); }
 mark { background: var(--warn-bg); color: var(--fg); border-radius: 3px; padding: 0 1px; }
+
+.nd-row { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--line); padding-top: 8px; font-size: 14px; } .nd-row span { flex: 1; }

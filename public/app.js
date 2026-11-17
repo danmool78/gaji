@@ -607,7 +607,9 @@
   function viewHome() {
     const t = todos(), lines = computeLines().filter((l) => l.state !== 'done').slice(0, 3);
     const nd = PF.mode === 'live' ? PF.newDevices : [];
-    return nd.map((d) => '<div class="card notice"><b>내 이름으로 새 기기가 승인됐어요</b><span class="muted">' + esc(d.label || '기기') + ' · ' + esc(String(d.at).slice(5, 10).replace('-', '/')) + '</span><div class="btn-row"><button type="button" class="btn danger" data-act="notMe" data-id="' + esc(d.id) + '">내가 아니에요</button><button type="button" class="btn" data-act="seenDev" data-id="' + esc(d.id) + '">확인</button></div></div>').join('') +
+    return (nd.length ? '<div class="card notice"><b>내 이름으로 새 기기' + (nd.length > 1 ? ' ' + nd.length + '대가' : '가') + ' 승인됐어요</b><span class="muted" style="font-size:13px">내가 연 기기가 아니면 ‘내가 아님’을 눌러 바로 막으세요.</span>' +
+      nd.map((d) => '<div class="nd-row"><span>' + esc(d.label || '기기') + ' · ' + esc(String(d.at).slice(5, 10).replace('-', '/')) + '</span><button type="button" class="chipbtn" data-act="notMe" data-id="' + esc(d.id) + '">내가 아님</button></div>').join('') +
+      '<div class="btn-row"><button type="button" class="btn" data-act="seenAllDev">모두 내 기기예요 · 확인</button></div></div>' : '') +
       '<div class="home-grid"><div><div class="hello"><span class="muted">' + (TODAY.getMonth() + 1) + '월 ' + TODAY.getDate() + '일 ' + WD[TODAY.getDay()] + '요일</span><b>지금 챙길 것 ' + t.length + '개</b></div>' +
       '<div class="todo">' + (t.length ? t.map((x) => '<button type="button" class="todo-item" data-item="' + x.n.id + '">' + ico(x.n) + '<span class="tx"><b>' + esc(x.n.title) + '</b><small>' + esc(x.why) + '</small></span>' + badge(x.n) + '</button>').join('') : '<div class="card empty">지금 챙길 일이 없어요.</div>') + '</div>' +
       '<div class="quick">' +
@@ -908,7 +910,7 @@
   /* ---------- 단계 표시줄 + 지금 할 일 ---------- */
   const FLOW = [['계획 작성', '계획'], ['검토 중', '검토'], ['준비 중', '준비'], ['실험 완료', '기록'], ['기록 완료', '보고서']];
   function stepper(n) {
-    const i = FLOW.findIndex((f) => f[0] === n.status);
+    const i = isFinal(n) ? FLOW.length : FLOW.findIndex((f) => f[0] === n.status);
     return '<ol class="stepper" aria-label="실험 단계">' + FLOW.map((f, k) => '<li class="' + (k < i ? 'done' : k === i ? 'now' : '') + '"><span>' + (k < i ? '✓' : k + 1) + '</span>' + f[1] + '</li>').join('') + '</ol>';
   }
   function nowCard(n) {
@@ -1125,6 +1127,10 @@
 
   /* ---------- 보고서 ---------- */
   const REPORT_SECS = [['purpose', '연구 동기와 목적'], ['hypo', '가설'], ['vars', '변인'], ['materials', '준비물'], ['steps', '실험 방법'], ['process', '실험 과정'], ['result', '실험 결과'], ['discuss', '고찰'], ['conclusion', '결론'], ['next', '더 해 볼 것'], ['refs', '참고 자료']];
+  function period(n) {
+    const ds = [n.created, n.date, n.run && n.run.started && dstr(new Date(n.run.started)), n.run && n.run.ended && dstr(new Date(n.run.ended))].filter((x) => x && /^\d{4}-\d\d-\d\d/.test(x)).map((x) => String(x).slice(0, 10)).sort();
+    return ds.length ? (ds[0] === ds[ds.length - 1] ? ds[0] : ds[0] + ' ~ ' + ds[ds.length - 1]) : '';
+  }
   function viewReport(id) {
     const n = byId(id); if (!n) return '<div class="card empty">항목을 찾지 못했어요.</div>';
     const p = n.plan || {}, r = n.report || {}, run = n.run || {}, miss = (t) => '<p class="miss">(아직 안 씀)</p>';
@@ -1152,7 +1158,7 @@
       ((isAdmin() || PF.mode !== 'live') && n.status === '기록 완료' ? (isFinal(n) ? '<button type="button" class="btn" data-act="unfinal">확정 풀기</button>' : '<button type="button" class="btn primary" data-act="final">보고서 확정</button>') : '') + '</div>' +
       (missing ? '<div class="card gate-note no-print" style="font-weight:400">아직 안 쓴 칸이 ' + missing + '개 있어요. ‘(아직 안 씀)’ 부분을 채우면 보고서가 완성돼요.</div>' : '') +
       '<article class="report"><header class="rp-cover"><small>' + esc(brand().clubName) + ' 실험 보고서' + (isFinal(n) ? ' · 확정' : ' · 초안') + '</small><h2>' + esc(n.title) + '</h2>' +
-      '<dl><dt>실험 번호</dt><dd class="code">' + esc(code(n)) + ' (' + esc(uid(n)) + ')</dd><dt>분야</dt><dd>' + esc(n.field || '') + '</dd><dt>연구 줄기</dt><dd>' + esc(lineName(lin[0].line)) + (lin.length > 1 ? ' · ' + lin.length + '세대 (' + esc(code(lin[lin.length - 2])) + '에서 이어짐)' : '') + '</dd><dt>참여</dt><dd>' + esc(people.join(', ') || '-') + '</dd><dt>기간</dt><dd>' + esc(String(n.created || '')) + ' ~ ' + esc(String(n.date || '')) + '</dd></dl></header>' + body +
+      '<dl><dt>실험 번호</dt><dd class="code">' + esc(code(n)) + ' (' + esc(uid(n)) + ')</dd><dt>분야</dt><dd>' + esc(n.field || '') + '</dd><dt>연구 줄기</dt><dd>' + esc(lineName(lin[0].line)) + (lin.length > 1 ? ' · ' + lin.length + '세대 (' + esc(code(lin[lin.length - 2])) + '에서 이어짐)' : '') + '</dd><dt>참여</dt><dd>' + esc(people.join(', ') || '-') + '</dd><dt>기간</dt><dd>' + esc(period(n)) + '</dd></dl></header>' + body +
       '<footer class="rp-foot">가지 · ' + esc(brand().clubName) + ' · ' + esc(code(n)) + (isFinal(n) ? ' · ' + esc(n.report.final.by) + ' 확정 ' + esc(String(n.report.final.at).slice(0, 10)) : '') + '</footer></article>' +
       '<div class="no-print">' + commentsCard(n) + '</div>';
   }
@@ -1476,6 +1482,7 @@
     if (act === 'refreshPeople') { PF.people = null; return render(); }
     if (act === 'member') return memberSheet(did);
     if (['resetCode', 'setRole', 'setStatus', 'logoutAll'].includes(act)) return peopleAction(a);
+    if (act === 'seenAllDev') { prefs.seenDev = (prefs.seenDev || []).concat(PF.newDevices.map((x) => x.id)).slice(-40); savePrefs(); PF.newDevices = []; return render(); }
     if (act === 'seenDev' || act === 'notMe') {
       prefs.seenDev = (prefs.seenDev || []).concat(did).slice(-20); savePrefs(); PF.newDevices = PF.newDevices.filter((x) => x.id !== did);
       if (act === 'notMe') rpc('block', { id: did }).then(() => toast('그 기기를 막았어요 · 관리자에게도 알려 주세요'), (er) => toast(er.message));
