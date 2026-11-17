@@ -698,7 +698,9 @@
   $('#backBtn').addEventListener('click', back);
   $('#paneBack').addEventListener('click', () => { nav.pop(); render(); });
   $('#paneClose').addEventListener('click', () => { nav = nav.slice(0, mainIndex() + 1); render(); });
-  let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => render(), 150); });
+  // 화면 크기가 바뀌어도 두 칸 ↔ 한 칸이 바뀔 때만 다시 그림 (스크롤바 · 키보드로 생기는 작은 변화는 무시 → 입력 칸이 꺼지지 않게)
+  let rz, lastWide = wide();
+  window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { const w = wide(); if (w === lastWide) return; lastWide = w; const f = document.activeElement; if (f && /INPUT|TEXTAREA|SELECT/.test(f.tagName)) return; render(); }, 150); });
   $('#sheetBg').addEventListener('click', closeSheet);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#sheet').hidden) closeSheet(); });
 
