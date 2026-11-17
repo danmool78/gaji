@@ -82,7 +82,11 @@ h2.sec small { font-size: 12px; color: var(--muted); font-weight: 500; }
 .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
 .btn.blue { background: var(--exp); border-color: var(--exp); color: #fff; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
-.btn-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.btn-row > .btn { flex: 1 1 auto; }
+/* 버튼 글자는 절대 중간에서 줄바꿈하지 않음 — 자리가 없으면 버튼째 다음 줄로 */
+.btn, .chipbtn, .chip, .seg button, .tabs button, .toast-act, .badge, .quick button { white-space: nowrap; }
+body { word-break: keep-all; overflow-wrap: break-word; }
 
 /* 홈 */
 .hello { display: flex; flex-direction: column; gap: 2px; padding: 6px 2px 0; }
