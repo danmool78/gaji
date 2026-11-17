@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.4.0';
+var GAJI_CONNECTOR_VERSION = '2.5.0';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
@@ -145,6 +145,7 @@ function GajiCore(store, util, drive) {
   function cleanNode(n) { var o = {}; Object.keys(n).forEach(function (k) { if (k !== '_row') o[k] = n[k]; }); return o; }
 
   var NODE_FIELDS = ['type', 'title', 'field', 'status', 'line', 'date', 'owner', 'signal', 'review', 'verdict', 'fans', 'volunteer', 'equip', 'desc', 'private', 'report', 'plan', 'prep', 'run', 'deleted'];
+  var HEAVY = ['plan', 'prep', 'run', 'report', 'desc'];
   var LOCKED_FIELDS = { plan: 1, prep: 1, run: 1, report: 1, title: 1 };   // 보고서 확정 뒤에는 관리자만
   function mineNode(n, me) { return n.createdBy === me.name || n.owner === me.name; }
   function isFinal(n) { return !!(n.report && n.report.final); }
@@ -156,6 +157,8 @@ function GajiCore(store, util, drive) {
       (q.nodes || []).slice(0, 50).forEach(function (c) {
         if (!c || !c.id || !c.title) return;
         var old = byId[c.id];
+        var wasArch = !!(old && old.arch);
+        if (wasArch) { old = unarchive(old); byId[c.id] = old; }
         if (!old) {
           var fam = c.type === 'q' ? 'q' : c.type === 'res' ? 'res' : 'exp', no = Number(setting('no_' + fam, 0)) + 1;
           setSetting('no_' + fam, no);
@@ -168,6 +171,7 @@ function GajiCore(store, util, drive) {
         var u = cleanNode(old), changed = false;
         NODE_FIELDS.forEach(function (f) {
           if (!(f in c) || val(c[f]) === val(old[f])) return;
+          if (wasArch && c.arch && HEAVY.indexOf(f) >= 0) return;   // 보관 내용을 아직 안 받은 기기: 무거운 칸은 건드리지 않음
           if (!admin && f === 'verdict') { rejected.push(old.id + ':verdict'); return; }
           if (!admin && f === 'status' && STAGES.indexOf(c.status) >= 0 && STAGES.indexOf(c.status) < STAGES.indexOf(old.status)) {
             // 부원: 내가 방금(10분 안) 옮긴 단계는 한 단계만 되돌릴 수 있음 (실수 되돌리기)
@@ -208,6 +212,86 @@ function GajiCore(store, util, drive) {
       bump();
       return { ok: true, assigned: assigned, rejected: rejected, rev: Number(setting('rev', '0')) };
     });
+  };
+
+  /* ---------- 자동 보관 (눈에 안 보이게) ----------
+     데이터가 커지면(기본 30만 자) 지난 학년도(3월 1일 전)에 가지 전체가 끝난 실험의 무거운 내용(계획서 · 준비 · 진행 · 결과 · 설명 · 댓글)만
+     같은 시트의 '보관' 탭으로 옮김. 번호 · 제목 · 단계 · 판정 · 줄기 · 연결은 그대로 남아서 가지 · 목록 · 찾기는 그대로. */
+  function schoolYearStart() { var d = new Date(util.now()), y = d.getUTCFullYear() - (d.getUTCMonth() < 2 ? 1 : 0); return y + '-03-01'; }
+  function heavySize() { var t = 0; store.rows('nodes').forEach(function (n) { HEAVY.forEach(function (k) { t += val(n[k]).length; }); }); store.rows('comments').forEach(function (c) { t += str(c.text).length + 80; }); return t; }
+  function closedNode(n) { return util.bool(n.deleted) || n.status === '기록 완료' || n.status === '취소' || (n.type === 'q' && n.status === '해결') || n.type === 'res'; }
+  function unarchive(old) {
+    var a = store.rows('archive').filter(function (x) { return x.id === old.id; })[0];
+    var u = cleanNode(old); u.arch = '';
+    if (a) { var h = a.data || {}; HEAVY.forEach(function (k) { if (k in h) u[k] = h[k]; });
+      (a.comments || []).forEach(function (c) { store.append('comments', c); });
+      store.remove('archive', [a._row]); }
+    store.update('nodes', old._row, u);
+    return store.rows('nodes').filter(function (x) { return x.id === old.id; })[0];
+  }
+  A.tidy = function (q) {
+    var me = deviceOf(q); var today = util.today();
+    if (setting('tidyAt', '') === today && !q.force) return { done: false, reason: 'today' };
+    return util.lock(function () {
+      setSetting('tidyAt', today);
+      var limit = Number(setting('archLimit', 300000)), size = heavySize(), moved = 0, logs = 0;
+      // 기록 탭: 1년 지난 것은 '기록 보관'으로
+      var oldLogs = store.rows('log').filter(function (l) { return days(l.at) > 365; });
+      if (oldLogs.length > 200) { oldLogs.forEach(function (l) { store.append('logArchive', l); }); store.remove('log', oldLogs.map(function (l) { return l._row; })); logs = oldLogs.length; }
+      if (size <= limit && !q.force) return { done: true, moved: 0, logs: logs, size: size };
+      var nodes = store.rows('nodes'), links = store.rows('links').filter(function (l) { return !util.bool(l.off); }), byId = {}, adj = {};
+      nodes.forEach(function (n) { byId[n.id] = n; adj[n.id] = []; });
+      links.forEach(function (l) { if (adj[l.s] && adj[l.t]) { adj[l.s].push(l.t); adj[l.t].push(l.s); } });
+      var start = schoolYearStart(), seen = {}, groups = [];
+      nodes.forEach(function (n) { if (seen[n.id]) return; var g = [], st = [n.id]; seen[n.id] = 1;
+        while (st.length) { var id = st.pop(); g.push(byId[id]); adj[id].forEach(function (x) { if (!seen[x]) { seen[x] = 1; st.push(x); } }); }
+        groups.push(g); });
+      // 가지 전체가 끝났고, 모두 지난 학년도 전에 마지막으로 고친 것만 · 오래된 것부터
+      var cand = groups.filter(function (g) { return g.every(function (n) { return n.arch || (closedNode(n) && String(n.updatedAt || n.created || '').slice(0, 10) < start); }); })
+        .map(function (g) { return { g: g, at: g.map(function (n) { return String(n.updatedAt || ''); }).sort().pop() }; }).sort(function (a, b) { return a.at < b.at ? -1 : 1; });
+      var comments = store.rows('comments');
+      for (var i = 0; i < cand.length && size > limit * 0.7; i++) {
+        cand[i].g.forEach(function (n) {
+          if (n.arch) return;
+          var heavy = {}; HEAVY.forEach(function (k) { if (n[k] !== '' && n[k] !== null && n[k] !== undefined) heavy[k] = n[k]; });
+          var cm = comments.filter(function (c) { return c.node === n.id; });
+          store.append('archive', { id: n.id, data: heavy, comments: cm.map(cleanNode), at: util.now() });
+          var light = cleanNode(n); HEAVY.forEach(function (k) { light[k] = ''; });
+          if (n.report && (n.report.final || n.report.claim)) light.report = { final: n.report.final || null, claim: n.report.claim || '' };
+          light.arch = '보관'; store.update('nodes', n._row, light);
+          if (cm.length) { store.remove('comments', cm.map(function (c) { return c._row; })); comments = store.rows('comments'); }
+          moved++;
+        });
+        size = heavySize();
+      }
+      if (moved) { bump(); log(me, '자동 보관', moved + '개'); }
+      return { done: true, moved: moved, logs: logs, size: size };
+    });
+  };
+  // 보관된 항목 내용 받기 (열 때)
+  A.archived = function (q) {
+    var me = deviceOf(q), admin = !!ADMIN[me.role], out = {};
+    var rows = store.rows('archive'), nodes = store.rows('nodes');
+    (q.ids || []).slice(0, 20).forEach(function (id) {
+      var n = nodes.filter(function (x) { return x.id === id; })[0]; if (!n || (util.bool(n.private) && !admin && n.owner !== me.name)) return;
+      var a = rows.filter(function (x) { return x.id === id; })[0]; if (!a) return;
+      out[id] = { data: a.data || {}, comments: (a.comments || []).map(function (c) { return { id: c.id, node: c.node, sec: c.sec, kind: c.kind, text: c.text, by: c.by, byId: c.byId, role: c.role, at: c.at, editedAt: c.editedAt, resolved: util.bool(c.resolved) }; }) };
+    });
+    return { items: out };
+  };
+  // 보관 내용에서 찾기
+  A.search = function (q) {
+    var me = deviceOf(q), admin = !!ADMIN[me.role], terms = String(q.q || '').toLowerCase().split(/\s+/).filter(Boolean).slice(0, 5);
+    if (!terms.length) return { hits: [] };
+    var nodes = {}; store.rows('nodes').forEach(function (n) { nodes[n.id] = n; });
+    var hits = [];
+    store.rows('archive').forEach(function (a) {
+      var n = nodes[a.id]; if (!n || (util.bool(n.private) && !admin && n.owner !== me.name)) return;
+      var text = (JSON.stringify(a.data || {}) + ' ' + (a.comments || []).map(function (c) { return c.text; }).join(' ')).toLowerCase();
+      if (!terms.every(function (t) { return text.indexOf(t) >= 0; })) return;
+      var i = text.indexOf(terms[0]); hits.push({ id: a.id, snip: text.slice(Math.max(0, i - 20), i + 50).replace(/[{}"\[\]]/g, ' ').replace(/\s+/g, ' ') });
+    });
+    return { hits: hits.slice(0, 50) };
   };
 
   /* ---------- 댓글 · 첨삭 · 검토 ----------
@@ -386,7 +470,9 @@ var GAJI_TABS = {
   settings: { name: '설정', cols: ['key', 'value'] },
   members: { name: '부원', cols: ['id', 'studentId', 'name', 'role', 'codeHash', 'status', 'createdAt', 'codeEnc'] },
   devices: { name: '기기', cols: ['id', 'memberId', 'label', 'secretHash', 'status', 'confirm', 'shared', 'createdAt', 'approvedAt', 'approvedBy', 'lastSeen'] },
-  nodes: { name: '실험', cols: ['id', 'no', 'type', 'title', 'field', 'status', 'line', 'date', 'owner', 'signal', 'review', 'verdict', 'fans', 'volunteer', 'equip', 'desc', 'private', 'report', 'created', 'createdBy', 'updatedAt', 'updatedBy', 'plan', 'prep', 'run', 'deleted'] },
+  nodes: { name: '실험', cols: ['id', 'no', 'type', 'title', 'field', 'status', 'line', 'date', 'owner', 'signal', 'review', 'verdict', 'fans', 'volunteer', 'equip', 'desc', 'private', 'report', 'created', 'createdBy', 'updatedAt', 'updatedBy', 'plan', 'prep', 'run', 'deleted', 'arch'] },
+  archive: { name: '보관', cols: ['id', 'data', 'comments', 'at'] },
+  logArchive: { name: '기록 보관', cols: ['at', 'member', 'device', 'action', 'detail'] },
   links: { name: '연결', cols: ['id', 's', 't', 'k', 'createdBy', 'createdAt', 'off'] },
   files: { name: '파일', cols: ['id', 'node', 'fileId', 'thumbId', 'folderId', 'name', 'mime', 'size', 'caption', 'kind', 'by', 'at', 'off'] },
   comments: { name: '댓글', cols: ['id', 'node', 'sec', 'kind', 'text', 'by', 'byId', 'role', 'at', 'editedAt', 'resolved', 'off'] },
@@ -394,7 +480,7 @@ var GAJI_TABS = {
   log: { name: '기록', cols: ['at', 'member', 'device', 'action', 'detail'] }
 };
 var GAJI_NUM = { no: 1, signal: 1, review: 1, fans: 1, size: 1 };
-var GAJI_JSON = { report: 1, plan: 1, prep: 1, run: 1 };
+var GAJI_JSON = { report: 1, plan: 1, prep: 1, run: 1, data: 1, comments: 1 };
 
 function GajiSheetStore(ss) {
   var cache = {};
@@ -417,6 +503,7 @@ function GajiSheetStore(ss) {
       return (cache[t] = vals.map(function (r, i) { var o = { _row: i + 2 }; def.cols.forEach(function (c, j) { o[c] = dec(c, r[j]); }); return o; }));
     },
     append: function (t, obj) { var def = GAJI_TABS[t]; sheet(t).appendRow(def.cols.map(function (c) { return enc(c, obj[c]); })); delete cache[t]; },
+    remove: function (t, rows) { var sh = sheet(t); rows.slice().sort(function (a, b) { return b - a; }).forEach(function (r) { sh.deleteRow(r); }); delete cache[t]; },
     update: function (t, row, obj) { var def = GAJI_TABS[t]; sheet(t).getRange(row, 1, 1, def.cols.length).setValues([def.cols.map(function (c) { return enc(c, obj[c]); })]); delete cache[t]; }
   };
 }

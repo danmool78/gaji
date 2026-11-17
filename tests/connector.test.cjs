@@ -12,7 +12,8 @@ function memStore() {
     ensure() {},
     rows: (k) => tab(k).map((r, i) => ({ ...r, _row: i + 2 })),
     append: (k, o) => { tab(k).push({ ...o }); },
-    update: (k, row, o) => { const c = { ...o }; delete c._row; tab(k)[row - 2] = c; }
+    update: (k, row, o) => { const c = { ...o }; delete c._row; tab(k)[row - 2] = c; },
+    remove: (k, rows) => { rows.slice().sort((x, y) => y - x).forEach((r) => tab(k).splice(r - 2, 1)); }
   };
 }
 const util = {
@@ -176,7 +177,7 @@ const mc2 = call({ action: 'myCode', device: r9b.data.device });
 ok('old code renewed', mc2.ok && mc2.data.renewed && /^\d{4}$/.test(mc2.data.code), mc2);
 ok('device kept after renew', call({ action: 'load', device: r9b.data.device }).ok);
 ok('new code works', call({ action: 'register', studentId: '20399', code: mc2.data.code }).ok);
-ok('ping version', call({ action: 'ping' }).data.version === '2.4.0');
+ok('ping version', call({ action: 'ping' }).data.version === '2.5.0');
 
 // 실수 되돌리기: 내가 10분 안에 옮긴 단계는 한 단계 되돌리기 가능
 call({ action: 'sync', device: M, nodes: [{ id: 'u1', type: 'exp', title: '되돌리기 시험', status: '검토 중' }] });
@@ -290,6 +291,45 @@ ok('no drive permission → drive_perm', pe.code === 'drive_perm', pe);
 DRIVE.perm = true;
 const noDrive = ctx.GajiCore(store, util);
 ok('no drive object → no_drive', noDrive.handle({ action: 'upload', device: MEM, node: 'b1', name: 'x.jpg', mime: 'image/jpeg', data: IMG }).code === 'no_drive');
+
+
+// ===== 2.5.0: 자동 보관 =====
+const nowSave = clock;
+clock = Date.parse('2025-09-10T03:00:00Z');   // 지난 학년도
+call({ action: 'sync', device: MEM, nodes: [{ id: 'a1', type: 'exp', title: '작년 산화 환원 실험', status: '기록 완료', owner: '정다온', plan: { purpose: '작년 목적: 산화막 확인', steps: ['a', 'b'] }, report: { summary: '작년 결과', final: null, claim: '가설 지지' } },
+  { id: 'a2', type: 'exp', title: '작년 이어서 실험', status: '기록 완료', owner: '정다온', plan: { purpose: '이어진 실험' } },
+  { id: 'a3', type: 'exp', title: '작년 시작 · 올해 진행 중', status: '기록 완료', owner: '정다온', plan: { purpose: '진행 중 가지의 뿌리' } }],
+  links: [{ s: 'a1', t: 'a2', k: 'next' }] });
+call({ action: 'comment', device: OTH, node: 'a1', kind: 'fix', text: '작년 첨삭: 단위 확인' });
+clock = Date.parse('2026-11-20T03:00:00Z');   // 올해
+call({ action: 'sync', device: MEM, nodes: [{ id: 'a4', type: 'exp', title: '올해 진행 중', status: '준비 중', owner: '정다온' }, { id: 'a5', type: 'exp', title: '올해 끝난 실험', status: '기록 완료', owner: '정다온', plan: { purpose: '올해' } }], links: [{ s: 'a3', t: 'a4', k: 'next' }] });
+ok('tidy: small data → nothing moved', call({ action: 'tidy', device: MEM }).data.moved === 0);
+ok('tidy: once a day', call({ action: 'tidy', device: MEM }).data.reason === 'today');
+store._t.settings.find((x) => x.key === 'tidyAt').value = '';
+store._t.settings.push({ key: 'archLimit', value: '50' });
+const td = call({ action: 'tidy', device: MEM }); ok('tidy: moved last year finished branch (2)', td.ok && td.data.moved === 2, td);
+let LA = call({ action: 'load', device: ADM }).data, na1 = LA.nodes.find((n) => n.id === 'a1');
+ok('archived light row keeps title · status · verdict claim', na1.arch === '보관' && na1.title === '작년 산화 환원 실험' && na1.status === '기록 완료' && !na1.plan && na1.report.claim === '가설 지지');
+ok('branch link kept', LA.links.some((l) => l.s === 'a1' && l.t === 'a2'));
+ok('archived comments not in load', !LA.comments.some((c) => c.node === 'a1'));
+ok('active branch (a3→a4) not archived', !LA.nodes.find((n) => n.id === 'a3').arch && !LA.nodes.find((n) => n.id === 'a4').arch);
+ok('this year finished not archived', !LA.nodes.find((n) => n.id === 'a5').arch);
+const ar = call({ action: 'archived', device: OTH, ids: ['a1'] });
+ok('archived contents returned', ar.data.items.a1.data.plan.purpose.includes('산화막') && ar.data.items.a1.comments[0].text.includes('단위'));
+ok('search archive', call({ action: 'search', device: OTH, q: '산화막' }).data.hits.some((h) => h.id === 'a1'));
+ok('search archive comments', call({ action: 'search', device: OTH, q: '단위 확인' }).data.hits.some((h) => h.id === 'a1'));
+// 내용을 안 받은 기기에서 제목만 고쳐도 내용은 그대로 · 보관에서 꺼내짐
+const light = Object.assign({}, na1, { title: '작년 산화 환원 실험 (제목 고침)' });
+call({ action: 'sync', device: MEM, nodes: [light] });
+LA = call({ action: 'load', device: ADM }).data; na1 = LA.nodes.find((n) => n.id === 'a1');
+ok('edit archived (light) → restored, content safe', !na1.arch && na1.title.includes('제목 고침') && na1.plan.purpose.includes('산화막') && na1.report.summary === '작년 결과', na1);
+ok('restored comments back', LA.comments.some((c) => c.node === 'a1' && c.text.includes('단위')));
+ok('archive row removed', !store._t.archive.some((a) => a.id === 'a1'));
+// 오래된 기록 탭 정리 (200개 넘을 때)
+for (let i = 0; i < 230; i++) store._t.log.unshift({ at: '2025-01-01T00:00:00Z', member: 'x', device: '', action: '옛날', detail: '' });
+store._t.settings.find((x) => x.key === 'tidyAt').value = '';
+const lg = call({ action: 'tidy', device: MEM }); ok('old logs moved to 기록 보관', lg.data.logs >= 230 && store._t.logArchive.length >= 230, lg);
+clock = nowSave;
 
 console.log(`connector: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

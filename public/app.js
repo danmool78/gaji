@@ -159,6 +159,10 @@
   const fixNode = (n) => Object.assign(n, { equip: n.equip === true || n.equip === 'true', fans: +n.fans || 0, signal: +n.signal || 0, review: +n.review || 0, no: +n.no || 0, date: n.date || n.created || dstr(TODAY), created: n.created || dstr(TODAY), field: n.field || '공통', desc: n.desc || '' });
   const lkey = (l) => l.s + '|' + l.t + '|' + l.k;
   function snapshot() { const m = {}; db.nodes.forEach((n) => (m[n.id] = JSON.stringify(n))); return { nodes: m, links: new Set(db.links.map(lkey)), lines: JSON.stringify(db.lines) }; }
+  function tidyLater() {
+    const today = dstr(new Date()); if (prefs.tidyAt === today) return; prefs.tidyAt = today; savePrefs();
+    setTimeout(() => rpc('tidy', null, null, { quiet: true }).then((r) => { if (r && r.moved) liveLoad(); }, () => {}), 4000);
+  }
   function masterExtras() {   // 마스터: 연결기 판 확인 · 사용 현황 숫자 보내기 (뒤에서)
     if (PF.isMaster && !PF.connVer) rpc('ping', null, null, { quiet: true }).then((pg) => { PF.connVer = pg.version; render(); }, () => {});
     if (PF.isMaster && PF.api && !PF.statsSent) { PF.statsSent = true; rpc('stats', null, null, { quiet: true }).then((st) => PF.api.saveStats(st)).catch(() => {}); }
@@ -173,7 +177,7 @@
       if (PF.mode === 'live' && PF.base && dirty()) await doSync();
       const d = await rpc('load');
       if (PF.mode === 'live' && PF.base && dirty()) { await doSync(); return liveLoad(); }   // 기다리는 사이 고친 것이 있으면 먼저 보내고 다시
-      applyLoad(d); putCache(d); PF.refreshing = false; PF.notice = ''; render(); pollRev();
+      applyLoad(d); putCache(d); PF.refreshing = false; PF.notice = ''; render(); pollRev(); tidyLater();
       masterExtras();
       if (PF.approveId) { const id = PF.approveId; PF.approveId = null; history.replaceState(null, '', location.pathname); openApprove(id); }
     } catch (e) {
@@ -659,6 +663,7 @@
   function cond(ok, label) { return '<div><span class="cdot" style="background:' + (ok ? 'var(--done)' : 'var(--edge)') + '"><svg viewBox="0 0 24 24"><path d="' + (ok ? ICON.check : ICON.minus) + '"/></svg></span>' + label + '</div>'; }
   function viewItem(id) {
     const n = byId(id); if (!n) return '<div class="card empty">항목을 찾지 못했어요.</div>';
+    if (isArch(n) && PF.mode === 'live') { const head = '<div class="detail-head"><div class="idrow">' + ico(n) + '<span class="idchip">' + esc(code(n)) + '</span></div><h2>' + esc(n.title) + '</h2><div class="idrow">' + badge(n) + '</div></div>'; return head + archWait(n); }
     if (isDel(n)) return '<div class="card empty">휴지통에 있는 항목이에요. <button type="button" class="chipbtn" data-act="restore" data-id="' + esc(n.id) + '">되살리기</button></div>';
     let h = '<div class="detail-head"><div class="idrow">' + ico(n) + '<span class="idchip">' + esc(code(n)) + '</span><button type="button" class="chipbtn" data-act="copy">번호 복사</button><span class="muted" style="font-size:12px">' + TYPE[n.type].label + ' · ' + esc(n.field) + (n.owner ? ' · ' + esc(n.owner) : '') + '</span><button type="button" class="chipbtn more-btn" data-act="itemMenu" aria-label="더 보기">⋯ 관리</button></div>' +
       '<h2>' + esc(n.title) + '</h2><div class="idrow">' + badge(n) + (n.type === 'exp' && tone(n)[1] !== n.status ? '<span class="badge t-info">' + esc(n.status) + '</span>' : '') + (isFinal(n) ? '<span class="badge t-ok">보고서 확정</span>' : '') + '</div></div>';
@@ -989,6 +994,18 @@
     return '<div class="card now-card">' + stepper(n) + '<b class="now-t">' + title + '</b><span class="muted now-b">' + body + '</span><div class="btn-row">' + btns + '</div></div>';
   }
 
+  /* 자동 보관된 항목: 열 때 연결기에서 내용을 받아 합침 (쓰는 사람은 모름) */
+  const isArch = (n) => !!(n && n.arch && !n._full);
+  function fetchArchived(id) {
+    PF.archLoading = PF.archLoading || {}; if (PF.archLoading[id]) return; PF.archLoading[id] = 1;
+    rpc('archived', { ids: [id] }, null, { quiet: true }).then((r) => {
+      const it = r.items && r.items[id], n = byId(id); if (!n) return;
+      if (it) { Object.assign(n, it.data || {}); const have = new Set(allComments().map((c) => c.id)); (it.comments || []).forEach((c) => { if (!have.has(c.id)) allComments().push(c); }); }
+      delete n.arch; n._full = true; if (PF.base) PF.base.nodes[id] = JSON.stringify(n); render();
+    }, (e) => { if (!deviceLost(e)) toast('보관된 기록을 불러오지 못했어요'); }).finally(() => { delete PF.archLoading[id]; });
+  }
+  const archWait = (n) => { fetchArchived(n.id); return '<div class="card empty loading-line">' + SPIN + '지난 기록을 불러오는 중…</div>'; };
+
   /* 지난 단계 칸 접기 (펼친 상태는 기억) */
   function fold(n, key, label, html) { const k = n.id + ':' + key; return '<details class="fold" data-fk="' + esc(k) + '"' + (PF.unfold && PF.unfold[k] ? ' open' : '') + '><summary><span>' + esc(label) + '</span><small>펼치기</small></summary>' + html + '</details>'; }
   const planSum = (n) => '계획서' + (n.plan && n.plan.purpose ? ' · ' + n.plan.purpose.slice(0, 26) + (n.plan.purpose.length > 26 ? '…' : '') : '');
@@ -1183,6 +1200,7 @@
   }
   function viewReport(id) {
     const n = byId(id); if (!n) return '<div class="card empty">항목을 찾지 못했어요.</div>';
+    if (isArch(n) && PF.mode === 'live') return archWait(n);
     const p = n.plan || {}, r = n.report || {}, run = n.run || {}, miss = (t) => '<p class="miss">(아직 안 씀)</p>';
     const sec = (key, i, inner) => '<section class="rp-sec"><div class="rp-h"><h3>' + (i + 1) + '. ' + REPORT_SECS[i][1] + '</h3><span class="no-print">' + secChip(n, 'report.' + key) + '</span></div>' + inner + '</section>';
     const L = (arr, ol) => arr && arr.length ? (ol ? '<ol>' : '<ul>') + arr.map((x) => '<li>' + esc(x) + '</li>').join('') + (ol ? '</ol>' : '</ul>') : miss();
@@ -1413,6 +1431,11 @@
     const a = Math.max(0, i - 22), b = Math.min(t.length, i + q.length + 30);
     return (a ? '…' : '') + esc(t.slice(a, i)) + '<mark>' + esc(t.slice(i, i + q.length)) + '</mark>' + esc(t.slice(i + q.length, b)) + (b < t.length ? '…' : '');
   }
+  function archSearch(q) {
+    clearTimeout(archSearch.t); archSearch.t = setTimeout(() => {
+      rpc('search', { q }, null, { quiet: true }).then((r) => { PF.archHits = PF.archHits || {}; PF.archHits[q] = r.hits || []; if (cur().s === 'find' || nav[0].s === 'find') render(); }, () => {});
+    }, 500);
+  }
   function viewFind() {
     const q = (prefs.q || '').trim().toLowerCase(), ty = prefs.ty || 'all', all = alive();
     const F = { fy: prefs.fy || '', ff: prefs.ff || '', fp: prefs.fp || '', fs: prefs.fs || '' };
@@ -1426,6 +1449,13 @@
       const hit = parts.find((x) => String(x[1]).toLowerCase().includes(q)) || parts.find((x) => String(x[1]).toLowerCase().includes(terms[0]));
       list.push({ n, hit: hit && hit[0] !== '제목' && hit[0] !== '번호' ? hit : null, score: parts[0][1].toLowerCase().includes(terms[0]) ? 0 : 1 });
     });
+    if (q && PF.mode === 'live' && all.some((n) => n.arch)) {
+      const hits = (PF.archHits || {})[q];
+      if (!hits) archSearch(q);
+      else hits.forEach((h) => { const n = byId(h.id); if (!n || isDel(n) || list.some((x) => x.n.id === h.id)) return;
+        if (!(ty === 'all' || n.type === ty || (ty === 'exp' && n.type === 'idea'))) return; if (F.fy && yearOf(n) !== F.fy) return; if (F.ff && n.field !== F.ff) return; if (F.fs && stageOf(n) !== F.fs) return;
+        list.push({ n, hit: ['지난 기록', h.snip], score: 2 }); });
+    }
     list.sort((a, b) => (a.score || 0) - (b.score || 0) || String(b.n.date).localeCompare(String(a.n.date)));
     const opts = (id, label, values, cur) => '<label class="fsel"><span>' + label + '</span><select id="' + id + '"><option value="">전체</option>' + values.map((v) => '<option' + (v === cur ? ' selected' : '') + '>' + esc(v) + '</option>').join('') + '</select></label>';
     const years = [...new Set(all.map(yearOf).filter(Boolean))].sort().reverse(), fields = Object.keys(FCODE).filter((f) => all.some((n) => n.field === f));
