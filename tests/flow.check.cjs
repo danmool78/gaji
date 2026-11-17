@@ -1,4 +1,4 @@
-// 체험 모드에서 레몬 전지 실험 전 과정 + 줄기 + 찾기. 실행: node tests/flow.check.cjs 390
+// 체험 모드에서 레몬 전지 실험 전 과정 + 사진 + 줄기 + 찾기. 실행: node tests/flow.check.cjs 390
 // 고등학생 한 명이 레몬 전지 실험을 처음부터 끝까지 (체험 모드, 휴대폰 390)
 const { chromium } = require('playwright'); const http = require('http'), fs = require('fs'), path = require('path'); const P = require('path').join(__dirname, '../public');
 const srv = http.createServer((q, r) => { let f = path.join(P, q.url.split('?')[0]); if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) f = P + '/index.html'; r.writeHead(200, { 'content-type': f.endsWith('.js') ? 'text/javascript' : f.endsWith('.css') ? 'text/css' : f.endsWith('.html') ? 'text/html' : 'text/plain' }); fs.createReadStream(f).pipe(r); }).listen(5087);
@@ -64,6 +64,11 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) process
   await click('#noteForm [data-nk=problem]'); await p.fill('#noteForm [name=text]', '3번째 레몬 즙이 적어 전압이 낮게 나옴 → 새 레몬으로 다시'); await click('#noteForm [type=submit]');
   for (const i of [2, 3, 4]) await click('[data-act=stepToggle][data-i="' + i + '"]');
   t = await body(); ok(t.includes('바꾼 점') && t.includes('문제') && (await p.$$('.rs.on')).length === 5, '단계 5/5 · 메모 3개'); await shot('05-run');
+  const pic = await p.evaluate(() => { const c = document.createElement('canvas'); c.width = 1200; c.height = 900; const x = c.getContext('2d'); x.fillStyle = '#ffe14d'; x.fillRect(0, 0, 1200, 900); x.fillStyle = '#b87333'; x.fillRect(420, 200, 60, 500); x.fillStyle = '#9aa4b2'; x.fillRect(720, 200, 60, 500); return c.toDataURL('image/png').split(',')[1]; });
+  await p.setInputFiles('input[data-upload]', [{ name: 'lemon.png', mimeType: 'image/png', buffer: Buffer.from(pic, 'base64') }, { name: 'graph.png', mimeType: 'image/png', buffer: Buffer.from(pic, 'base64') }]);
+  await p.waitForSelector('#uploadForm'); await p.fill('#uploadForm [name=cap0]', '구리-아연 레몬 전지'); await p.fill('#uploadForm [name=cap1]', '엑셀로 그린 전압 그래프'); await click('#uploadForm [data-ukind=graph][data-i="1"]');
+  await shot('05b-upload'); await click('#uploadForm [type=submit]'); await p.waitForTimeout(200);
+  ok((await p.$$('.ph img[src]')).length === 2, '사진 2장 올림 · 진행 화면에 보임');
   await click('[data-act=runEnd]'); ok(await p.isVisible('#recordForm'), '실험 끝 → 결과 기록 창');
   // 5. 결과 기록 (조건별 반복)
   await p.fill('#recordForm [name=summary]', '구리를 (+)극으로 두고 (-)극 금속을 바꾸며 레몬 전지 전압을 3번씩 쟀다.');
@@ -80,6 +85,7 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) process
   await click('[data-act=report]'); t = await body();
   ok(t.includes('1. 연구 동기와 목적') && t.includes('11. 참고 자료') && t.includes('구리-아연') && t.includes('알루미늄 호일'), '보고서 11개 칸 · 결과 · 진행 메모 포함');
   ok(!t.includes('(아직 안 씀)'), '빈 칸 없음');
+  ok(t.includes('그림 1') && t.includes('그림 2') && t.includes('엑셀로 그린 전압 그래프'), '보고서 실험 결과에 그림 1 · 2');
   await click('.rp-sec:nth-of-type(8) [data-act=secNotes]'); await p.fill('#sheet .cm-add [name=text]', '산화막을 어떻게 확인했는지 근거를 더 써 주세요'); await click('#sheet .cm-add button[value=fix]');
   ok((await p.textContent('#sheet')).includes('산화막을 어떻게'), '보고서 고찰에 첨삭'); await click('#sheet [data-act=closeSheet]');
   await shot('08-report');

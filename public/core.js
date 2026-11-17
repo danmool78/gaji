@@ -5,10 +5,10 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.3.0';
+var GAJI_CONNECTOR_VERSION = '2.4.0';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
-function GajiCore(store, util) {
+function GajiCore(store, util, drive) {
   var STAGES = ['아이디어', '계획 작성', '검토 중', '준비 중', '실험 완료', '기록 완료'];
   var ADMIN = { '관리자': 1, '마스터': 1 };
   var EXPIRE_DAYS = 60, LOCK_FAILS = 5, LOCK_MIN = 30;
@@ -133,6 +133,8 @@ function GajiCore(store, util) {
     return {
       rev: Number(setting('rev', '0')), me: { id: me.id, name: me.name, role: me.role }, nodes: nodes,
       links: store.rows('links').filter(function (l) { return !util.bool(l.off); }).map(function (l) { return { id: l.id, s: l.s, t: l.t, k: l.k }; }),
+      files: (function () { var seen = {}; nodes.forEach(function (n) { seen[n.id] = 1; });
+        return store.rows('files').filter(function (f) { return !util.bool(f.off) && seen[f.node]; }).map(fileOut); })(),
       comments: (function () { var seen = {}; nodes.forEach(function (n) { seen[n.id] = 1; });
         return store.rows('comments').filter(function (c) { return !util.bool(c.off) && seen[c.node]; }).map(function (c) { return { id: c.id, node: c.node, sec: c.sec, kind: c.kind, text: c.text, by: c.by, byId: c.byId, role: c.role, at: c.at, editedAt: c.editedAt, resolved: util.bool(c.resolved) }; }); })(),
       lines: store.rows('lines').reduce(function (o, l) { o[l.key] = l.name; return o; }, {}),
@@ -240,6 +242,66 @@ function GajiCore(store, util) {
     });
   };
 
+  /* ---------- 사진 · 파일: 동아리 드라이브의 '가지 실험 파일/<번호 제목>/' 폴더에 저장, 시트 '파일' 탭이 장부 ---------- */
+  var MIMES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'application/pdf': 'pdf' };
+  function fileOut(f) { return { id: f.id, node: f.node, name: f.name, mime: f.mime, size: Number(f.size) || 0, caption: f.caption, kind: f.kind, by: f.by, at: f.at, thumb: !!f.thumbId }; }
+  function needDrive(fn) {
+    if (!drive) err('no_drive', '이 연결기는 사진을 저장할 수 없어요');
+    try { return fn(); } catch (e) {
+      if (e.code) throw e;
+      var m = String(e.message || e);
+      if (/permission|권한|authoriz|DriveApp/i.test(m)) err('drive_perm', '연결기에 드라이브 권한이 없어요. 동아리 마스터가 연결기 코드를 새로 붙여 넣고 권한허용을 실행해야 해요');
+      err('drive', '드라이브에 저장하지 못했어요: ' + m.slice(0, 80));
+    }
+  }
+  function visibleNode(id, me, admin) {
+    var n = store.rows('nodes').filter(function (x) { return x.id === id; })[0];
+    if (!n || (util.bool(n.private) && !admin && n.owner !== me.name)) err('bad', '항목을 찾을 수 없어요');
+    return n;
+  }
+  A.upload = function (q) {
+    var me = deviceOf(q), admin = !!ADMIN[me.role], n = visibleNode(q.node, me, admin);
+    var mime = String(q.mime || ''), data = String(q.data || '');
+    if (!MIMES[mime]) err('bad', '사진(JPG · PNG) 또는 PDF만 올릴 수 있어요');
+    if (!data || data.length > 14e6) err('big', '파일이 너무 커요 (10MB까지)');
+    var base = String(q.name || '').replace(/\.[^.]+$/, '').replace(/[\\/:*?"<>|]/g, '').slice(0, 40) || ('사진_' + util.today());
+    var name = base + '.' + MIMES[mime];
+    var led = store.rows('files').filter(function (f) { return f.node === n.id && f.folderId; })[0];
+    var folderName = String(n.no || '') + ' ' + String(n.title || '').replace(/[\\/:*?"<>|]/g, '').slice(0, 40);
+    var saved = needDrive(function () {
+      var full = drive.save(led ? led.folderId : '', folderName, name, mime, data);
+      var th = q.thumb ? drive.save(full.folderId, folderName, '작게_' + base + '.jpg', 'image/jpeg', String(q.thumb)) : null;
+      return { full: full, th: th };
+    });
+    var row = { id: newId('f'), node: n.id, fileId: saved.full.id, thumbId: saved.th ? saved.th.id : '', folderId: saved.full.folderId, name: name, mime: mime, size: Math.round(data.length * 0.75),
+      caption: String(q.caption || '').slice(0, 200), kind: q.kind === 'graph' ? 'graph' : q.kind === 'doc' ? 'doc' : 'photo', by: me.name, at: util.now(), off: '' };
+    store.append('files', row); bump(); log(me, '파일 올림', n.title + ' · ' + name);
+    return { file: fileOut(row) };
+  };
+  // 사진 내용 받기 (부원은 드라이브에 직접 못 들어가므로 연결기가 전해 줌). 기본은 작은 사진, full이면 원본
+  A.fileGet = function (q) {
+    var me = deviceOf(q), admin = !!ADMIN[me.role], out = {};
+    var rows = store.rows('files'), ids = (q.ids || []).slice(0, 24);
+    needDrive(function () {
+      ids.forEach(function (id) {
+        var f = rows.filter(function (x) { return x.id === id && !util.bool(x.off); })[0]; if (!f) return;
+        try { visibleNode(f.node, me, admin); } catch (e) { return; }
+        var r = drive.read(q.full ? f.fileId : (f.thumbId || f.fileId)); out[id] = { mime: r.mime, data: r.data };
+      });
+    });
+    return { files: out };
+  };
+  A.fileEdit = function (q) {
+    var me = deviceOf(q), admin = !!ADMIN[me.role];
+    var f = store.rows('files').filter(function (x) { return x.id === q.id && !util.bool(x.off); })[0]; if (!f) err('bad', '파일을 찾을 수 없어요');
+    var n = visibleNode(f.node, me, admin);
+    if (f.by !== me.name && !admin && !mineNode(n, me)) err('not_mine', '올린 사람 · 실험 담당자 · 관리자만 할 수 있어요');
+    if (q.op === 'delete') { f.off = 'true'; if (drive) { try { drive.trash(f.fileId); if (f.thumbId) drive.trash(f.thumbId); } catch (e) {} } log(me, '파일 지움', f.name); }
+    else { if ('caption' in q) f.caption = String(q.caption || '').slice(0, 200); if (q.kind) f.kind = q.kind === 'graph' ? 'graph' : q.kind === 'doc' ? 'doc' : 'photo'; }
+    store.update('files', f._row, f); bump();
+    return { ok: true };
+  };
+
   /* ---------- 관리자: 부원 · 기기 ---------- */
   A.people = function (q) {
     var me = deviceOf(q); needAdmin(me);
@@ -326,11 +388,12 @@ var GAJI_TABS = {
   devices: { name: '기기', cols: ['id', 'memberId', 'label', 'secretHash', 'status', 'confirm', 'shared', 'createdAt', 'approvedAt', 'approvedBy', 'lastSeen'] },
   nodes: { name: '실험', cols: ['id', 'no', 'type', 'title', 'field', 'status', 'line', 'date', 'owner', 'signal', 'review', 'verdict', 'fans', 'volunteer', 'equip', 'desc', 'private', 'report', 'created', 'createdBy', 'updatedAt', 'updatedBy', 'plan', 'prep', 'run', 'deleted'] },
   links: { name: '연결', cols: ['id', 's', 't', 'k', 'createdBy', 'createdAt', 'off'] },
+  files: { name: '파일', cols: ['id', 'node', 'fileId', 'thumbId', 'folderId', 'name', 'mime', 'size', 'caption', 'kind', 'by', 'at', 'off'] },
   comments: { name: '댓글', cols: ['id', 'node', 'sec', 'kind', 'text', 'by', 'byId', 'role', 'at', 'editedAt', 'resolved', 'off'] },
   lines: { name: '줄기', cols: ['key', 'name'] },
   log: { name: '기록', cols: ['at', 'member', 'device', 'action', 'detail'] }
 };
-var GAJI_NUM = { no: 1, signal: 1, review: 1, fans: 1 };
+var GAJI_NUM = { no: 1, signal: 1, review: 1, fans: 1, size: 1 };
 var GAJI_JSON = { report: 1, plan: 1, prep: 1, run: 1 };
 
 function GajiSheetStore(ss) {
@@ -358,6 +421,26 @@ function GajiSheetStore(ss) {
   };
 }
 
+/* ================= 동아리 드라이브 ================= */
+function GajiDrive(ss) {
+  function root() {
+    var ps = DriveApp.getFileById(ss.getId()).getParents(), parent = ps.hasNext() ? ps.next() : DriveApp.getRootFolder();
+    var it = parent.getFoldersByName('가지 실험 파일'); return it.hasNext() ? it.next() : parent.createFolder('가지 실험 파일');
+  }
+  function folder(id, name) {
+    if (id) { try { return DriveApp.getFolderById(id); } catch (e) {} }
+    var r = root(), it = r.getFoldersByName(name); return it.hasNext() ? it.next() : r.createFolder(name);
+  }
+  return {
+    save: function (folderId, folderName, name, mime, b64) {
+      var f = folder(folderId, folderName), file = f.createFile(Utilities.newBlob(Utilities.base64Decode(b64), mime, name));
+      return { id: file.getId(), folderId: f.getId() };
+    },
+    read: function (id) { var b = DriveApp.getFileById(id).getBlob(); return { mime: b.getContentType(), data: Utilities.base64Encode(b.getBytes()) }; },
+    trash: function (id) { DriveApp.getFileById(id).setTrashed(true); }
+  };
+}
+
 function gajiUtil() {
   return {
     now: function () { return new Date().toISOString(); },
@@ -374,7 +457,7 @@ function gajiUtil() {
 /* ================= 껍데기가 부르는 입구 ================= */
 function gajiPost(e) {
   var q = {}; try { q = JSON.parse(e.postData.contents); } catch (x) {}
-  var core = GajiCore(GajiSheetStore(SpreadsheetApp.getActiveSpreadsheet()), gajiUtil());
+  var ss = SpreadsheetApp.getActiveSpreadsheet(), core = GajiCore(GajiSheetStore(ss), gajiUtil(), GajiDrive(ss));
   return q.action === 'init' ? gajiUtil().lock(function () { return core.handle(q); }) : core.handle(q);
 }
 function gajiGet() { return { ok: true, data: { gaji: true, version: GAJI_CONNECTOR_VERSION } }; }

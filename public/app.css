@@ -393,3 +393,37 @@ html.loading body::before { content: ''; position: fixed; top: 0; left: 0; width
 mark { background: var(--warn-bg); color: var(--fg); border-radius: 3px; padding: 0 1px; }
 
 .nd-row { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--line); padding-top: 8px; font-size: 14px; } .nd-row span { flex: 1; }
+
+/* 사진 · 파일 */
+.ph-grid, .rp-figs { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.ph { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); overflow: hidden; cursor: pointer; text-align: left; font: inherit; color: var(--fg); }
+.ph img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: var(--surface-2); }
+.ph-spin { position: absolute; top: calc(37.5% - 8px); left: calc(50% - 8px); color: var(--muted); }
+.ph-cap { padding: 2px 8px 8px; font-size: 12px; line-height: 1.4; white-space: normal; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.ph-pdf { display: grid; place-items: center; aspect-ratio: 4 / 3; font-family: var(--f-num); font-weight: 800; color: var(--bad); background: var(--bad-bg); width: 100%; }
+.ph-big { width: 100%; max-height: 62vh; object-fit: contain; border-radius: 12px; background: var(--surface-2); display: block; }
+.btn.upl { align-self: flex-start; cursor: pointer; }
+.up-row { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 10px; align-items: start; }
+.up-row img, .up-row .ph-pdf { width: 84px; height: 63px; object-fit: cover; border-radius: 8px; }
+.up-row > div { display: flex; flex-direction: column; gap: 6px; }
+.up-row input:not([type=hidden]) { font: inherit; font-size: 15px; min-height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 0 10px; }
+.rp-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 6px; } .rp-figs .ph { cursor: default; background: none; border: 0; } .rp-figs .ph img { border-radius: 6px; border: 1px solid var(--line); }
+@media print { .rp-figs { break-inside: avoid; } .rp-figs .ph-cap { font-size: 10pt; -webkit-line-clamp: unset; } .btn.upl { display: none; } }
+
+/* 인쇄는 화면 밝기와 상관없이 언제나 흰 바탕 (어둡게 모드여도) */
+@media print {
+  :root, :root[data-theme], :root[data-theme="dark"], :root:not([data-theme="light"]) {
+  --bg: #F5F6F8; --surface: #FFFFFF; --surface-2: #EEF1F5; --line: #DFE3EA;
+  --fg: #111827; --muted: #566070;
+  --brand: #C26A00; --brand-soft: #FFF3E3;
+  --exp: #2F6FDB; --done: #1F8F5A; --idea: #C26A00; --q: #6E4FE0; --res: #0E8484; --club: #475467;
+  --ok: #17663F; --ok-bg: #E3F4EA; --warn: #6E4B00; --warn-bg: #FDF1D2; --bad: #A3202F; --bad-bg: #FBE4E6;
+  --info: #1F4FA8; --info-bg: #E2ECFB; --neutral: #475467; --neutral-bg: #EBEEF2;
+  --edge: #B6BFCC; --today: #D2394B; --halo: rgba(47,111,219,.22); --shadow: 0 8px 24px rgba(17,24,39,.08);
+  --f-body: "Noto Sans KR", system-ui, -apple-system, sans-serif;
+  --f-num: "Space Grotesk", "Noto Sans KR", system-ui, sans-serif;
+    color-scheme: light;
+  }
+  html, body, .report, .rp-sec, .rec-table, .rp-t { background: #fff !important; color: #111 !important; }
+  .rec-chart text { fill: #333; }
+}

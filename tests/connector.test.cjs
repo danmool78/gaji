@@ -21,7 +21,14 @@ const util = {
   sha256: (s) => crypto.createHash('sha256').update(s).digest('hex'),
   bool: (v) => v === true || v === 'true', lock: (fn) => fn(), secret: () => 'test-secret-123'
 };
-const store = memStore(), core = ctx.GajiCore(store, util);
+// 가짜 드라이브: 폴더 · 파일을 메모리에
+const DRIVE = { files: {}, folders: {}, perm: true, n: 0 };
+const drive = {
+  save(folderId, folderName, name, mime, b64) { if (!DRIVE.perm) throw new Error('You do not have permission to call DriveApp.getFileById'); const fid = folderId || Object.keys(DRIVE.folders).find((k) => DRIVE.folders[k] === folderName) || ('F' + ++DRIVE.n); DRIVE.folders[fid] = DRIVE.folders[fid] || folderName; const id = 'D' + ++DRIVE.n; DRIVE.files[id] = { folderId: fid, name, mime, b64, trashed: false }; return { id, folderId: fid }; },
+  read(id) { const f = DRIVE.files[id]; if (!f) throw new Error('no file'); return { mime: f.mime, data: f.b64 }; },
+  trash(id) { if (DRIVE.files[id]) DRIVE.files[id].trashed = true; }
+};
+const store = memStore(), core = ctx.GajiCore(store, util, drive);
 const call = (q) => core.handle(q);
 let pass = 0, fail = 0;
 function ok(name, cond, extra) { if (cond) pass++; else { fail++; console.log('FAIL', name, extra !== undefined ? JSON.stringify(extra) : ''); } }
@@ -169,7 +176,7 @@ const mc2 = call({ action: 'myCode', device: r9b.data.device });
 ok('old code renewed', mc2.ok && mc2.data.renewed && /^\d{4}$/.test(mc2.data.code), mc2);
 ok('device kept after renew', call({ action: 'load', device: r9b.data.device }).ok);
 ok('new code works', call({ action: 'register', studentId: '20399', code: mc2.data.code }).ok);
-ok('ping version', call({ action: 'ping' }).data.version === '2.3.0');
+ok('ping version', call({ action: 'ping' }).data.version === '2.4.0');
 
 // 실수 되돌리기: 내가 10분 안에 옮긴 단계는 한 단계 되돌리기 가능
 call({ action: 'sync', device: M, nodes: [{ id: 'u1', type: 'exp', title: '되돌리기 시험', status: '검토 중' }] });
@@ -255,6 +262,34 @@ ok('moved branch', !ls.some((l) => l.s === 'b1' && l.t === 'b2') && ls.some((l) 
 call({ action: 'sync', device: MEM, links: [{ s: 'b1', t: 'b2', k: 'next' }] });
 ok('relink revives', call({ action: 'load', device: ADM }).data.links.some((l) => l.s === 'b1' && l.t === 'b2'));
 ok('bool TRUE from sheet', ctx.GajiCore && true);
+
+
+// ===== 2.4.0: 사진 · 파일 =====
+const IMG = Buffer.from('fake-jpeg-bytes').toString('base64'), TH = Buffer.from('tiny').toString('base64');
+let up = call({ action: 'upload', device: MEM, node: 'b1', name: '레몬 전지 사진.jpeg', mime: 'image/jpeg', data: IMG, thumb: TH, caption: '구리-아연 연결', kind: 'photo' });
+ok('upload', up.ok && up.data.file.name === '레몬 전지 사진.jpg' && up.data.file.thumb, up);
+const fid1 = up.data.file.id;
+const fl = Object.values(DRIVE.files); ok('saved full + thumb in one folder', fl.length === 2 && fl[0].folderId === fl[1].folderId && DRIVE.folders[fl[0].folderId].includes('레몬 전지 전극'));
+up = call({ action: 'upload', device: MEM, node: 'b1', name: 'graph.png', mime: 'image/png', data: IMG, kind: 'graph' });
+ok('second file same folder', Object.values(DRIVE.files)[2].folderId === fl[0].folderId);
+ok('load has files', call({ action: 'load', device: ADM }).data.files.filter((f) => f.node === 'b1').length === 2);
+let fg = call({ action: 'fileGet', device: OTH, ids: [fid1] });
+ok('fileGet thumb', fg.ok && fg.data.files[fid1].data === TH, fg);
+fg = call({ action: 'fileGet', device: OTH, ids: [fid1], full: true });
+ok('fileGet full', fg.data.files[fid1].data === IMG);
+ok('bad mime rejected', call({ action: 'upload', device: MEM, node: 'b1', name: 'x.exe', mime: 'application/x-msdownload', data: IMG }).code === 'bad');
+ok('too big rejected', call({ action: 'upload', device: MEM, node: 'b1', name: 'x.jpg', mime: 'image/jpeg', data: 'A'.repeat(14e6 + 10) }).code === 'big');
+ok('private node upload rejected', call({ action: 'upload', device: OTH, node: 'p9', name: 'x.jpg', mime: 'image/jpeg', data: IMG }).code === 'bad');
+ok('other cannot delete', call({ action: 'fileEdit', device: OTH, id: fid1, op: 'delete' }).code === 'not_mine');
+ok('caption edit by uploader', call({ action: 'fileEdit', device: MEM, id: fid1, caption: '구리-아연 레몬 전지 (0.93V)' }).ok && call({ action: 'load', device: ADM }).data.files.find((f) => f.id === fid1).caption.includes('0.93V'));
+ok('admin deletes', call({ action: 'fileEdit', device: ADM, id: fid1, op: 'delete' }).ok && !call({ action: 'load', device: ADM }).data.files.some((f) => f.id === fid1) && DRIVE.files[fl[0] === DRIVE.files.D2 ? 'D2' : Object.keys(DRIVE.files)[0]].trashed);
+ok('deleted not served', !call({ action: 'fileGet', device: ADM, ids: [fid1] }).data.files[fid1]);
+DRIVE.perm = false;
+const pe = call({ action: 'upload', device: MEM, node: 'b1', name: 'x.jpg', mime: 'image/jpeg', data: IMG });
+ok('no drive permission → drive_perm', pe.code === 'drive_perm', pe);
+DRIVE.perm = true;
+const noDrive = ctx.GajiCore(store, util);
+ok('no drive object → no_drive', noDrive.handle({ action: 'upload', device: MEM, node: 'b1', name: 'x.jpg', mime: 'image/jpeg', data: IMG }).code === 'no_drive');
 
 console.log(`connector: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

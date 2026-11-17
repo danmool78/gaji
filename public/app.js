@@ -165,7 +165,7 @@
   }
   function applyLoad(d) {
     PF.me = d.me; PF.rev = d.rev; PF.newDevices = (d.newDevices || []).filter((x) => !(prefs.seenDev || []).includes(x.id));
-    db = { settings: db.settings, nodes: d.nodes.map(fixNode), links: d.links, lines: d.lines || {}, lastNo: d.lastNo || { exp: 0, q: 0, res: 0 }, comments: d.comments || [] }; PF.members = d.members || [];
+    db = { settings: db.settings, nodes: d.nodes.map(fixNode), links: d.links, lines: d.lines || {}, lastNo: d.lastNo || { exp: 0, q: 0, res: 0 }, comments: d.comments || [], files: d.files || [] }; PF.members = d.members || [];
     PF.base = snapshot(); PF.mode = 'live';
   }
   async function liveLoad() {
@@ -674,6 +674,7 @@
     else if (st === '준비 중') h += prepCard(n) + runCard(n) + F('plan', planSum(n), planCard(n)) + rec;
     else if (st === '실험 완료') h += runCard(n) + rec + F('prep', '준비 점검 ' + prepState(n).k + '/' + prepState(n).total, prepCard(n)) + F('plan', planSum(n), planCard(n));
     else h += rec + F('run', runSum(n), runCard(n)) + F('prep', '준비 점검 ' + prepState(n).k + '/' + prepState(n).total, prepCard(n)) + F('plan', planSum(n), planCard(n));
+    h += filesCard(n);
     h += commentsCard(n);
     h += '<div class="card"><dl class="kv"><dt>고유번호</dt><dd><span class="code">' + esc(uid(n)) + '</span> <span class="muted" style="font-size:12px">바뀌지 않음</span></dd>' + (n.owner ? '<dt>담당</dt><dd>' + esc(n.owner) + '</dd>' : '') + (n.createdBy ? '<dt>만든 사람</dt><dd>' + esc(n.createdBy) + '</dd>' : '') + '<dt>' + (n.type === 'exp' ? '실험일' : '날짜') + '</dt><dd>' + fmt(n.date) + (isExpLike(n) && days(n.date) >= 0 && n.status !== '기록 완료' ? ' · D-' + days(n.date) : '') + '</dd></dl></div>';
     h += '<div class="card"><div class="panel-title"><span>관련된 것</span><span>누르면 이동</span></div>' + relationSvg(n) + '</div>';
@@ -1002,6 +1003,7 @@
     else h += '<div class="card run-steps">' + steps.map((s, i) => '<button type="button" class="rs' + (done[i] ? ' on' : '') + (i === curI && !ended ? ' cur' : '') + '" data-act="stepToggle" data-i="' + i + '"' + (ended && !isAdmin() && PF.mode === 'live' ? ' disabled' : '') + '><span class="rs-n">' + (done[i] ? '✓' : i + 1) + '</span><span class="rs-t">' + esc(s) + '</span>' + (done[i] ? '<small>' + hm(done[i]) + '</small>' : '') + '</button>').join('') + '</div>';
     h += '<form id="noteForm" class="card note-form"><b>메모 남기기</b><div class="seg" style="grid-template-columns:repeat(3,1fr)">' + Object.entries(NOTE_KIND).map(([k, l], i) => '<button type="button" data-nk="' + k + '" aria-pressed="' + (i === 0) + '">' + l + '</button>').join('') + '</div><input type="hidden" name="kind" value="obs">' +
       '<textarea name="text" rows="2" maxlength="500" placeholder="예: 3번째 레몬은 즙이 적어 전압이 낮게 나옴"></textarea><div class="btn-row"><button type="submit" class="btn">메모 남기기</button><button type="button" class="btn" data-act="record">측정값 넣기</button></div></form>';
+    h += filesCard(n, true);
     const notes = (r.notes || []).slice().reverse();
     if (notes.length) h += '<div class="card sec-card"><div class="sec-head"><b>진행 노트</b><span class="muted">' + notes.length + '개</span></div>' + notes.map((x) => '<div class="nt"><span class="badge ' + (x.kind === 'problem' ? 't-bad' : x.kind === 'change' ? 't-warn' : 't-info') + '">' + (NOTE_KIND[x.kind] || '메모') + '</span><span class="nt-t">' + para(x.text) + '<small class="muted">' + esc(x.by || '') + ' · ' + hm(x.at) + '</small></span>' + (x.by === meName() || isAdmin() || PF.mode !== 'live' ? '<button type="button" class="chipbtn" data-act="noteDel" data-nid="' + esc(x.id) + '">지우기</button>' : '') + '</div>').join('') + '</div>';
     if (n.status === '준비 중') h += '<div class="btn-row"><button type="button" class="btn primary" data-act="runEnd">실험 끝내기 · 결과 기록으로</button></div>';
@@ -1147,7 +1149,9 @@
     const notes = run.notes || [];
     body += sec('process', 5, run.started || notes.length ? '<p>' + (run.started ? md(run.started) + ' ' + hm(run.started) + ' 시작' : '') + (run.ended ? ' · ' + hm(run.ended) + ' 끝' : '') + (p.steps && p.steps.length ? ' · 방법 ' + Object.keys(run.done || {}).length + '/' + p.steps.length + '단계 진행' : '') + '</p>' +
       (notes.length ? '<ul class="rp-notes">' + notes.map((x) => '<li><b>[' + (NOTE_KIND[x.kind] || '메모') + ' ' + hm(x.at) + ']</b> ' + esc(x.text) + '</li>').join('') + '</ul>' : '') : miss());
-    body += sec('result', 6, n.report ? (r.summary ? '<p>' + para(r.summary) + '</p>' : '') + resultBlock(n) + (r.observe ? '<p><b>관찰</b> ' + para(r.observe) + '</p>' : '') : miss());
+    const figs = filesOf(n.id).filter((f) => f.mime !== 'application/pdf');
+    body += sec('result', 6, n.report || figs.length ? (r.summary ? '<p>' + para(r.summary) + '</p>' : '') + (n.report ? resultBlock(n) : '') + (r.observe ? '<p><b>관찰</b> ' + para(r.observe) + '</p>' : '') +
+      (figs.length ? '<div class="rp-figs">' + figs.map((f, i) => fileTile(f, i)).join('') + '</div>' : '') : miss());
     body += sec('discuss', 7, T(r.discuss));
     body += sec('conclusion', 8, (r.conclusion ? '<p>' + para(r.conclusion) + '</p>' : '') + (r.claim || n.verdict ? '<p class="rp-note">결론 제안 <b>' + esc(r.claim || '-') + '</b> · 판정 <b>' + esc(n.verdict || '대기') + '</b></p>' : '') + (!r.conclusion && !r.claim ? miss() : ''));
     body += sec('next', 9, (r.next ? '<p>' + para(r.next) + '</p>' : '') + (kids.length ? '<p class="rp-note">이어진 실험: ' + kids.map((k) => esc(code(k) + ' ' + k.title)).join(', ') + '</p>' : '') + (!r.next && !kids.length ? miss() : ''));
@@ -1203,7 +1207,7 @@
       case 'trashItem': trashItem(n); return true;
       case 'cancelExp': if (confirm('이 실험을 취소할까요? 기록은 남아요.')) { n.status = '취소'; save(); closeSheet(); render(); toast('취소했어요'); } return true;
       case 'report': go('report', n.id, 'main'); return true;
-      case 'printReport': window.print(); return true;
+      case 'printReport': loadThumbs().then(() => setTimeout(() => window.print(), 250)); return true;
       case 'final': n.report = Object.assign({}, n.report, { final: { by: meName(), at: nowIso() } }); save(); render(); toast('보고서를 확정했어요'); return true;
       case 'unfinal': if (n.report) { const r = Object.assign({}, n.report); delete r.final; n.report = r; } save(); render(); toast('확정을 풀었어요'); return true;
     }
@@ -1229,6 +1233,119 @@
     return false;
   }
   /* ---------- 찾기 ---------- */
+
+  /* ================= 사진 · 그래프 · 자료 파일 =================
+   * 연결된 동아리: 연결기가 동아리 드라이브 '가지 실험 파일/<번호 제목>/'에 저장, 시트 '파일' 탭이 장부
+   * 체험 모드: 작은 사진만 이 브라우저에 */
+  const FKIND = { photo: '사진', graph: '그래프', doc: '자료' };
+  const filesOf = (id) => (db.files || []).filter((f) => f.node === id);
+  PF.thumbs = PF.thumbs || {}; PF.fulls = PF.fulls || {};
+  const thumbSrc = (f) => f._data || PF.thumbs[f.id] || '';
+  function fileTile(f, i) {
+    const src = thumbSrc(f), pdf = f.mime === 'application/pdf';
+    return '<button type="button" class="ph" data-act="fileView" data-fid="' + esc(f.id) + '">' +
+      (pdf ? '<span class="ph-pdf">PDF</span>' : src ? '<img alt="' + esc(f.caption || f.name) + '" src="' + src + '" data-fid="' + esc(f.id) + '">' : '<img alt="' + esc(f.caption || f.name) + '" data-fid="' + esc(f.id) + '"><span class="spin ph-spin"></span>') +
+      '<span class="ph-cap">' + (i !== undefined ? '<b>그림 ' + (i + 1) + '</b> ' : '') + esc(f.caption || FKIND[f.kind] || '') + '</span></button>';
+  }
+  function filesCard(n, compact) {
+    const list = filesOf(n.id), can = canEdit(n);
+    return '<div class="card sec-card"><div class="sec-head"><b>사진 · 그래프 · 자료</b><span class="muted">' + list.length + '개</span></div>' +
+      (list.length ? '<div class="ph-grid">' + list.map((f) => fileTile(f)).join('') + '</div>' : (compact ? '' : '<span class="muted" style="font-size:13px">실험 장면, 장치, 결과 그래프(엑셀 등) 사진을 올려 두면 보고서에 그림으로 들어가요.</span>')) +
+      (can ? '<label class="btn upl"><input type="file" accept="image/*,application/pdf" multiple data-upload="' + esc(n.id) + '" hidden>' + (compact ? '사진 찍기 · 올리기' : '사진 · 파일 올리기') + '</label>' : '') + '</div>';
+  }
+  // 고른 파일 → 미리 보기 · 설명 · 종류 → 올리기
+  async function pickFiles(nodeId, list) {
+    const files = Array.from(list || []).slice(0, 10), bad = files.filter((f) => !/^image\//.test(f.type) && f.type !== 'application/pdf');
+    if (bad.length) toast('사진(JPG · PNG)과 PDF만 올릴 수 있어요');
+    const ok = files.filter((f) => !bad.includes(f) && f.size <= 15e6); if (files.some((f) => f.size > 15e6)) toast('15MB보다 큰 파일은 빼고 올려요');
+    if (!ok.length) return;
+    openSheet('<h3>올릴 준비 중…</h3><p class="muted loading-line">' + SPIN + '사진을 줄이는 중</p>');
+    const items = [];
+    for (const f of ok) {
+      try {
+        if (f.type === 'application/pdf') items.push({ name: f.name, mime: f.type, data: await readB64(f), thumb: '', preview: '' });
+        else { const full = await shrink(f, 1600, 0.82), th = await shrink(f, 480, 0.72); items.push({ name: f.name, mime: 'image/jpeg', data: full.split(',')[1], thumb: th.split(',')[1], preview: th }); }
+      } catch (e) { toast(f.name + '을(를) 읽지 못했어요'); }
+    }
+    if (!items.length) return closeSheet();
+    PF.pendingUp = { node: nodeId, items };
+    openSheet('<h3>사진 · 파일 올리기 · ' + items.length + '개</h3><form id="uploadForm" style="display:flex;flex-direction:column;gap:12px">' +
+      items.map((it, i) => '<div class="up-row">' + (it.preview ? '<img src="' + it.preview + '" alt="">' : '<span class="ph-pdf">PDF</span>') +
+        '<div><input name="cap' + i + '" maxlength="200" placeholder="설명 (예: 구리-아연 레몬 전지 연결)"><div class="seg" style="grid-template-columns:repeat(3,1fr)">' +
+        Object.entries(FKIND).map(([k, l]) => '<button type="button" data-ukind="' + k + '" data-i="' + i + '" aria-pressed="' + ((it.mime === 'application/pdf' ? 'doc' : 'photo') === k) + '">' + l + '</button>').join('') + '</div><input type="hidden" name="kind' + i + '" value="' + (it.mime === 'application/pdf' ? 'doc' : 'photo') + '"></div></div>').join('') +
+      '<div class="btn-row"><button type="button" class="btn" data-act="closeSheet">취소</button><button type="submit" class="btn primary">올리기</button></div></form>');
+  }
+  function readB64(f) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(f); }); }
+  async function shrink(file, max, q) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+      const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.naturalWidth * s)); c.height = Math.max(1, Math.round(img.naturalHeight * s));
+      const cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height); cx.drawImage(img, 0, 0, c.width, c.height);
+      return c.toDataURL('image/jpeg', q);
+    } finally { URL.revokeObjectURL(url); }
+  }
+  async function doUpload(fm) {
+    const up = PF.pendingUp; if (!up) return; const fd = new FormData(fm), btn = fm.querySelector('[type=submit]'); btn.disabled = true;
+    let done = 0;
+    for (let i = 0; i < up.items.length; i++) {
+      const it = up.items[i], caption = String(fd.get('cap' + i) || '').trim(), kind = String(fd.get('kind' + i) || 'photo');
+      btn.textContent = '올리는 중 ' + (i + 1) + '/' + up.items.length + '…';
+      if (PF.mode === 'live') {
+        try { const r = await rpc('upload', { node: up.node, name: it.name, mime: it.mime, data: it.data, thumb: it.thumb, caption, kind });
+          (db.files = db.files || []).push(r.file); if (it.preview) PF.thumbs[r.file.id] = it.preview; done++; }
+        catch (e) { if (deviceLost(e)) return; toast(e.message); if (e.code === 'drive_perm' || e.code === 'no_drive') break; }
+      } else {
+        (db.files = db.files || []).push({ id: newCid(), node: up.node, name: it.name, mime: it.mime, caption, kind, by: meName(), at: nowIso(), _data: it.preview || '' }); done++;
+        try { save(); } catch (e) {}
+      }
+    }
+    PF.pendingUp = null; closeSheet(); render(); if (done) toast(done + '개 올렸어요' + (PF.mode === 'live' ? ' · 동아리 드라이브에 저장됐어요' : ''));
+  }
+  // 화면에 보이는 사진 중 아직 안 받은 것을 한 번에 받기
+  function loadThumbs() {
+    if (PF.mode !== 'live') return Promise.resolve();
+    const want = [...new Set(Array.from(document.querySelectorAll('img[data-fid]:not([src])')).map((i) => i.dataset.fid))].filter((id) => !PF.thumbs[id] && !(PF.thumbLoading || {})[id]);
+    if (!want.length) return PF.thumbWait || Promise.resolve();
+    PF.thumbLoading = PF.thumbLoading || {}; want.forEach((id) => (PF.thumbLoading[id] = 1));
+    PF.thumbWait = rpc('fileGet', { ids: want.slice(0, 24) }, null, { quiet: true }).then((r) => {
+      Object.entries(r.files || {}).forEach(([id, f]) => { if (f) PF.thumbs[id] = 'data:' + f.mime + ';base64,' + f.data; });
+    }, () => {}).then(() => { want.forEach((id) => delete PF.thumbLoading[id]); fillThumbs(); });
+    return PF.thumbWait;
+  }
+  function fillThumbs() { document.querySelectorAll('img[data-fid]:not([src])').forEach((img) => { const s = PF.thumbs[img.dataset.fid]; if (s) { img.src = s; const sp = img.parentNode.querySelector('.ph-spin'); if (sp) sp.remove(); } }); }
+  function fileView(fid) {
+    const f = (db.files || []).find((x) => x.id === fid); if (!f) return;
+    const n = byId(f.node), mine = PF.mode !== 'live' || f.by === meName() || isAdmin() || (n && isMine(n)), src = PF.fulls[fid] || thumbSrc(f);
+    openSheet('<h3>' + esc(f.caption || FKIND[f.kind] || '사진') + '</h3>' +
+      (f.mime === 'application/pdf' ? '<p class="muted">PDF 파일 · ' + esc(f.name) + '</p>' : '<img class="ph-big" alt="' + esc(f.caption || f.name) + '"' + (src ? ' src="' + src + '"' : '') + ' data-fid="' + esc(f.id) + '">') +
+      '<p class="muted" style="font-size:12px;margin:6px 0">' + esc(FKIND[f.kind] || '') + ' · ' + esc(f.by || '') + ' · ' + md(f.at) + (f.size ? ' · ' + Math.round(f.size / 1024) + 'KB' : '') + '</p>' +
+      '<div class="btn-row">' + (PF.mode === 'live' ? '<button type="button" class="btn" data-act="fileFull" data-fid="' + esc(f.id) + '">' + (f.mime === 'application/pdf' ? 'PDF 받기' : '원본 보기 · 저장') + '</button>' : '') +
+      (mine ? '<button type="button" class="btn" data-act="fileCap" data-fid="' + esc(f.id) + '">설명 고치기</button><button type="button" class="btn danger" data-act="fileDel" data-fid="' + esc(f.id) + '">지우기</button>' : '') +
+      '<button type="button" class="btn" data-act="closeSheet">닫기</button></div>');
+    if (!src && f.mime !== 'application/pdf') loadThumbs();
+  }
+  async function fileAct(act, fid) {
+    const f = (db.files || []).find((x) => x.id === fid); if (!f) return;
+    if (act === 'fileFull') {
+      try { const r = await rpc('fileGet', { ids: [fid], full: true }); const x = r.files[fid]; if (!x) return toast('파일을 찾을 수 없어요');
+        const url = 'data:' + x.mime + ';base64,' + x.data; PF.fulls[fid] = url; const a = document.createElement('a'); a.href = url; a.download = f.name || 'gaji'; document.body.appendChild(a); a.click(); a.remove();
+        const big = document.querySelector('#sheet .ph-big'); if (big && f.mime !== 'application/pdf') big.src = url; toast('원본을 받았어요'); }
+      catch (e) { if (!deviceLost(e)) toast(e.message); }
+    }
+    if (act === 'fileDel') {
+      if (!confirm('이 파일을 지울까요? 동아리 드라이브에서도 휴지통으로 가요.')) return;
+      if (PF.mode === 'live') { try { await rpc('fileEdit', { id: fid, op: 'delete' }); } catch (e) { if (!deviceLost(e)) toast(e.message); return; } }
+      db.files = db.files.filter((x) => x.id !== fid); if (PF.mode !== 'live') save(); closeSheet(); render(); toast('지웠어요');
+    }
+    if (act === 'fileCap') {
+      const c = prompt('설명', f.caption || ''); if (c === null) return;
+      if (PF.mode === 'live') { try { await rpc('fileEdit', { id: fid, caption: c.trim() }); } catch (e) { if (!deviceLost(e)) toast(e.message); return; } }
+      f.caption = c.trim().slice(0, 200); if (PF.mode !== 'live') save(); fileView(fid); render();
+    }
+  }
+
   /* 찾기: 제목 · 번호뿐 아니라 계획서 · 진행 메모 · 결과 · 고찰 · 댓글 내용까지. 연도 · 분야 · 사람 · 단계로 좁히기 */
   function searchParts(n) {
     const p = n.plan || {}, r = n.report || {}, run = n.run || {}, out = [['제목', n.title], ['번호', code(n) + ' ' + uid(n)], ['설명', n.desc]];
@@ -1237,6 +1354,7 @@
     [['summary', '결과 요약'], ['observe', '관찰'], ['discuss', '고찰'], ['conclusion', '결론'], ['next', '더 해 볼 것']].forEach(([k, l]) => { if (r[k]) out.push([l, r[k]]); });
     if (r.table || r.rows) { const t = tableOf(r); out.push(['측정값', t.cols.join(' ') + ' ' + t.rows.map((x) => x.join(' ')).join(' / ')]); }
     commentsOf(n.id).forEach((c) => { if (c.text) out.push([(CKIND[c.kind] || CKIND.note)[0] + ' · ' + c.by, c.text]); });
+    filesOf(n.id).forEach((f) => { if (f.caption) out.push([FKIND[f.kind] || '사진', f.caption]); });
     return out.filter((x) => x[1]);
   }
   const peopleOf = (n) => [...new Set([n.owner, n.createdBy, n.volunteer, n.plan && n.plan.by, n.report && n.report.by].concat(((n.run && n.run.notes) || []).map((x) => x.by)).filter((x) => x && x !== '나'))];
@@ -1438,6 +1556,7 @@
       document.querySelectorAll('#screen ' + sel).forEach((el) => el.classList.add('sel-ring'));
     }
     if (scrollTop) window.scrollTo(0, 0);
+    if (PF.mode === 'live') setTimeout(loadThumbs, 0);
   }
 
   /* ---------- 이벤트 ---------- */
@@ -1500,6 +1619,7 @@
     if (act === 'handover') { PF.api.createHandover().then((h) => { PF.handover = h; render(); }).catch(() => toast('링크를 만들지 못했어요')); return; }
     if (act === 'copyHandover') return copyText(PF.handover.link, '넘기기 링크를 복사했어요');
     if (act === 'shareHandover') return shareText('가지 마스터 넘기기', brand().clubName + ' 가지 마스터를 넘겨요. 24시간 안에 열어 구글로 로그인해 주세요.', PF.handover.link);
+    if (act === 'fileView') return fileView(a.dataset.fid);
     if (['restore', 'moveTo', 'cmResolve', 'cmEdit', 'cmDel'].includes(act) && flowAct(act, a, n)) return;
     if (!n) return;
     if (act === 'copy') { const c = code(n); (navigator.clipboard ? navigator.clipboard.writeText(c) : Promise.reject()).then(() => toast(c + ' 복사했어요'), () => toast('번호: ' + c)); return; }
@@ -1555,6 +1675,7 @@
     r.readAsDataURL(f);
   });
   $('#sheet').addEventListener('click', (e) => {
+    const uk = e.target.closest('[data-ukind]'); if (uk) { const fm = uk.closest('form'); fm.querySelector('[name=kind' + uk.dataset.i + ']').value = uk.dataset.ukind; uk.parentNode.querySelectorAll('[data-ukind]').forEach((x) => x.setAttribute('aria-pressed', String(x === uk))); return; }
     const kd = e.target.closest('[data-kind]'); if (kd) return pickKind(kd.dataset.kind);
     const cl = e.target.closest('[data-claim]'); if (cl) { $('#recordForm [name=claim]').value = cl.dataset.claim; cl.parentNode.querySelectorAll('[data-claim]').forEach((b) => b.setAttribute('aria-pressed', String(b === cl))); return; }
     const a = e.target.closest('[data-act]'); if (!a) return; const act = a.dataset.act;
@@ -1562,6 +1683,7 @@
     if (['gRow', 'gCol', 'gDelRow', 'gDelCol'].includes(act)) return gridAct(act);
     if (act === 'approveDev' || act === 'denyDev') return devAction(act, a.dataset.id);
     if (['resetCode', 'setRole', 'setStatus'].includes(act)) return peopleAction(a);
+    if (['fileFull', 'fileCap', 'fileDel'].includes(act)) return fileAct(act, a.dataset.fid);
     if (flowAct(act, a, ['item', 'run', 'report'].includes(cur().s) ? byId(cur().arg) : null)) return;
     if (act === 'shareCode') { const t = a.dataset.text; if (navigator.share) navigator.share({ text: t }).catch(() => {}); else (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('복사했어요'), () => {}); }
   });
@@ -1569,6 +1691,7 @@
     const id = e.target.id; if (!['joinForm', 'masterJoinForm', 'connectForm'].includes(id)) return;
     e.preventDefault(); if (id === 'joinForm') submitJoin(e.target); else if (id === 'masterJoinForm') submitMasterJoin(e.target); else submitConnect(e.target);
   });
+  document.addEventListener('change', (e) => { const u = e.target.closest && e.target.closest('input[data-upload]'); if (u && u.files && u.files.length) { pickFiles(u.dataset.upload, u.files); u.value = ''; } });
   $('#sheet').addEventListener('change', (e) => {
     if (e.target.matches('[data-line-pick]')) { const f = e.target.form, box = f.querySelector('[data-new-line]'); box.hidden = e.target.value !== '__new'; if (!box.hidden) { const i = box.querySelector('input'); if (!i.value) i.value = suggestLine((f.querySelector('[name=title]') || {}).value); i.focus(); } }
   });
@@ -1577,6 +1700,7 @@
     if (e.target.name === 'newLine') e.target.dataset.touched = '1';
   });
   $('#sheet').addEventListener('submit', (e) => {
+    if (e.target.id === 'uploadForm') { e.preventDefault(); return doUpload(e.target); }
     if (flowSubmit(e)) return;
     if (e.target.id === 'recordForm') { e.preventDefault(); return saveRecord(e.target, e.submitter); }
     if (e.target.id === 'addMemberForm') {
