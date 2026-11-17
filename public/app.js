@@ -414,7 +414,7 @@
     const tpl = window.GAJI_TEMPLATE_ID || '';
     const codeBox = '<textarea id="gsCode" class="gs-code" readonly spellcheck="false" aria-label="연결기 코드">' + esc(PF.gs || '불러오는 중…') + '</textarea>' +
       '<span class="muted" style="font-size:12px">버튼이 안 되면 상자를 한 번 누르고 <b>Ctrl+C</b> (맥은 ⌘+C)</span>' +
-      '<div class="btn-row"><button type="button" class="btn primary" data-act="copyGs">코드 전체 복사</button><a class="btn" href="/connector.gs" target="_blank" rel="noopener">새 창에서 보기</a></div>';
+      '<div class="btn-row"><button type="button" class="btn primary" data-act="copyGs">코드 전체 복사</button><a class="btn" href="/connector.gs?v=6" target="_blank" rel="noopener">새 창에서 보기</a></div>';
     return '<div class="card" style="display:flex;flex-direction:column;gap:12px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">드라이브 연결</b><span class="badge t-warn">● 연결 전</span></div>' +
       '<span class="muted" style="font-size:13px;line-height:1.6">동아리 기록은 우리 드라이브의 시트에 저장돼요. <b>동아리마다 한 번만</b> 하면 되고, 부원들은 할 일이 없어요. 한 번 연결하면 새 기능은 자동으로 들어와요. 컴퓨터에서 하는 게 편해요 (5분).</span>' +
       '<ol class="wizard">' +
@@ -439,7 +439,7 @@
 
   function fetchGs() {
     if (PF.gs || fetchGs.busy) return; fetchGs.busy = true;
-    fetch('/connector.gs', { cache: 'no-cache' }).then((r) => r.text()).then((t) => { PF.gs = t; const ta = $('#gsCode'); if (ta) ta.value = t; }).catch(() => {}).finally(() => { fetchGs.busy = false; });
+    fetch('/connector.gs?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.text()).then((t) => { PF.gs = t; const ta = $('#gsCode'); if (ta) ta.value = t; }).catch(() => {}).finally(() => { fetchGs.busy = false; });
   }
   // 복사: 클립보드 → 안 되면 글상자 선택 후 execCommand → 그래도 안 되면 선택된 채로 안내
   function copyGs() {
