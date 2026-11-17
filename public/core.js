@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.14.0';
+var GAJI_CONNECTOR_VERSION = '2.16.0';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
@@ -277,25 +277,41 @@ function GajiCore(store, util, drive) {
 
   /* ---------- 달력 일정: 동아리 일정(관리자가 쓰고 모두 봄) · 내 일정(누구나 쓰고 나만 봄) ---------- */
   function eventsFor(me) {
-    return store.rows('events').filter(function (e) { return !util.bool(e.off) && (e.scope === 'club' || e.byId === me.id); })
-      .map(function (e) { return { id: e.id, date: e.date, title: e.title, scope: e.scope, by: e.by, mine: e.byId === me.id }; });
+    // 동아리 일정 · 승인된 실험일은 모두에게, 내 일정은 나에게만, 승인 대기 실험일은 올린 사람과 승인하는 사람(선생님 · 마스터)에게만
+    var ap = APPROVER[me.role];
+    return store.rows('events').filter(function (e) { if (util.bool(e.off)) return false; if (e.scope === 'club') return true; if (e.scope === 'exp') return e.state === 'ok' || e.byId === me.id || ap; return e.byId === me.id; })
+      .map(function (e) { return { id: e.id, date: e.date, title: e.title, scope: e.scope, by: e.by, mine: e.byId === me.id, node: e.node || '', state: e.scope === 'exp' ? (e.state || 'ok') : '', okBy: e.okBy || '' }; });
   }
+  var APPROVER = { '교사': 1, '마스터': 1 };   // 실험일 승인: 선생님 · 마스터(기장)
   A.eventSet = function (q) {
     var me = deviceOf(q), admin = !!ADMIN[me.role], op = q.op || 'add'; limit('ev_' + me.id, 40, 600);
     return util.lock(function () {
       if (op === 'add') {
-        var scope = q.scope === 'club' ? 'club' : 'me';
+        var scope = q.scope === 'club' ? 'club' : q.scope === 'exp' ? 'exp' : 'me', node = '';
         if (scope === 'club' && !admin) err('not_admin', '동아리 일정은 기장 · 선생님만 올릴 수 있어요');
         var date = String(q.date || ''), title = String(q.title || '').replace(/[<>]/g, '').trim().slice(0, 60);
+        if (scope === 'exp') {   // 실험일: 승인이 끝난(준비 중 이후) 내 실험만, 모두에게 보임
+          var n = store.rows('nodes').filter(function (x) { return x.id === q.node && x.type === 'exp' && !util.bool(x.deleted); })[0];
+          if (!n) err('bad', '실험을 찾을 수 없어요');
+          if (!admin && !inTeam(n, me)) err('not_mine', '내 실험(담당 · 함께하는 사람)만 실험일을 올릴 수 있어요');
+          if (STAGES.indexOf(n.status) < 3) err('not_ready', '승인이 끝난 실험(준비 중부터)만 실험일을 올릴 수 있어요');
+          node = n.id; title = n.title.slice(0, 60);
+        }
         if (!/^\d{4}-\d\d-\d\d$/.test(date) || !title) err('bad', '날짜와 내용을 넣어 주세요');
-        store.append('events', { id: newId('e'), date: date, title: title, scope: scope, by: me.name, byId: me.id, at: util.now(), off: '' });
-        if (scope === 'club') { bump(); log(me, '동아리 일정', date + ' ' + title); }
+        store.append('events', { id: newId('e'), date: date, title: title, scope: scope, by: me.name, byId: me.id, at: util.now(), off: '', node: node, state: scope === 'exp' ? (APPROVER[me.role] ? 'ok' : 'wait') : '', okBy: scope === 'exp' && APPROVER[me.role] ? me.name : '' });
+        if (scope !== 'me') { bump(); log(me, scope === 'club' ? '동아리 일정' : '실험일', date + ' ' + title); }
       } else {
         var e = store.rows('events').filter(function (x) { return x.id === q.id && !util.bool(x.off); })[0]; if (!e) err('bad', '일정을 찾을 수 없어요');
-        if (e.byId !== me.id && !(e.scope === 'club' && admin)) err('not_mine', '내가 올린 일정만 고치거나 지울 수 있어요');
+        if (op === 'approve' || op === 'reject') {
+          if (e.scope !== 'exp') err('bad', '실험일만 승인해요');
+          if (!APPROVER[me.role]) err('not_approver', '실험일은 선생님 · 마스터(기장)만 승인할 수 있어요');
+          e.state = op === 'approve' ? 'ok' : 'no'; e.okBy = me.name; store.update('events', e._row, e); bump(); log(me, op === 'approve' ? '실험일 승인' : '실험일 거절', e.date + ' ' + e.title);
+          return { events: eventsFor(me) };
+        }
+        if (e.byId !== me.id && !(e.scope !== 'me' && admin)) err('not_mine', '내가 올린 일정만 고치거나 지울 수 있어요');
         if (op === 'delete') e.off = 'true';
-        else { if (q.date && /^\d{4}-\d\d-\d\d$/.test(q.date)) e.date = q.date; if (q.title) e.title = String(q.title).replace(/[<>]/g, '').trim().slice(0, 60); }
-        store.update('events', e._row, e); if (e.scope === 'club') bump();
+        else { if (q.date && /^\d{4}-\d\d-\d\d$/.test(q.date) && q.date !== e.date) { e.date = q.date; if (e.scope === 'exp' && !APPROVER[me.role]) { e.state = 'wait'; e.okBy = ''; } } if (q.title && e.scope !== 'exp') e.title = String(q.title).replace(/[<>]/g, '').trim().slice(0, 60); }
+        store.update('events', e._row, e); if (e.scope !== 'me') bump();
       }
       return { events: eventsFor(me) };
     });
@@ -747,7 +763,7 @@ var GAJI_TABS = {
   comments: { name: '댓글', cols: ['id', 'node', 'sec', 'kind', 'text', 'by', 'byId', 'role', 'at', 'editedAt', 'resolved', 'off'] },
   lines: { name: '줄기', cols: ['key', 'name'] },
   log: { name: '기록', cols: ['at', 'member', 'device', 'action', 'detail'] },
-  events: { name: '일정', cols: ['id', 'date', 'title', 'scope', 'by', 'byId', 'at', 'off'] },
+  events: { name: '일정', cols: ['id', 'date', 'title', 'scope', 'by', 'byId', 'at', 'off', 'node', 'state', 'okBy'] },
   history: { name: '변경 기록', cols: ['id', 'node', 'field', 'by', 'byId', 'at', 'before', 'after'] }
 };
 var GAJI_NUM = { no: 1, signal: 1, review: 1, fans: 1, size: 1 };

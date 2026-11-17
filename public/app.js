@@ -734,23 +734,36 @@
     closeSheet(); render(); toast(text ? '공지를 올렸어요' : '공지를 지웠어요');
   }
   // 달력 일정: 동아리 일정(관리자가 쓰고 모두 봄) · 내 일정(누구나 쓰고 나만 봄)
-  const curEvents = () => PF.mode === 'live' ? (PF.events || []) : (db.events || []).filter((e) => e.scope === 'club' || e.by === meName()).map((e) => Object.assign({}, e, { mine: e.by === meName() }));
+  const isApprover = () => ['교사', '마스터'].includes(myRole());   // 실험일 승인: 선생님 · 마스터(기장)
+  const curEvents = () => PF.mode === 'live' ? (PF.events || []) : (db.events || []).map((e) => Object.assign({}, e, { mine: e.by === meName(), state: e.scope === 'exp' ? (e.state || 'ok') : '' }))
+    .filter((e) => e.scope === 'club' || (e.scope === 'exp' && (e.state === 'ok' || e.mine || isApprover())) || (e.scope === 'me' && e.mine));
   function evAdd() {
     const d0 = PF.calDay || dstr(TODAY), admin = isAdmin();
+    const mineOk = alive().filter((n) => n.type === 'exp' && STAGES.indexOf(n.status) >= 3 && n.status !== '기록 완료' && (inTeam(n) || admin));   // 승인 끝난 실험
     openSheet('<h3>일정 올리기</h3><form id="evForm" style="display:flex;flex-direction:column;gap:12px">' +
+      '<div class="field">무엇을 올릴까요<div class="seg" style="grid-template-columns:repeat(' + (admin ? 3 : 2) + ',1fr)">' +
+        '<button type="button" data-evscope="exp" aria-pressed="' + !!mineOk.length + '"' + (mineOk.length ? '' : ' disabled') + '>실험일 <small>모두에게</small></button>' +
+        '<button type="button" data-evscope="me" aria-pressed="' + !mineOk.length + '">내 일정 <small>나만</small></button>' +
+        (admin ? '<button type="button" data-evscope="club" aria-pressed="false">동아리 일정 <small>모두에게</small></button>' : '') + '</div>' +
+        '<input type="hidden" name="scope" value="' + (mineOk.length ? 'exp' : 'me') + '"><small class="muted" data-evhint>' + (mineOk.length ? '승인이 끝난 내 실험의 실험일은 동아리 모두에게 보여요.' : '승인이 끝난 내 실험이 아직 없어서 실험일은 올릴 수 없어요. 실험 관련 준비는 내 일정으로 남겨요.') + '</small></div>' +
       '<label class="field">날짜<input type="date" name="date" value="' + esc(d0) + '" required></label>' +
-      '<label class="field">내용<input name="title" maxlength="60" required placeholder="예: 다니엘 전지 재료 주문 · 발표회 · 대회 원서 마감"></label>' +
-      '<div class="field">누가 볼까요<div class="seg" style="grid-template-columns:repeat(2,1fr)"><button type="button" data-evscope="me" aria-pressed="true">내 일정 (나만)</button>' +
-      (admin ? '<button type="button" data-evscope="club" aria-pressed="false">동아리 일정 (모두)</button>' : '<button type="button" disabled title="기장 · 선생님만">동아리 일정 (기장 · 선생님)</button>') + '</div><input type="hidden" name="scope" value="me"></div>' +
+      (mineOk.length ? '<label class="field" data-evexp>실험<select name="node">' + mineOk.map((n) => '<option value="' + esc(n.id) + '">' + esc(code(n) + ' · ' + n.title) + '</option>').join('') + '</select></label>' : '') +
+      '<label class="field" data-evtitle' + (mineOk.length ? ' hidden' : '') + '>내용<input name="title" maxlength="60" placeholder="예: 재료 주문 · 보고서 마감 · 발표회"></label>' +
       '<div class="btn-row"><button type="button" class="btn" data-act="closeSheet">취소</button><button type="submit" class="btn primary">올리기</button></div></form>');
   }
   async function evSave(fd) {
-    const o = { date: String(fd.get('date') || ''), title: String(fd.get('title') || '').trim(), scope: fd.get('scope') === 'club' ? 'club' : 'me' };
+    const sc = fd.get('scope'), o = { date: String(fd.get('date') || ''), title: String(fd.get('title') || '').trim(), scope: sc === 'club' ? 'club' : sc === 'exp' ? 'exp' : 'me' };
+    if (o.scope === 'exp') { const n = byId(String(fd.get('node') || '')); if (!n) return toast('실험을 골라 주세요'); o.node = n.id; o.title = n.title; }
     if (!/^\d{4}-\d\d-\d\d$/.test(o.date) || !o.title) return toast('날짜와 내용을 넣어 주세요');
     if (PF.mode === 'live') { try { PF.events = (await rpc('eventSet', Object.assign({ op: 'add' }, o))).events; } catch (e) { if (!deviceLost(e)) toast(e.message); return; } }
-    else { db.events = db.events || []; db.events.push(Object.assign({ id: 'e' + Date.now().toString(36), by: meName(), at: nowIso() }, o)); save(); }
+    else { db.events = db.events || []; db.events.push(Object.assign({ id: 'e' + Date.now().toString(36), by: meName(), at: nowIso() }, o, o.scope === 'exp' ? { state: isApprover() ? 'ok' : 'wait', okBy: isApprover() ? meName() : '' } : {})); save(); }
     PF.calDay = o.date; const t = new Date(o.date + 'T00:00:00'); PF.calOff = (t.getFullYear() - TODAY.getFullYear()) * 12 + t.getMonth() - TODAY.getMonth();
-    closeSheet(); render(); toast(o.scope === 'club' ? '동아리 일정을 올렸어요 · 모두에게 보여요' : '내 일정을 올렸어요 · 나만 보여요');
+    closeSheet(); render(); toast(o.scope === 'me' ? '내 일정을 올렸어요 · 나만 보여요' : o.scope === 'exp' ? (isApprover() ? '실험일을 올렸어요 · 모두에게 보여요' : '실험일을 올렸어요 · 선생님 · 기장이 승인하면 모두에게 보여요') : '동아리 일정을 올렸어요 · 모두에게 보여요');
+  }
+  async function evDecide(id, ok) {
+    if (PF.mode === 'live') { try { PF.events = (await rpc('eventSet', { op: ok ? 'approve' : 'reject', id })).events; } catch (e) { if (!deviceLost(e)) toast(e.message); return; } }
+    else { const e = (db.events || []).find((x) => x.id === id); if (e) { e.state = ok ? 'ok' : 'no'; e.okBy = meName(); save(); } }
+    render(); toast(ok ? '실험일을 승인했어요 · 모두에게 보여요' : '실험일을 거절했어요');
   }
   async function evDel(id) {
     if (!confirm('이 일정을 지울까요?')) return;
@@ -762,7 +775,7 @@
   function homeCalendar() {
     const off = PF.calOff || 0, base = new Date(TODAY.getFullYear(), TODAY.getMonth() + off, 1), y = base.getFullYear(), m = base.getMonth();
     const key = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-    const byDay = {}; alive().filter((n) => n.type === 'exp' && inTeam(n) && n.status !== '취소' && n.date).forEach((n) => { /* 내 실험의 실험일만 (검토 · 승인 · 준비 같은 단계는 넣지 않음) */ const k = String(n.date).slice(0, 10); (byDay[k] = byDay[k] || []).push(n); });
+    const byDay = {};   // 실험 날짜는 저절로 넣지 않음 — 승인 끝난 실험의 실험일을 직접 올림
     const evDay = {}; curEvents().forEach((e) => { (evDay[e.date] = evDay[e.date] || []).push(e); });
     const first = new Date(y, m, 1), start = new Date(first); start.setDate(1 - first.getDay());
     const todayK = key(TODAY), sel = PF.calDay && PF.calDay.slice(0, 7) === key(first).slice(0, 7) ? PF.calDay : '';
@@ -771,17 +784,20 @@
       const d = new Date(start); d.setDate(start.getDate() + i); const k = key(d), out = d.getMonth() !== m, list = byDay[k] || [], evs = evDay[k] || [], all = list.length + evs.length;
       if (i === 35 && out) break;   // 마지막 줄이 다음 달뿐이면 생략
       cells += '<button type="button" class="cal-d' + (out ? ' out' : '') + (k === todayK ? ' today' : '') + (k === sel ? ' sel' : '') + (all ? ' has' : '') + (evs.some((e) => e.scope === 'club') ? ' club' : '') + '" data-calday="' + k + '" aria-label="' + (d.getMonth() + 1) + '월 ' + d.getDate() + '일' + (all ? ' · ' + all + '개' : '') + '">' +
-        '<span class="cal-n">' + d.getDate() + '</span><span class="cal-dots">' + evs.slice(0, 2).map((e) => '<i class="ev ' + (e.scope === 'club' ? 'club' : 'me') + '"></i>').join('') + list.slice(0, Math.max(0, 3 - Math.min(2, evs.length))).map(() => '<i class="exp"></i>').join('') + (all > 3 ? '<b>+</b>' : '') + '</span></button>';
+        '<span class="cal-n">' + d.getDate() + '</span><span class="cal-dots">' + evs.slice(0, 3).map((e) => '<i class="ev ' + e.scope + (e.state === 'wait' ? ' wait' : e.state === 'no' ? ' no' : '') + '"></i>').join('') + list.slice(0, Math.max(0, 3 - Math.min(2, evs.length))).map(() => '<i class="exp"></i>').join('') + (all > 3 ? '<b>+</b>' : '') + '</span></button>';
     }
     const items = sel ? (byDay[sel] || []) : [], selEv = sel ? (evDay[sel] || []) : [];
     const ym = key(first).slice(0, 7), cnt = Object.keys(byDay).filter((k) => k.slice(0, 7) === ym).reduce((a, k) => a + byDay[k].length, 0) + Object.keys(evDay).filter((k) => k.slice(0, 7) === ym).reduce((a, k) => a + evDay[k].length, 0);
-    return '<h3 class="zone-sub">달력 <span class="cnt">' + cnt + '</span><small>내 실험일 · 동아리 일정 · 내 일정</small></h3>' +
+    return '<h3 class="zone-sub">달력 <span class="cnt">' + cnt + '</span><small>실험일 · 동아리 일정 · 내 일정</small></h3>' +
       '<div class="cal"><div class="cal-top"><button type="button" class="chipbtn" data-calmove="-1" aria-label="이전 달">‹</button><b>' + (y !== TODAY.getFullYear() ? y + '년 ' : '') + (m + 1) + '월</b><button type="button" class="chipbtn" data-calmove="1" aria-label="다음 달">›</button>' +
-      (off ? '<button type="button" class="chipbtn" data-calmove="0">오늘</button>' : '') + '<button type="button" class="chipbtn cal-add" data-act="evAdd">+ 일정</button></div>' +
+      (off ? '<button type="button" class="chipbtn" data-calmove="0">오늘</button>' : '') + (isApprover() && curEvents().some((e) => e.state === 'wait') ? '<button type="button" class="chipbtn cal-wait" data-evnext>승인 대기 ' + curEvents().filter((e) => e.state === 'wait').length + '</button>' : '') + '<button type="button" class="chipbtn cal-add" data-act="evAdd">+ 일정</button></div>' +
       '<div class="cal-grid">' + WD.map((w, i) => '<span class="cal-w' + (i === 0 ? ' sun' : i === 6 ? ' sat' : '') + '">' + w + '</span>').join('') + cells + '</div>' +
       (sel ? '<div class="cal-list"><div class="cal-lh"><b>' + Number(sel.slice(5, 7)) + '월 ' + Number(sel.slice(8, 10)) + '일</b><span class="muted">' + (items.length + selEv.length ? items.length + selEv.length + '개' : '예정 없음') + '</span><button type="button" class="chipbtn" data-act="evAdd" style="margin-left:auto">+ 이 날 일정</button></div>' +
-        selEv.map((e) => '<div class="ev-row ' + (e.scope === 'club' ? 'club' : 'me') + '"><span class="ev-tag">' + (e.scope === 'club' ? '동아리' : '내 일정') + '</span><b>' + esc(e.title) + '</b>' + (e.scope === 'club' ? '<span class="muted">' + esc(e.by) + '</span>' : '') +
-          (e.mine || (e.scope === 'club' && isAdmin()) ? '<button type="button" class="chipbtn" data-evdel="' + esc(e.id) + '">지우기</button>' : '') + '</div>').join('') +
+        selEv.slice().sort((a, b) => ({ club: 0, exp: 1, me: 2 }[a.scope] - { club: 0, exp: 1, me: 2 }[b.scope])).map((e) => { const n = e.node && byId(e.node);
+          const st = e.state === 'wait' ? ' wait' : e.state === 'no' ? ' no' : '';
+          return '<div class="ev-row ' + e.scope + st + '"' + (n ? ' data-item="' + esc(n.id) + '" role="button" tabindex="0"' : '') + '><span class="ev-tag">' + (e.state === 'wait' ? '승인 대기' : e.state === 'no' ? '거절됨' : { club: '동아리', exp: '실험일', me: '내 일정' }[e.scope]) + '</span><b>' + (n ? fieldTag(n) : '') + esc(e.title) + '</b>' + (e.scope !== 'me' ? '<span class="muted">' + esc(e.by) + (e.scope === 'exp' && e.okBy && e.state === 'ok' ? ' · 승인 ' + esc(e.okBy) : '') + '</span>' : '') +
+          (e.state === 'wait' && isApprover() ? '<button type="button" class="chipbtn ok" data-evok="' + esc(e.id) + '">허가</button><button type="button" class="chipbtn" data-evno="' + esc(e.id) + '">거절</button>' : '') +
+          (e.mine || (e.scope !== 'me' && isAdmin()) ? '<button type="button" class="chipbtn" data-evdel="' + esc(e.id) + '">지우기</button>' : '') + '</div>'; }).join('') +
         items.map((n) => '<button type="button" class="ev-row exp" data-item="' + esc(n.id) + '"><span class="ev-tag">내 실험</span><b>' + fieldTag(n) + esc(n.title) + '</b><span class="muted">실험일</span></button>').join('') + '</div>' : '') + '</div>';
   }
   function viewHome() {
@@ -2258,6 +2274,10 @@
 
   function onClick(e, src) {
     const t = e.target;
+    const ed = t.closest('[data-evdel]'); if (ed) return evDel(ed.dataset.evdel);
+    const eo = t.closest('[data-evok]'); if (eo) return evDecide(eo.dataset.evok, true);
+    const en = t.closest('[data-evno]'); if (en) { if (confirm('이 실험일을 거절할까요?')) evDecide(en.dataset.evno, false); return; }
+    if (t.closest('[data-evnext]')) { const w = curEvents().filter((e) => e.state === 'wait').sort((a, b) => a.date.localeCompare(b.date))[0]; if (w) { PF.calDay = w.date; const d = new Date(w.date + 'T00:00:00'); PF.calOff = (d.getFullYear() - TODAY.getFullYear()) * 12 + d.getMonth() - TODAY.getMonth(); render(); } return; }
     const it = t.closest('[data-item],[data-go]'); if (it) return go('item', it.dataset.item || it.dataset.go, src);
     const rpb = t.closest('[data-report]'); if (rpb) return go('report', rpb.dataset.report, src);
     const ln = t.closest('[data-line]'); if (ln) return go('line', ln.dataset.line, src);
@@ -2268,7 +2288,6 @@
     if (t.closest('[data-fold]')) { prefs.showDone = !prefs.showDone; savePrefs(); return render(); }
     const vd = t.closest('[data-verdict]'); if (vd) { const it2 = cur().s === 'item' ? byId(cur().arg) : null; if (it2) { it2.verdict = vd.dataset.verdict; save(); render(); toast('판정: ' + it2.verdict); } return; }
     const ty = t.closest('[data-ty]'); if (ty) { prefs.ty = ty.dataset.ty; savePrefs(); return render(); }
-    const ed = t.closest('[data-evdel]'); if (ed) return evDel(ed.dataset.evdel);
     const cm = t.closest('[data-calmove]'); if (cm) { const v = Number(cm.dataset.calmove); PF.calOff = v ? (PF.calOff || 0) + v : 0; PF.calDay = ''; return render(); }
     const cd = t.closest('[data-calday]'); if (cd) { PF.calDay = PF.calDay === cd.dataset.calday ? '' : cd.dataset.calday; return render(); }
     const col = t.closest('[data-color]'); if (col) return saveBrand({ color: col.dataset.color });
@@ -2383,7 +2402,9 @@
   });
   $('#sheet').addEventListener('click', (e) => {
     const uk = e.target.closest('[data-ukind]'); if (uk) { const fm = uk.closest('form'); fm.querySelector('[name=kind' + uk.dataset.i + ']').value = uk.dataset.ukind; uk.parentNode.querySelectorAll('[data-ukind]').forEach((x) => x.setAttribute('aria-pressed', String(x === uk))); return; }
-    const es = e.target.closest('[data-evscope]'); if (es) { const f = es.closest('form'); f.querySelector('[name=scope]').value = es.dataset.evscope; f.querySelectorAll('[data-evscope]').forEach((x) => x.setAttribute('aria-pressed', String(x === es))); return; }
+    const es = e.target.closest('[data-evscope]'); if (es) { if (es.disabled) return; const f = es.closest('form'), v = es.dataset.evscope; f.querySelector('[name=scope]').value = v; f.querySelectorAll('[data-evscope]').forEach((x) => x.setAttribute('aria-pressed', String(x === es)));
+      const ex = f.querySelector('[data-evexp]'), ti = f.querySelector('[data-evtitle]'); if (ex) ex.hidden = v !== 'exp'; if (ti) ti.hidden = v === 'exp';
+      f.querySelector('[data-evhint]').textContent = { exp: '승인이 끝난 내 실험의 실험일은 동아리 모두에게 보여요.', me: '나만 보여요. 실험 준비 · 마감 같은 개인 일정을 남겨요.', club: '동아리 모두에게 보여요. 발표회 · 대회 마감 · 청소 같은 전체 일정.' }[v]; return; }
     const kd = e.target.closest('[data-kind]'); if (kd) return pickKind(kd.dataset.kind);
     const cl = e.target.closest('[data-claim]'); if (cl) { $('#recordForm [name=claim]').value = cl.dataset.claim; cl.parentNode.querySelectorAll('[data-claim]').forEach((b) => b.setAttribute('aria-pressed', String(b === cl))); return; }
     const a = e.target.closest('[data-act]'); if (!a) return; const act = a.dataset.act;
