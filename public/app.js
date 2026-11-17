@@ -213,7 +213,7 @@
     try {
       const r = await rpc('sync', { nodes: sent, links, lines });
       PF.busy = false;
-      if (r.rejected && r.rejected.length) { const rj = r.rejected.join(' '); toast(/:team/.test(rj) ? '담당 · 함께하는 사람 · 기장 · 선생님만 고칠 수 있어요' : /:final/.test(rj) ? '확정된 보고서예요 · 관리자가 확정을 풀어야 고칠 수 있어요' : '결과 판정 · 취소 · 단계 되돌리기는 관리자만 할 수 있어요'); return liveLoad(); }
+      if (r.rejected && r.rejected.length) { const rj = r.rejected.join(' '); toast(/:stage:plan/.test(rj) ? '계획서(목적 · 방법)를 먼저 다 써야 다음 단계로 갈 수 있어요' : /:stage:review/.test(rj) ? '다른 부원 2명이 승인해야 준비를 시작할 수 있어요' : /:stage:result/.test(rj) ? '결과와 결론을 기록해야 기록 완료가 돼요' : /:stage/.test(rj) ? '단계는 하나씩, 내용을 채운 뒤에 넘어갈 수 있어요' : /:team/.test(rj) ? '담당 · 함께하는 사람 · 기장 · 선생님만 고칠 수 있어요' : /:final/.test(rj) ? '확정된 보고서예요 · 관리자가 확정을 풀어야 고칠 수 있어요' : '결과 판정 · 취소 · 단계 되돌리기는 관리자만 할 수 있어요'); return liveLoad(); }
       sent.forEach((s) => { const no = r.assigned && r.assigned[s.id]; const n = byId(s.id); if (no) { s.no = no; if (n) n.no = no; } PF.base.nodes[s.id] = JSON.stringify(s); });
       links.forEach((l) => (l.off ? PF.base.links.delete(lkey(l)) : PF.base.links.add(lkey(l)))); PF.base.lines = JSON.stringify(lines);
       PF.rev = r.rev; render();
@@ -626,7 +626,7 @@
         if (n.status === '기록 완료' && !isFinal(n) && open.length) out.push({ n, why: '보고서 첨삭 ' + open.length + '개', w: 3 });
       }
       if (n.type === 'idea' && mine && ready(n).every(Boolean)) out.push({ n, why: '계획서로 바꿀 수 있어요', w: 5 });
-      if (n.type === 'exp' && !mine && n.status === '검토 중' && !approvals(n).some((c) => c.by === me) && reviewCount(n) < 2) out.push({ n, why: '검토 요청 · 계획서를 읽고 승인하거나 고칠 곳을 남겨요', w: 4, req: true });
+      if (n.type === 'exp' && !mine && n.status === '검토 중' && planReady(n.plan) && !approvals(n).some((c) => c.by === me) && reviewCount(n) < 2) out.push({ n, why: '검토 요청 · 계획서를 읽고 승인하거나 고칠 곳을 남겨요', w: 4, req: true });
       if (n.type === 'q' && n.createdBy === me && n.status !== '해결') { const a = commentsOf(n.id).filter((c) => c.kind === 'answer').length; if (a) out.push({ n, why: '답변 ' + a + '개가 달렸어요', w: 2 }); }
     });
     return out.sort((a, b) => a.w - b.w);
@@ -644,7 +644,7 @@
   }
   function viewHome() {
     const t = myTodos(), club = isAdmin() ? todos().filter((x) => !t.some((y) => y.n.id === x.n.id)) : [], lines = computeLines().sort((a, b) => b.rows.length - a.rows.length || (a.state === 'done') - (b.state === 'done')).slice(0, 4);
-    const reps = alive().filter((n) => n.type === 'exp' && n.status === '기록 완료' && n.report).sort((a, b) => (isFinal(b) - isFinal(a)) || String(b.date).localeCompare(String(a.date))).slice(0, 4);
+    const reps = alive().filter((n) => n.type === 'exp' && n.status === '기록 완료' && resultReady(n.report)).sort((a, b) => (isFinal(b) - isFinal(a)) || String(b.date).localeCompare(String(a.date))).slice(0, 4);
     const nd = PF.mode === 'live' ? PF.newDevices : [];
     return (nd.length ? '<div class="card notice"><b>내 이름으로 새 기기' + (nd.length > 1 ? ' ' + nd.length + '대가' : '가') + ' 승인됐어요</b><span class="muted" style="font-size:13px">내가 연 기기가 아니면 ‘내가 아님’을 눌러 바로 막으세요.</span>' +
       nd.map((d) => '<div class="nd-row"><span>' + esc(d.label || '기기') + ' · ' + esc(String(d.at).slice(5, 10).replace('-', '/')) + '</span><button type="button" class="chipbtn" data-act="notMe" data-id="' + esc(d.id) + '">내가 아님</button></div>').join('') +
@@ -1002,6 +1002,17 @@
   ];
   const LISTS = { materials: 1, steps: 1 };
   const planReady = (p) => !!(p && p.purpose && p.steps && p.steps.length);
+  const resultReady = (r) => !!(r && (r.summary || (r.table && r.table.rows && r.table.rows.length) || r.observe) && r.claim);
+  // 단계 규칙 (연결기와 같음): 내용 없이 앞으로 못 감
+  function stageGap(n) { const i = STAGES.indexOf(n.status); if (n.type !== 'exp' || i < 0) return ''; if (i >= 2 && !planReady(n.plan)) return 'plan'; if (i >= 5 && !resultReady(n.report)) return 'result'; return ''; }
+  function moveBlock(n, to) {
+    const a = STAGES.indexOf(n.status), b = STAGES.indexOf(to);
+    if (b <= a) return '';
+    if (b >= 2 && !planReady(n.plan)) return '계획서(목적 · 방법)를 먼저 다 써야 해요';
+    if (b >= 3 && a < 3 && !isAdmin() && reviewCount(n) < 2) return '다른 부원 2명이 승인해야 준비를 시작할 수 있어요';
+    if (b >= 5 && !resultReady(n.report)) return '결과(측정값 · 관찰)와 결론을 기록해야 기록 완료가 돼요';
+    return '';
+  }
   const PREP_BASE = ['실험 장소 · 시간 정하기', '안전 장비 (보안경 · 장갑)', '결과 기록 표 미리 만들기', '역할 나누기', '선생님께 알리기'];
   function prepItems(n) { const p = n.plan || {}, x = n.prep || {}; return (p.materials || []).map((m) => '준비물: ' + m).concat(PREP_BASE, x.extra || []); }
   function prepState(n) { const items = prepItems(n), done = (n.prep && n.prep.done) || {}; const k = items.filter((i) => done[i]).length; return { items, done, k, total: items.length }; }
@@ -1015,6 +1026,14 @@
   }
   function nowCard(n) {
     if (n.type !== 'exp' || n.status === '취소') return '';
+    const gap = stageGap(n);
+    if (gap) {
+      const bb = (act, label, cls) => '<button type="button" class="btn ' + (cls || '') + '" data-act="' + act + '">' + label + '</button>', w = canWork(n) && canEdit(n);
+      const t = gap === 'plan' ? '계획서가 아직 없어요' : '결과 기록이 아직 없어요';
+      const body = gap === 'plan' ? '‘' + esc(n.status) + '’로 표시돼 있지만 계획서(목적 · 방법)가 비어 있어요. 계획서를 써야 검토 · 승인 · 준비를 할 수 있어요.' : '‘기록 완료’로 표시돼 있지만 측정값 · 관찰 · 결론이 없어요. 결과를 기록해야 보고서가 만들어져요.';
+      return '<div class="card now-card">' + stepper(n) + '<b class="now-t">' + t + '</b><span class="muted now-b">' + body + (w ? '' : ' 담당 · 함께하는 사람이 채울 때까지 기다려 주세요.') + '</span><div class="btn-row">' +
+        (w ? (gap === 'plan' ? bb('plan', '계획서 쓰기', 'primary') : bb('record', '결과 기록하기', 'primary')) : '') + '</div></div>';
+    }
     if (!canWork(n) && n.status !== '검토 중') {
       const who = teamOf(n).filter((x, i, a) => a.indexOf(x) === i).join(' · ') || '다른 부원';
       const vb = (act, label, cls) => '<button type="button" class="btn ' + (cls || '') + '" data-act="' + act + '">' + label + '</button>';
@@ -1171,6 +1190,7 @@
   }
   async function addComment(nodeId, kind, sec, text) {
     text = String(text || '').trim(); if (!text && kind !== 'approve') { toast('내용을 써 주세요'); return false; }
+    if (kind === 'approve') { const an = byId(nodeId); if (!an || an.status !== '검토 중' || !planReady(an.plan)) { toast('계획서를 다 쓰고 검토를 요청한 실험만 승인할 수 있어요'); return false; } }
     if (PF.mode === 'live') {
       try { const r = await rpc('comment', { node: nodeId, kind, sec, text }); if (kind === 'approve') db.comments = allComments().filter((c) => !(c.node === nodeId && c.kind === 'approve' && c.by === meName())); allComments().push(r.comment); }
       catch (e) { if (!deviceLost(e)) toast(e.message); return false; }
@@ -1614,7 +1634,8 @@
       '<span class="muted" style="font-size:13px;line-height:1.7">일주일에 한 번, 바뀐 것이 있으면 저절로 시트 옆 <b>‘가지 백업’ 폴더</b>에 사본을 저장해요. 최근 8개와 달마다 1개(1년)만 남기고 오래된 건 알아서 지워요.</span>' +
       '<label class="check-line" style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" data-bk-mail' + (B.mail ? ' checked' : '') + '> 백업할 때 엑셀 파일과 한 주 요약을 메일로도 받기</label>' +
       (B.mail ? '<span class="muted" style="font-size:13px">받는 곳: <b>' + esc(B.to || '연결기를 만든 구글 계정') + '</b> <button type="button" class="chipbtn" data-act="backupTo">바꾸기</button></span>' : '') +
-      '<div class="btn-row"><button type="button" class="btn primary" data-act="backupNow">지금 백업</button>' + (B.folder ? '<a class="btn" href="' + esc(B.folder) + '" target="_blank" rel="noopener">백업 폴더 열기</a>' : '') + '</div>');
+      '<div class="btn-row"><button type="button" class="btn primary" data-act="backupNow">지금 백업</button>' + (B.folder ? '<a class="btn" href="' + esc(B.folder) + '" target="_blank" rel="noopener">백업 폴더 열기</a>' : '') + '</div>' +
+      (B.at ? '<button type="button" class="chipbtn" data-act="restoreOpen" style="align-self:flex-start">백업에서 되살리기…</button>' : ''));
   }
   async function backupNow() {
     try { const r = await rpc('backupNow'); if (r.ok) { toast('백업했어요' + (r.mailed ? ' · 메일도 보냈어요' : '')); } else toast('백업하지 못했어요: ' + (r.error || '')); }
@@ -1624,6 +1645,43 @@
   async function backupSet(o) {
     try { PF.bk = await rpc('backupSet', o); toast('바꿨어요'); } catch (e) { if (!deviceLost(e)) toast(e.message); PF.bk = null; }
     render();
+  }
+  // 백업에서 되살리기: 백업 고르기 → 확인 코드를 직접 쳐서 → 되살리기
+  const bkDate = (b) => { const d = new Date(b.at); return (d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + '년 ' : '') + (d.getMonth() + 1) + '월 ' + d.getDate() + '일 ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+  async function restoreOpen() {
+    openSheet('<h3>백업에서 되살리기</h3><p class="muted loading-line">' + SPIN + '백업 목록을 보는 중…</p>');
+    try {
+      const r = await rpc('backupList', null, null, { quiet: true });
+      if (!r.list.length) return openSheet('<h3>백업에서 되살리기</h3><p class="muted">아직 백업이 없어요.</p><div class="btn-row"><button type="button" class="btn" data-act="closeSheet">닫기</button></div>');
+      openSheet('<h3>백업에서 되살리기</h3><p class="muted" style="font-size:13px;line-height:1.7;margin:0 0 10px">실수로 지웠거나 망가졌을 때만 쓰세요. 고른 날의 <b>실험 · 연결 · 댓글 · 사진 목록</b>으로 돌아가요. 부원 · 기기 · 설정은 지금 그대로예요. 지금 항목: <b>' + r.now.exp + '개</b></p>' +
+        '<div style="display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow:auto">' + r.list.map((b, i) => '<button type="button" class="btn" data-act="restorePick" data-id="' + esc(b.id) + '" style="justify-content:space-between"><span>' + esc(bkDate(b)) + '</span>' + (i === 0 ? '<span class="badge t-info">가장 최근</span>' : '') + '</button>').join('') + '</div>' +
+        '<div class="btn-row" style="margin-top:12px"><button type="button" class="btn" data-act="closeSheet">취소</button></div>');
+    } catch (e) { closeSheet(); if (!deviceLost(e)) toast(e.message); }
+  }
+  async function restorePick(id) {
+    openSheet('<h3>백업에서 되살리기</h3><p class="muted loading-line">' + SPIN + '백업 내용을 확인하는 중…</p>');
+    try {
+      const r = await rpc('restorePrep', { id }, null, { quiet: true });
+      openSheet('<h3>정말 되살릴까요?</h3><form id="restoreForm" data-id="' + esc(r.id) + '" style="display:flex;flex-direction:column;gap:12px" autocomplete="off">' +
+        '<div class="card" style="background:var(--warn-bg,#FEF3C7);color:var(--warn-fg,#7A4B00);border:0;line-height:1.7;font-size:14px"><b>' + esc(bkDate(r)) + ' 백업</b>으로 돌아가요.<br>항목 수: 지금 <b>' + r.now.exp + '개</b> → 백업 <b>' + r.backup.exp + '개</b><br>그 뒤에 만들거나 고친 실험 · 댓글은 사라져요. 대신 <b>되살리기 직전에 지금 상태를 먼저 백업</b>해서 다시 되돌릴 수 있어요.</div>' +
+        '<div style="text-align:center"><div class="muted" style="font-size:13px">아래 확인 코드를 <b>직접</b> 똑같이 쳐 주세요 (' + r.minutes + '분 안 · 3번 틀리면 취소)</div>' +
+        '<div class="restore-code" style="font:800 28px/1.4 ui-monospace,Menlo,Consolas,monospace;letter-spacing:4px;margin:8px 0;user-select:none;-webkit-user-select:none" aria-label="확인 코드">' + esc(r.code).split('').map((c) => '<span>' + c + '</span>').join('') + '</div></div>' +
+        '<label class="field">확인 코드<input name="code" maxlength="9" autocomplete="off" autocapitalize="characters" spellcheck="false" data-nopaste placeholder="예: ABCD-EF23" style="font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:2px;text-transform:uppercase" required></label>' +
+        '<div class="btn-row"><button type="button" class="btn" data-act="closeSheet">취소</button><button type="submit" class="btn danger">되살리기</button></div></form>');
+    } catch (e) { closeSheet(); if (!deviceLost(e)) toast(e.message); }
+  }
+  async function restoreDo(f) {
+    const btn = f.querySelector('[type=submit]'), code = String(new FormData(f).get('code') || '').trim();
+    if (!code) return; btn.disabled = true;
+    try {
+      if (dirty()) await doSync();
+      const r = await rpc('restore', { id: f.dataset.id, code });
+      closeSheet(); toast('되살렸어요 · 항목 ' + r.exp + '개'); PF.bk = null; await liveLoad();
+    } catch (e) {
+      btn.disabled = false; if (deviceLost(e)) return;
+      if (e.code === 'bad_code' && !/취소/.test(e.message)) { toast(e.message); const i = f.querySelector('[name=code]'); i.value = ''; i.focus(); return; }
+      closeSheet(); toast(e.message);
+    }
   }
   function viewClub() {
     if (!PF.isMaster) return '<div class="card empty">동아리 마스터만 볼 수 있어요.</div>';
@@ -1778,6 +1836,8 @@
     if (act === 'askApprove') return askApprove();
     if (act === 'myCode') return myCode();
     if (act === 'backupNow') return backupNow();
+    if (act === 'restoreOpen') return restoreOpen();
+    if (act === 'restorePick') return restorePick(did);
     if (act === 'backupTo') return openSheet('<h3>백업 메일 받는 곳</h3><form id="backupToForm" style="display:flex;flex-direction:column;gap:12px"><label class="field">메일 주소<input name="to" type="email" maxlength="120" value="' + esc((PF.bk && PF.bk.to) || '') + '" placeholder="비우면 연결기를 만든 구글 계정"></label><div class="btn-row"><button type="button" class="btn" data-act="closeSheet">취소</button><button type="submit" class="btn primary">저장</button></div></form>');
     if (act === 'restartJoin') { dropDev(); PF.mode = 'join'; return render(); }
     if (act === 'leaveDevice') { if (!confirm('이 기기에서 나갈까요? 다시 들어오려면 학번 · 개인 코드와 승인이 필요해요.')) return; rpc('block', { id: PF.dev.id }).catch(() => {}); dropDev(); PF.mode = 'join'; nav = [{ s: 'home' }]; return render(true); }
@@ -1814,6 +1874,7 @@
     if (act === 'equip') { n.equip = true; toast('장비 확인 완료'); }
     if (act === 'convert') { n.type = 'exp'; n.status = '계획 작성'; n.owner = n.volunteer; n.signal = 0; n.review = 0; save(); render(); toast('실험이 됐어요 · 번호 ' + code(n) + ' 그대로'); return planForm(n); }
     if (act === 'advance' || act === 'askReview') {
+      const why = moveBlock(n, STAGES[STAGES.indexOf(n.status) + 1]); if (why) return toast(why);
       const i = STAGES.indexOf(n.status), prev = { status: n.status, signal: n.signal }, id = n.id;
       n.status = STAGES[i + 1]; if (n.status === '준비 중') n.signal = n.signal || 2; PF.myMoves[id] = Date.now();
       toast(n.status + ' 단계로 옮겼어요', { label: '되돌리기', fn: () => { const x = byId(id); if (!x) return; Object.assign(x, prev); save(); render(); toast(prev.status + ' 단계로 되돌렸어요'); } });
@@ -1866,6 +1927,7 @@
     const cl = e.target.closest('[data-claim]'); if (cl) { $('#recordForm [name=claim]').value = cl.dataset.claim; cl.parentNode.querySelectorAll('[data-claim]').forEach((b) => b.setAttribute('aria-pressed', String(b === cl))); return; }
     const a = e.target.closest('[data-act]'); if (!a) return; const act = a.dataset.act;
     if (act === 'closeSheet') return closeSheet();
+    if (act === 'restorePick') return restorePick(a.dataset.id);
     if (['gRow', 'gCol', 'gDelRow', 'gDelCol'].includes(act)) return gridAct(act);
     if (act === 'rowPhoto') return rowPhoto(a);
     if (act === 'approveDev' || act === 'denyDev') return devAction(act, a.dataset.id);
@@ -1891,10 +1953,13 @@
     if (e.target.name === 'title' && e.target.form && e.target.form.id === 'newForm') { const box = e.target.form.querySelector('[data-new-line]'); if (box && !box.hidden) { const i = box.querySelector('input'); if (!i.dataset.touched) i.value = suggestLine(e.target.value); } }
     if (e.target.name === 'newLine') e.target.dataset.touched = '1';
   });
+  $('#sheet').addEventListener('paste', (e) => { if (e.target.matches && e.target.matches('[data-nopaste]')) { e.preventDefault(); toast('확인 코드는 직접 쳐 주세요'); } });
+  $('#sheet').addEventListener('drop', (e) => { if (e.target.matches && e.target.matches('[data-nopaste]')) e.preventDefault(); });
   $('#sheet').addEventListener('submit', (e) => {
     if (e.target.id === 'uploadForm') { e.preventDefault(); return doUpload(e.target); }
     if (flowSubmit(e)) return;
     if (e.target.id === 'recordForm') { e.preventDefault(); return saveRecord(e.target, e.submitter); }
+    if (e.target.id === 'restoreForm') { e.preventDefault(); return restoreDo(e.target); }
     if (e.target.id === 'backupToForm') { e.preventDefault(); closeSheet(); return backupSet({ to: String(new FormData(e.target).get('to') || '').trim() }); }
     if (e.target.id === 'addMemberForm') {
       e.preventDefault(); const fd = new FormData(e.target), name = String(fd.get('name')).trim(), btn = e.target.querySelector('[type=submit]'); btn.disabled = true;

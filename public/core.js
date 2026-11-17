@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.7.0';
+var GAJI_CONNECTOR_VERSION = '2.9.0';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
@@ -161,6 +161,21 @@ function GajiCore(store, util, drive) {
   function inTeam(n, me) { return teamOf(n).indexOf(me.name) >= 0; }
   var OPEN_FIELDS = { fans: 1, volunteer: 1, equip: 1 };   // 아이디어: 누구나 같이 해요 · 담당 지원 · 장비 확인
   function isFinal(n) { return !!(n.report && n.report.final); }
+  /* 단계 규칙: 내용 없이 앞 단계로 넘어갈 수 없음 (관리자도 계획서 · 결과는 꼭 있어야 함)
+     검토 중 이상 = 계획서(목적 · 방법) / 준비 중 = 승인 2명 (관리자는 건너뛸 수 있음) / 기록 완료 = 결과(요약 · 측정값 · 관찰 중 하나 + 결론) */
+  function planOk(p) { return !!(p && p.purpose && p.steps && p.steps.length); }
+  function resultOk(r) { return !!(r && (r.summary || (r.table && r.table.rows && r.table.rows.length) || r.observe) && r.claim); }
+  function approvalsOf(n) { var k = store.rows('comments').filter(function (c) { return c.node === n.id && c.kind === 'approve' && !util.bool(c.off); }).length; return Math.max(k, Number(n.review) || 0); }
+  function stageBlock(old, u, admin) {
+    var a = STAGES.indexOf(old.status), b = STAGES.indexOf(u.status);
+    if (u.type !== 'exp' || b < 0 || b <= a) return '';
+    if (!admin && b - Math.max(a, 1) > 1) return 'skip';
+    if (b >= 2 && !planOk(u.plan)) return 'plan';
+    if (b >= 3 && a < 3 && !admin && approvalsOf(old) < 2) return 'review';
+    if (b >= 5 && !resultOk(u.report)) return 'result';
+    return '';
+  }
+
   A.sync = function (q) {
     var me = deviceOf(q), admin = !!ADMIN[me.role];
     return util.lock(function () {
@@ -177,6 +192,7 @@ function GajiCore(store, util, drive) {
           var n = { id: String(c.id).slice(0, 40), no: no, created: util.today(), createdBy: me.name, updatedAt: util.now(), updatedBy: me.name };
           NODE_FIELDS.forEach(function (f) { if (f in c) n[f] = c[f]; });
           if (!admin) n.verdict = '';
+          if (n.type === 'exp' && STAGES.indexOf(n.status) > 1 && stageBlock({ id: n.id, status: '계획 작성' }, n, true)) { n.status = '계획 작성'; rejected.push(n.id + ':stage'); }
           store.append('nodes', n); assigned[n.id] = no; log(me, '새로 만듦', n.title);
           return;
         }
@@ -203,6 +219,8 @@ function GajiCore(store, util, drive) {
           if (f === 'report' && !admin && c.report && c.report.final && !isFinal(old)) { rejected.push(old.id + ':final'); return; }
           u[f] = c[f]; changed = true;
         });
+        var sb = changed ? stageBlock(old, u, admin) : '';
+        if (sb) { u.status = old.status; rejected.push(old.id + ':stage:' + sb); changed = NODE_FIELDS.some(function (f) { return val(u[f]) !== val(old[f]); }); }
         if (changed) { u.updatedAt = util.now(); u.updatedBy = me.name; store.update('nodes', old._row, u); log(me, '수정', old.title); }
       });
       var links = store.rows('links'), key = {}, nodesNow = {};
@@ -291,6 +309,53 @@ function GajiCore(store, util, drive) {
     log(me, '백업 설정', ''); return A.backupInfo(q);
   };
 
+  /* ---------- 백업에서 되살리기 ----------
+     실험 내용만 되돌림 (실험 · 연결 · 줄기 · 댓글 · 파일 · 보관). 부원 · 기기 · 설정 · 기록은 지금 그대로.
+     안전장치: 관리자만 · 화면에 뜬 일회용 확인 코드(8자리)를 그대로 쳐야 함 · 10분 안 · 3번 틀리면 취소 ·
+     되살리기 직전에 지금 상태를 먼저 백업 (그 백업이 실패하면 되살리지 않음) */
+  var RESTORE_TABS = ['nodes', 'links', 'lines', 'comments', 'files', 'archive'];
+  function backupFiles() { return (util.backupList ? util.backupList() : []).sort(function (a, b) { return a.at < b.at ? 1 : -1; }); }
+  A.backupList = function (q) {
+    var me = deviceOf(q); needAdmin(me);
+    return { list: backupFiles().slice(0, 40), now: { exp: liveCount() } };
+  };
+  function liveCount() { return store.rows('nodes').filter(function (n) { return !util.bool(n.deleted); }).length + store.rows('archive').length; }
+  function restoreCode() {
+    var a = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789', t = util.token(40).replace(/[^A-Za-z0-9]/g, '').toUpperCase(), c = '';
+    for (var i = 0; c.length < 8; i++) { var ch = i < t.length ? t.charAt(i) : a.charAt(Math.floor(util.random() * a.length)); if (a.indexOf(ch) >= 0) c += ch; }
+    return c.slice(0, 4) + '-' + c.slice(4);
+  }
+  A.restorePrep = function (q) {
+    var me = deviceOf(q); needAdmin(me);
+    var b = backupFiles().filter(function (f) { return f.id === q.id; })[0];
+    if (!b) err('no_backup', '그 백업을 찾을 수 없어요');
+    var peek = util.backupPeek(b.id), code = restoreCode();
+    setSetting('restorePending', JSON.stringify({ id: b.id, by: me.id, code: code, until: Date.parse(util.now()) + 10 * 60000, tries: 0 }));
+    log(me, '되살리기 준비', b.name);
+    return { id: b.id, name: b.name, at: b.at, code: code, backup: peek, now: { exp: liveCount() }, minutes: 10 };
+  };
+  A.restore = function (q) {
+    var me = deviceOf(q); needAdmin(me);
+    return util.lock(function () {
+      var p = null; try { p = JSON.parse(setting('restorePending', '') || 'null'); } catch (e) {}
+      if (!p || p.id !== q.id || p.by !== me.id) err('no_pending', '확인 코드를 먼저 받아 주세요');
+      if (Date.parse(util.now()) > p.until) { setSetting('restorePending', ''); err('expired', '확인 코드 시간이 지났어요 (10분). 다시 받아 주세요'); }
+      var typed = String(q.code || '').toUpperCase().replace(/\s/g, '');
+      if (typed !== p.code) {
+        p.tries = (p.tries || 0) + 1;
+        if (p.tries >= 3) { setSetting('restorePending', ''); log(me, '되살리기 취소', '코드 3번 틀림'); err('bad_code', '확인 코드가 3번 틀려서 취소했어요. 다시 받아 주세요'); }
+        setSetting('restorePending', JSON.stringify(p)); err('bad_code', '확인 코드가 달라요 (' + (3 - p.tries) + '번 남음)');
+      }
+      setSetting('restorePending', '');
+      var before = doBackup(me, '되살리기 전');
+      if (!before.ok) err('backup_failed', '되살리기 전에 지금 상태를 백업하지 못해서 멈췄어요: ' + (before.error || ''));
+      var r = util.restore(q.id, RESTORE_TABS.map(function (t) { return GAJI_TABS[t].name; }));
+      bump(); setSetting('backupRev', setting('rev', '0'));
+      log(me, '되살리기', (r && r.name || q.id) + ' · 실험 ' + liveCount() + '개');
+      return { ok: true, name: r && r.name, exp: liveCount(), before: { at: before.at, folder: before.folder } };
+    });
+  };
+
   A.tidy = function (q) {
     var me = deviceOf(q); var today = util.today();
     if (setting('tidyAt', '') === today && !q.force) return { done: false, reason: 'today' };
@@ -372,6 +437,7 @@ function GajiCore(store, util, drive) {
         if (!text && kind !== 'approve') err('bad', '내용을 써 주세요');
         if (kind === 'approve') {
           if (mineNode(n, me) && !admin) err('self', '내 실험은 내가 승인할 수 없어요');
+          if (n.status !== '검토 중' || !planOk(n.plan)) err('not_ready', '계획서를 다 쓰고 검토를 요청한 실험만 승인할 수 있어요');
           rows.forEach(function (c) { if (c.node === n.id && c.kind === 'approve' && c.byId === me.id && !util.bool(c.off)) { c.off = 'true'; store.update('comments', c._row, c); } });
         }
         var c = { id: newId('c'), node: n.id, sec: String(q.sec || '').slice(0, 40), kind: kind, text: text, by: me.name, byId: me.id, role: me.role, at: util.now(), editedAt: '', resolved: '', off: '' };
@@ -624,6 +690,34 @@ function gajiUtil() {
         } catch (e) { out.mailError = String(e.message || e); }
       }
       return out;
+    },
+    backupList: function () {
+      var ss = SpreadsheetApp.getActiveSpreadsheet(), ps = DriveApp.getFileById(ss.getId()).getParents(), out = [];
+      if (!ps.hasNext()) return out;
+      var it = ps.next().getFoldersByName('가지 백업'); if (!it.hasNext()) return out;
+      var fi = it.next().getFiles();
+      while (fi.hasNext()) { var f = fi.next(); if (f.getName().indexOf('가지 데이터 백업 ') === 0 && f.getMimeType() === MimeType.GOOGLE_SHEETS) out.push({ id: f.getId(), name: f.getName(), at: f.getDateCreated().toISOString() }); }
+      return out;
+    },
+    backupPeek: function (id) {
+      var b = SpreadsheetApp.openById(id), cnt = function (n) { var sh = b.getSheetByName(n); return sh ? Math.max(0, sh.getLastRow() - 1) : 0; };
+      return { exp: cnt('실험') + cnt('보관'), comments: cnt('댓글'), files: cnt('파일') };
+    },
+    restore: function (id, names) {
+      var ss = SpreadsheetApp.getActiveSpreadsheet(), b = SpreadsheetApp.openById(id);
+      names.forEach(function (n) {
+        var from = b.getSheetByName(n); if (!from) return;
+        var to = ss.getSheetByName(n) || ss.insertSheet(n);
+        var vals = from.getDataRange().getValues();
+        to.clearContents();
+        if (vals.length && vals[0].length) {
+          if (to.getMaxRows() < vals.length) to.insertRowsAfter(to.getMaxRows(), vals.length - to.getMaxRows());
+          if (to.getMaxColumns() < vals[0].length) to.insertColumnsAfter(to.getMaxColumns(), vals[0].length - to.getMaxColumns());
+          var rg = to.getRange(1, 1, vals.length, vals[0].length); rg.setNumberFormat('@'); rg.setValues(vals.map(function (r) { return r.map(function (v) { return v instanceof Date ? v.toISOString() : String(v); }); }));
+        }
+      });
+      SpreadsheetApp.flush();
+      return { name: DriveApp.getFileById(id).getName() };
     },
     links: function () {
       var ss = SpreadsheetApp.getActiveSpreadsheet(), o = { sheet: ss.getUrl() };
