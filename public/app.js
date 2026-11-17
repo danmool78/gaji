@@ -178,7 +178,16 @@
   function viewGate() {
     const m = PF.mode;
     if (m === 'loading') return gateCard('<p class="muted">동아리 드라이브에 연결하는 중…</p>');
-    if (m === 'error') return gateCard('<div class="card gate-box"><b>연결하지 못했어요</b><p class="muted">' + esc(PF.error) + '</p><button type="button" class="btn primary" data-act="retry">다시 시도</button></div>');
+    if (m === 'error') {
+      if (PF.isMaster) fetchGs();
+      const core = PF.connAuth === 'core';
+      return gateCard('<div class="card gate-box"><b>연결하지 못했어요</b><p class="muted">' + esc(PF.error) + '</p>' +
+        (core ? (PF.isMaster
+          ? '<div class="gate-note card" style="text-align:left;line-height:1.8;font-weight:400"><b>연결기 권한 허용이 필요해요 (마스터)</b><br>① 가지 데이터 시트 → 확장 프로그램 → <b>Apps Script</b><br>② 아래 <b>연결기 코드 복사</b> → 코드 전체 지우고 붙여 넣기 → <b>저장</b><br>③ 위쪽 <b>▷ 실행</b> 왼쪽 함수 목록에서 <b>권한허용</b> → <b>▷ 실행</b> → 권한 검토 → 고급 → 이동 → <b>허용</b><br>④ 아래 <b>실행 로그</b>에 ‘준비 완료’가 보이면 여기서 <b>다시 시도</b><br>빨간 오류가 보이면 그 화면을 캡처해 주세요.</div>' +
+            '<button type="button" class="btn" data-act="copyGs">연결기 코드 복사</button><textarea id="gsCode" class="gs-code" readonly spellcheck="false" style="height:90px">' + esc(PF.gs || '불러오는 중…') + '</textarea>'
+          : '<p class="muted" style="font-size:13px">동아리 마스터가 연결기를 손보는 중이에요. 잠시 뒤 다시 열어 주세요.</p>') : '') +
+        '<button type="button" class="btn primary" data-act="retry">다시 시도</button></div>');
+    }
     if (m === 'closed') return gateCard('<div class="card gate-box"><b>아직 준비 중이에요</b><p class="muted">동아리 마스터가 드라이브를 연결하면 이 주소에서 바로 쓸 수 있어요.</p><a class="btn" href="/c/demo">가지 체험해 보기</a>' + (PF.api ? '<button type="button" class="chipbtn" data-act="pfLogin">동아리 마스터라면 구글로 로그인</button>' : '') + '</div>');
     if (m === 'pending') {
       const p = PF.pending || {}, d = PF.dev || {};
