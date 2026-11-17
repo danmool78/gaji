@@ -3,9 +3,10 @@
 //   node intro/record.cjs short      → intro/out/가지-소개-쇼츠.mp4 (1080×1920, short.html)
 const { chromium } = require('playwright'); const http = require('http'), fs = require('fs'), path = require('path'), { spawn } = require('child_process');
 const D = __dirname, SHORT = process.argv[2] === 'short', FPS = 30;
-const W = SHORT ? 1080 : 1920, H = SHORT ? 1920 : 1080, PAGE = SHORT ? 'short.html' : 'index.html';
+const G = !!process.env.GENERAL;   // 일반 소개(초록) 판
+const W = SHORT ? 1080 : 1920, H = SHORT ? 1920 : 1080, PAGE = (G ? (SHORT ? 'general-short' : 'general') : (SHORT ? 'short' : 'index')) + '.html';
 const OUT = path.join(D, 'out'); fs.mkdirSync(OUT, { recursive: true });
-const file = path.join(OUT, SHORT ? '가지-소개-쇼츠.mp4' : '가지-소개-가로.mp4');
+const file = path.join(OUT, '가지-소개-' + (G ? '일반-' : '') + (SHORT ? '쇼츠' : '가로') + '.mp4');
 const srv = http.createServer((q, r) => { const f = path.join(D, decodeURIComponent(q.url.split('?')[0])); if (!fs.existsSync(f)) { r.writeHead(404); return r.end(); } r.writeHead(200, { 'content-type': f.endsWith('.html') ? 'text/html' : 'image/png' }); fs.createReadStream(f).pipe(r); }).listen(5197);
 (async () => {
   const b = await chromium.launch(); const p = await (await b.newContext({ viewport: { width: W, height: H } })).newPage();

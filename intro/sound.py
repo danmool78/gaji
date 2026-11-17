@@ -33,6 +33,14 @@ LINES_SHORT = [
     (34.6, 41.0, '가지를 치며 자라는 연구. 이펙 기장 후보, 김승엽.'),
 ]
 
+# 일반 소개 판 (GENERAL=1): 동아리 이름 · 후보 문구 없이
+GENERAL = bool(os.environ.get('GENERAL'))
+if GENERAL:
+    LINES = [l if i not in (1, 8) else (l[0], l[1], {1: '우리 동아리 실험 기록, 지금 어디에 있나요? 졸업하면, 기록도 함께 졸업합니다.',
+             8: '한 번 하고 끝나는 실험 말고, 가지를 치며 자라는 연구. 지금, 가지에서 시작하세요.'}[i]) for i, l in enumerate(LINES)]
+    LINES_SHORT = [l if i not in (0, 4) else (l[0], l[1], {0: '우리 동아리 실험 기록, 졸업하면 어디로 갈까요?',
+             4: '가지를 치며 자라는 연구. 지금, 가지에서 시작하세요.'}[i]) for i, l in enumerate(LINES_SHORT)]
+
 def read_wav(p):
     with wave.open(p) as w: r = w.getframerate()
     if r != SR:   # 고품질로 44.1kHz 맞춤
@@ -116,11 +124,11 @@ def bgm(length):
     return out / (np.abs(out).max() + 1e-9) * 0.9
 
 def main():
-    vid = os.path.join(OUT, '가지-소개-쇼츠.mp4' if SHORT else '가지-소개-가로.mp4')
+    vid = os.path.join(OUT, '가지-소개-' + ('일반-' if GENERAL else '') + ('쇼츠' if SHORT else '가로') + '.mp4')
     length = float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', vid], capture_output=True, text=True).stdout)
     n = int(length * SR); voice = np.zeros(n, np.float32); active = np.zeros(n, np.float32)
     for i, (st, en, text) in enumerate(LINES_SHORT if SHORT else LINES):
-        p = os.path.join(VO, ('s' if SHORT else 'h') + '%02d.wav' % i)
+        p = os.path.join(VO, ('g' if GENERAL else '') + ('s' if SHORT else 'h') + '%02d.wav' % i)
         if not os.path.exists(p): tts.tts(text, p, VOICE, model=TTS_MODEL, style='')
         x = trim(read_wav(p)); slot = en - st - 0.2; dur = len(x) / SR
         f = max(SPEED, min(1.3, dur / slot))
