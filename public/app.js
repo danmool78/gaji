@@ -90,6 +90,7 @@
       const r = await fetch(url || PF.club.connector, { method: 'POST', body: JSON.stringify(Object.assign({ action, device: PF.dev ? { id: PF.dev.id, secret: PF.dev.secret } : null }, data || {})) });
       j = await r.json();
     } catch (e) { const x = new Error('연결기에 닿지 않아요. 인터넷이나 연결기 주소를 확인해 주세요'); x.code = 'network'; throw x; }
+    if (j && !j.ok && (j.code === 'core' || j.code === 'core_perm')) { PF.connAuth = 'core'; const x = new Error(j.code === 'core_perm' || /permission|권한/i.test(j.message || '') ? '연결기에 외부 연결 권한이 없어요 · 설정 → 드라이브 연결의 안내대로 권한허용을 실행해 주세요' : (j.message || '연결기가 가지 본체를 받지 못했어요')); x.code = j.code; throw x; }
     if (!j || !j.ok) { const x = new Error(j && j.code === 'unknown' ? '연결기가 예전 판이라 이 기능이 없어요. 마스터가 연결기를 업데이트해야 해요 (설정 → 드라이브 연결)' : (j && j.message) || '연결기에서 문제가 생겼어요'); x.code = (j && j.code) || 'error'; throw x; }
     return j.data;
   }
@@ -318,7 +319,8 @@
     const c = PF.club;
     if (c.connector && !PF.rewire) return '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">드라이브 연결</b><span class="badge t-ok">● 연결됨</span></div>' +
       '<span class="code muted" style="font-size:12px;word-break:break-all">' + esc(c.connector) + '</span>' +
-      (PF.connAuth ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기가 응답하지 않아요 · 권한 허용이 필요할 수 있어요</span><span style="font-weight:400;line-height:1.7">① <b>연결기 권한 확인</b>을 눌러 새 창 열기<br>② ‘권한 필요’ 또는 ‘액세스 승인’이 나오면 → <b>권한 검토</b> → 내 계정 → <b>고급 → 이동 → 허용</b><br>③ 새 창에 <b>"gaji":true</b> 글자가 보이면 성공 → 여기서 <b>연결 시험</b></span></div>' : '') +
+      (PF.connAuth === 'core' ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기가 가지 본체를 받지 못해요 · 권한 허용이 필요해요</span><span style="font-weight:400;line-height:1.7">① Apps Script 화면 위쪽 <b>▷ 실행</b> 버튼 왼쪽의 함수 목록에서 <b>권한허용</b>(없으면 <b>doGet</b>) 고르기<br>② <b>▷ 실행</b> → <b>권한 검토</b> → 내 계정 → <b>고급 → 이동 → 허용</b><br>③ 여기서 <b>연결 시험</b> (다시 배포할 필요 없어요)</span></div>' : '') +
+      (PF.connAuth === true ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기가 응답하지 않아요 · 권한 허용이 필요할 수 있어요</span><span style="font-weight:400;line-height:1.7">① <b>연결기 권한 확인</b>을 눌러 새 창 열기<br>② ‘권한 필요’ 또는 ‘액세스 승인’이 나오면 → <b>권한 검토</b> → 내 계정 → <b>고급 → 이동 → 허용</b><br>③ 새 창에 <b>"gaji":true</b> 글자가 보이면 성공 → 여기서 <b>연결 시험</b></span></div>' : '') +
       (PF.connVer ? (verOld(PF.connVer)
         ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기 업데이트 필요 · 지금 ' + esc(PF.connVer) + ' → 새 판 ' + NEED_VER + '</span><span style="font-weight:400;line-height:1.7">① 아래 <b>연결기 코드 복사</b> → Apps Script에 덮어쓰고 저장<br>② <b>배포 → 배포 관리</b> → 연필 모양(수정) → 버전: <b>새 버전</b> → 배포<br>③ 여기서 <b>연결 시험</b> → ' + NEED_VER + ' 확인</span></div>'
         : verOld(PF.connVer, LATEST_VER)
@@ -339,13 +341,13 @@
         ? step(1, '가지 데이터 시트 만들기', '버튼을 누르면 구글이 ‘사본을 만드시겠어요?’라고 물어요. <b>사본 만들기</b>를 눌러요. 연결기가 이미 들어 있는 시트가 내 드라이브에 생겨요.',
             '<a class="btn primary" href="https://docs.google.com/spreadsheets/d/' + esc(tpl) + '/copy?title=' + encodeURIComponent('가지 데이터') + '" target="_blank" rel="noopener">가지 데이터 시트 만들기</a>' +
             '<span class="muted" style="font-size:12px">학교 공유 드라이브에 두고 싶으면, 만든 뒤 드라이브에서 그 공유 드라이브로 옮기면 돼요.</span>') +
-          step(2, 'Apps Script 열기', '방금 만든 시트에서 메뉴 <b>확장 프로그램 → Apps Script</b>. 코드가 이미 들어 있으니 <b>아무것도 고치지 않아요.</b>')
+          step(2, 'Apps Script 열기', '방금 만든 시트에서 메뉴 <b>확장 프로그램 → Apps Script</b>. 코드가 이미 들어 있으니 <b>아무것도 고치지 않아요.</b> 그다음 위쪽 <b>▷ 실행</b> 왼쪽 함수 목록에서 <b>권한허용</b>을 고르고 <b>▷ 실행</b> → 권한 검토 → 고급 → 이동 → <b>허용</b>.')
         : step(1, '가지 데이터 시트 만들기', '새 구글 시트를 만들고 이름을 <b>가지 데이터</b>로 바꿔요.', '<a class="btn" href="https://docs.google.com/spreadsheets/create" target="_blank" rel="noopener">새 시트 열기</a>') +
-          step(2, '연결기 코드 붙여 넣기', '시트 메뉴 <b>확장 프로그램 → Apps Script</b>. 원래 있던 코드를 모두 지우고 붙여 넣은 뒤 <b>저장</b>(Ctrl+S)해요.', codeBox)) +
+          step(2, '연결기 코드 붙여 넣기', '시트 메뉴 <b>확장 프로그램 → Apps Script</b>. 원래 있던 코드를 모두 지우고 붙여 넣은 뒤 <b>저장</b>(Ctrl+S)해요. 그다음 위쪽 <b>▷ 실행</b> 왼쪽 함수 목록에서 <b>권한허용</b>을 고르고 <b>▷ 실행</b> → 권한 검토 → 고급 → 이동 → <b>허용</b>.', codeBox)) +
       step(3, '배포 → 새 배포', 'Apps Script 화면 오른쪽 위 파란 <b>배포</b> 버튼 → <b>새 배포</b>.') +
       step(4, '유형: 웹 앱', '‘유형 선택’ 옆 <b>톱니바퀴</b> → <b>웹 앱</b>.') +
       step(5, '실행: 나 · 액세스: 모든 사용자', '두 칸을 그림처럼 고르고 <b>배포</b>. ‘모든 사용자’여야 부원 기기가 연결돼요 (로그인 없이 부원 기기용 · 코드와 승인으로 보호돼요).') +
-      step(6, '권한 허용', '<b>액세스 승인</b> → 내 계정 → ‘확인하지 않은 앱’이 나오면 <b>고급</b> → <b>…(으)로 이동</b> → <b>허용</b>. 직접 만든 연결기라 나오는 정상 경고예요.') +
+      step(6, '권한 허용', '<b>액세스 승인</b>이 나오면 → 내 계정 → ‘확인하지 않은 앱’이 나오면 <b>고급</b> → <b>…(으)로 이동</b> → <b>허용</b>. 직접 만든 연결기라 나오는 정상 경고예요.') +
       step(7, '웹 앱 URL 복사해서 붙여 넣기', '마지막 창의 <b>웹 앱 URL</b> 옆 <b>복사</b>를 누르고 아래에 붙여 넣어요.',
         '<form id="connectForm" style="display:flex;flex-direction:column;gap:10px;margin-top:6px"><label class="field">웹 앱 URL<input name="url" required placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" spellcheck="false"></label>' +
         '<div class="grid2"><label class="field">내 학번<input name="sid" inputmode="numeric" maxlength="12" required></label><label class="field">내 이름<input name="name" maxlength="20" required></label></div>' +
@@ -821,7 +823,7 @@
       return render();
     }
     if (act === 'copyGs') return copyGs();
-    if (act === 'testConn') { rpc('ping').then((p) => { PF.connVer = p.version; PF.connAuth = false; render(); toast('연결 정상 · 연결기 ' + p.version + (verOld(p.version) ? ' · 업데이트 필요' : '')); }, (er) => { if (er.code === 'network') { PF.connAuth = true; render(); } toast(er.code === 'network' ? '연결기가 응답하지 않아요 · 아래 안내대로 권한을 허용해 주세요' : er.message); }); return; }
+    if (act === 'testConn') { rpc('ping').then((p) => { PF.connVer = p.version; PF.connAuth = false; render(); toast('연결 정상 · 연결기 ' + p.version + (verOld(p.version) ? ' · 업데이트 필요' : '')); }, (er) => { if (er.code === 'network') { PF.connAuth = true; } render(); toast(er.code === 'network' ? '연결기가 응답하지 않아요 · 아래 안내대로 권한을 허용해 주세요' : er.message); }); return; }
     if (act === 'rewire') { PF.rewire = true; return render(); }
     if (act === 'rewireCancel') { PF.rewire = false; return render(); }
     if (act === 'reset') { db = freshSample(); save(); toast('예시 데이터로 되돌렸어요'); return render(); }

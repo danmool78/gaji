@@ -18,8 +18,8 @@ const ctx = {
   SpreadsheetApp: { getActiveSpreadsheet: () => ss },
   Utilities: { formatDate: (d) => d.toISOString().slice(0, 10), getUuid: () => crypto.randomUUID(), computeDigest: (a, s) => Array.from(crypto.createHash('sha256').update(s, 'utf8').digest()).map((b) => (b > 127 ? b - 256 : b)), DigestAlgorithm: {}, Charset: {} },
   PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => (k in props ? props[k] : null), setProperty: (k, v) => { props[k] = v; }, setProperties: (o) => Object.entries(o).forEach(([k, v]) => { if (String(v).length > 9216) throw new Error('too big ' + k); props[k] = v; }) }) },
-  CacheService: { getScriptCache: () => ({ get: (k) => cache[k] || null, put: (k, v) => { if (v.length > 100000) throw new Error('cache too big'); cache[k] = v; } }) },
-  UrlFetchApp: { fetch: () => { fetches++; if (site === 'down') throw new Error('dns'); return { getResponseCode: () => (site === '500' ? 500 : 200), getContentText: () => (site === '500' ? 'error' : CORE) }; } },
+  CacheService: { getScriptCache: () => ({ get: (k) => cache[k] || null, put: (k, v) => { if (v.length > 100000) throw new Error('cache too big'); cache[k] = v; }, remove: (k) => { delete cache[k]; } }) },
+  UrlFetchApp: { fetch: () => { fetches++; if (site === 'down') throw new Error('dns'); if (site === 'perm') throw new Error('You do not have permission to call UrlFetchApp.fetch. Required permissions: https://www.googleapis.com/auth/script.external_request'); return { getResponseCode: () => (site === '500' ? 500 : 200), getContentText: () => (site === '500' ? 'error' : CORE) }; } },
   LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
   ContentService: { MimeType: { JSON: 'j' }, createTextOutput: (t) => ({ t, setMimeType() { return this; } }) }
 };
@@ -28,7 +28,7 @@ const post = (q) => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify
 const get = () => JSON.parse(ctx.doGet().t);
 const clearCache = () => Object.keys(cache).forEach((k) => delete cache[k]);
 
-ok('doGet version', get().data.version === '2.0.0' && get().data.shell === '2', get());
+ok('doGet version', get().data.version === '2.0.0' && get().data.shell === '3', get());
 ok('core stored in chunks', Number(props.gaji_core_n) >= 3);
 const init = post({ action: 'init', slug: 't', name: '김', studentId: '1', label: 'PC', masterKey: 'K'.repeat(40) });
 ok('init via shell', init.ok, init);
@@ -52,4 +52,11 @@ CORE = good;
 // 처음부터 사이트에 못 닿으면 친절한 오류
 for (const k of Object.keys(props)) delete props[k]; clearCache(); site = 'down';
 const e = post({ action: 'ping' }); ok('no core → friendly error', !e.ok && e.code === 'core', e);
+// 외부 연결 권한이 없을 때 → 원인을 알려 줌
+site = 'perm'; clearCache();
+const pe = post({ action: 'ping' }); ok('no permission → core_perm', !pe.ok && pe.code === 'core_perm', pe);
+const ge = get(); ok('doGet shows reason', !ge.ok && ge.code === 'core_perm' && /permission/.test(ge.message), ge);
+// 권한 허용 뒤 권한허용() 실행 → 본체 받음
+site = 'up'; ctx.Logger = { log: (m) => { ctx._log = m; } }; vm.runInContext('권한허용()', ctx);
+ok('권한허용 runs', /준비 완료/.test(ctx._log || ''), ctx._log);
 console.log(`shell: ${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

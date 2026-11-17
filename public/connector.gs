@@ -7,11 +7,12 @@
  *   자동 업데이트 멈추기: 시트 '설정' 탭에 key = autoUpdate, value = off
  * 동아리 기록은 이 시트(동아리 드라이브)에만 저장되고, 가지 서버로 보내지 않아요.
  *
+ * 권한: 위쪽 함수 목록에서 '권한허용' 선택 → ▷ 실행 → 권한 검토 → 고급 → 이동 → 허용 (처음 한 번)
  * 설치: 확장 프로그램 → Apps Script → 이 코드 붙여넣기 → 저장 → 배포 → 새 배포
  *       → 유형: 웹 앱 / 실행: 나 / 액세스: 모든 사용자 → 배포 → 권한 허용 → 웹 앱 URL을 가지에 붙여넣기
  * ------------------------------------------------------------
  */
-var GAJI_SHELL_VERSION = '2';
+var GAJI_SHELL_VERSION = '3';
 var GAJI_CORE_URL = 'https://gaji-lab.web.app/core.js';
 
 function gajiCore_() {
@@ -21,17 +22,19 @@ function gajiCore_() {
     var frozen = false;
     try { var st = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('설정');
       if (st) frozen = st.getDataRange().getDisplayValues().some(function (r) { return r[0] === 'autoUpdate' && String(r[1]).toLowerCase() === 'off'; }); } catch (x) {}
+    var why = '';
     if (!frozen) {
       try {
         var r = UrlFetchApp.fetch(GAJI_CORE_URL + '?t=' + Date.now(), { muteHttpExceptions: true });
         var t = r.getResponseCode() === 200 ? r.getContentText() : '';
         if (t.indexOf('var GAJI_CORE = true;') >= 0) { code = t; gajiSaveCore_(props, t); }
-      } catch (x) {}
+        else why = '가지 사이트 응답 ' + r.getResponseCode();
+      } catch (x) { why = String(x.message || x); }
     }
     if (!code) code = gajiReadCore_(props);       // 사이트에 못 닿거나 멈춤이면 마지막으로 받은 판
     if (code) cache.put('gaji_core', code, 600);   // 10분마다 새 판 확인
   }
-  if (!code) throw new Error('가지 본체를 받지 못했어요');
+  if (!code) { var er = new Error('가지 본체를 받지 못했어요' + (why ? ': ' + why : '')); er.perm = /permission|권한|authoriz/i.test(why); throw er; }
   return (new Function(code + '\nreturn { post: gajiPost, get: gajiGet };'))();
 }
 // 스크립트 속성은 칸당 9KB까지라 나눠서 보관
@@ -49,9 +52,16 @@ function gajiOut_(o) { return ContentService.createTextOutput(JSON.stringify(o))
 
 function doPost(e) {
   try { return gajiOut_(gajiCore_().post(e)); }
-  catch (x) { return gajiOut_({ ok: false, code: 'core', message: '연결기가 가지 본체를 받지 못했어요. 잠시 뒤 다시 해 주세요' }); }
+  catch (x) { return gajiOut_({ ok: false, code: x.perm ? 'core_perm' : 'core', message: x.perm ? '연결기에 외부 연결 권한이 아직 없어요. Apps Script에서 권한허용 함수를 한 번 실행해 주세요' : String(x.message || x) }); }
 }
 function doGet() {
   try { var g = gajiCore_().get(); g.data.shell = GAJI_SHELL_VERSION; return gajiOut_(g); }
-  catch (x) { return gajiOut_({ ok: false, code: 'core', message: String(x.message || x) }); }
+  catch (x) { return gajiOut_({ ok: false, code: x.perm ? 'core_perm' : 'core', message: String(x.message || x) }); }
+}
+
+/* 처음 한 번: 위쪽 함수 목록에서 '권한허용'을 고르고 ▷ 실행 → 권한 검토 → 허용 */
+function 권한허용() {
+  CacheService.getScriptCache().remove('gaji_core');
+  var g = gajiCore_().get();
+  Logger.log('가지 연결기 준비 완료 · 본체 ' + g.data.version);
 }
