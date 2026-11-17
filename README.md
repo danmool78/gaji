@@ -4,7 +4,7 @@
 
 계획서, 준비, 측정, 결과, 그리고 다음 실험까지 한 줄기로 이어서 기록합니다. 실패한 실험도 다음 실험의 씨앗으로 남습니다.
 
-- 사이트: https://danmool78.github.io/gaji/
+- 사이트: https://gaji-lab.web.app (Firebase Hosting, 동아리 주소 예: `/c/동아리주소`)
 - 지금 상태: **체험 모드** (예시 데이터, 바꾼 내용은 각자 브라우저에만 저장)
 
 ## 화면
@@ -52,9 +52,11 @@
 
 | 파일 | 내용 |
 |---|---|
-| `index.html` | 화면 틀 |
-| `app.css` | 디자인 (밝게 · 어둡게) |
-| `app.js` | 화면과 동작 |
-| `data.js` | 체험 모드 예시 데이터 |
+| `public/index.html` | 화면 틀 |
+| `public/app.css` | 디자인 (밝게 · 어둡게) |
+| `public/app.js` | 화면과 동작 |
+| `public/data.js` | 체험 모드 예시 데이터 |
+| `public/firebase-config.js` | Firebase 웹 설정 (공개 값) |
+| `firebase.json` · `firestore.rules` | 호스팅 · 동아리 주소(`/c/**`) · 보안 규칙 |
 
-빌드 과정 없이 파일 그대로 올리면 동작합니다.
+배포: `firebase deploy --only hosting,firestore:rules` (프로젝트 `gaji-lab`). 빌드 과정은 없습니다.

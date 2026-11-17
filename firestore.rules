@@ -1,0 +1,14 @@
+rules_version = '2';
+// 가지 동아리 명부 — 2단계에서 마스터 로그인 · 명부 쓰기 규칙을 추가합니다.
+// 지금은 동아리 공개 정보(이름 · 로고 · 색) 읽기만 허용하고 나머지는 모두 닫아 둡니다.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /clubs/{slug} {
+      allow read: if true;      // 공개 필드만 담는 문서
+      allow write: if false;
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
