@@ -284,7 +284,8 @@
       '<span class="muted" style="font-size:13px;line-height:1.6">동아리 기록은 우리 드라이브의 시트에 저장돼요. 한 번만 하면 되고, 컴퓨터에서 하는 게 편해요 (10분).</span>' +
       '<ol class="wizard">' +
       step(1, '가지 데이터 시트 만들기', '학교 공유 드라이브(권장)나 내 드라이브에 새 구글 시트를 만들고 이름을 <b>가지 데이터</b>로 바꿔요.', '<a class="btn" href="https://docs.google.com/spreadsheets/create" target="_blank" rel="noopener">새 시트 열기</a>') +
-      step(2, '연결기 코드 붙여 넣기', '시트 메뉴 <b>확장 프로그램 → Apps Script</b>. 원래 있던 코드를 모두 지우고 붙여 넣은 뒤 저장해요.', '<button type="button" class="btn" data-act="copyGs">연결기 코드 복사</button>') +
+      step(2, '연결기 코드 붙여 넣기', '시트 메뉴 <b>확장 프로그램 → Apps Script</b>. 원래 있던 코드를 모두 지우고 붙여 넣은 뒤 저장해요.', '<textarea id="gsCode" class="gs-code" readonly spellcheck="false" aria-label="연결기 코드">' + esc(PF.gs || '불러오는 중…') + '</textarea>' +
+        '<div class="btn-row"><button type="button" class="btn primary" data-act="copyGs">코드 전체 복사</button><a class="btn" href="/connector.gs" target="_blank" rel="noopener">새 창에서 보기</a></div>') +
       step(3, '웹 앱으로 배포', '<b>배포 → 새 배포 → 유형: 웹 앱</b> · 실행: <b>나</b> · 액세스: <b>모든 사용자</b> → 배포 → 권한 허용. ‘확인되지 않은 앱’이 나오면 고급 → 이동을 눌러요.') +
       step(4, '웹 앱 주소 붙여 넣기', '배포가 끝나면 나오는 웹 앱 URL을 복사해 아래에 넣어요.',
         '<form id="connectForm" style="display:flex;flex-direction:column;gap:10px;margin-top:6px"><label class="field">웹 앱 URL<input name="url" required placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" spellcheck="false"></label>' +
@@ -292,7 +293,19 @@
         '<button type="submit" class="btn primary">연결하기</button>' + (PF.rewire ? '<button type="button" class="chipbtn" data-act="rewireCancel">취소</button>' : '') + '</form>') +
       '</ol></div>';
   }
-  function fetchGs() { if (!PF.gs) fetch('/connector.gs').then((r) => r.text()).then((t) => { PF.gs = t; }).catch(() => {}); }
+  function fetchGs() {
+    if (PF.gs || fetchGs.busy) return; fetchGs.busy = true;
+    fetch('/connector.gs', { cache: 'no-cache' }).then((r) => r.text()).then((t) => { PF.gs = t; const ta = $('#gsCode'); if (ta) ta.value = t; }).catch(() => {}).finally(() => { fetchGs.busy = false; });
+  }
+  // 복사: 클립보드 → 안 되면 글상자 선택 후 execCommand → 그래도 안 되면 선택된 채로 안내
+  function copyGs() {
+    const ta = $('#gsCode');
+    if (!PF.gs) { fetchGs(); return toast('코드를 불러오는 중이에요 · 잠시 뒤 다시 눌러 주세요'); }
+    const sel = () => { if (!ta) return false; ta.focus(); ta.select(); ta.setSelectionRange(0, ta.value.length); try { return document.execCommand('copy'); } catch (e) { return false; } };
+    const fail = () => { if (sel()) toast('연결기 코드를 복사했어요 · Apps Script에 붙여 넣어 주세요'); else toast('코드가 선택됐어요 · 길게 눌러 복사해 주세요'); };
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(PF.gs).then(() => { if (ta) { ta.focus(); ta.select(); ta.scrollTop = 0; } toast('연결기 코드를 복사했어요 · Apps Script에 붙여 넣어 주세요'); }, fail);
+    else fail();
+  }
   async function submitConnect(f) {
     const fd = new FormData(f), url = String(fd.get('url')).trim(), sid = String(fd.get('sid')).trim(), name = String(fd.get('name')).trim(), btn = f.querySelector('[type=submit]');
     if (!URL_RE.test(url)) return toast('웹 앱 주소는 https://script.google.com/…/exec 모양이에요');
@@ -717,7 +730,7 @@
       if (act === 'notMe') rpc('block', { id: did }).then(() => toast('그 기기를 막았어요 · 관리자에게도 알려 주세요'), (er) => toast(er.message));
       return render();
     }
-    if (act === 'copyGs') return PF.gs ? copyText(PF.gs, '연결기 코드를 복사했어요 · Apps Script에 붙여 넣어 주세요') : (fetchGs(), toast('잠시 뒤 다시 눌러 주세요'));
+    if (act === 'copyGs') return copyGs();
     if (act === 'testConn') { rpc('ping').then((p) => toast('연결 정상 · 연결기 ' + p.version), (er) => toast(er.message)); return; }
     if (act === 'rewire') { PF.rewire = true; return render(); }
     if (act === 'rewireCancel') { PF.rewire = false; return render(); }
