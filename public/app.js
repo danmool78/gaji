@@ -13,6 +13,23 @@
   const fmt = (d) => { const x = new Date(d); return (x.getMonth() + 1) + '/' + x.getDate(); };
   const days = (d) => Math.round((new Date(d) - TODAY) / 864e5);
   const WD = ['일', '월', '화', '수', '목', '금', '토'];
+  /* 진단 화면: 주소 끝에 ?debug 를 붙이면 오른쪽 위에 상태가 보임 */
+  const DEBUG = /[?&]debug/.test(location.search);
+  const D = { 열림: 0, 그리기: 0, 바뀜: 0, 동아리설정: 0, 로그인변화: 0, 크기변화: 0, 모드: '', 포커스잃음: '', 복사: '', 오류: '', 클릭: '' };
+  try { D.열림 = +(sessionStorage.getItem('gajiLoads') || 0) + 1; sessionStorage.setItem('gajiLoads', D.열림); } catch (e) {}
+  function dbg(k, v) {
+    if (k) D[k] = v === undefined ? (D[k] || 0) + 1 : v;
+    if (!DEBUG) return;
+    let el = document.getElementById('dbg');
+    if (!el) { el = document.createElement('pre'); el.id = 'dbg'; el.style.cssText = 'position:fixed;top:4px;right:4px;z-index:999;margin:0;background:rgba(0,0,0,.82);color:#7CFC9A;font:12px/1.5 monospace;padding:8px 10px;border-radius:8px;max-width:46vw;pointer-events:none;white-space:pre-wrap'; document.body.appendChild(el); }
+    el.textContent = Object.entries(D).map(([a, b]) => a + ': ' + b).join('\n') + '\n' + navigator.userAgent.replace(/.*\) /, '').slice(0, 60);
+  }
+  if (DEBUG) {
+    document.addEventListener('focusout', (e) => { const t = e.target; dbg('포커스잃음', (t.name || t.id || t.tagName) + ' → ' + (e.relatedTarget ? (e.relatedTarget.name || e.relatedTarget.id || e.relatedTarget.tagName) : '없음') + ' @' + new Date().toLocaleTimeString()); }, true);
+    document.addEventListener('pointerdown', (e) => { const t = e.target.closest('[data-act],input,button,textarea') || e.target; dbg('클릭', (t.dataset && t.dataset.act) || t.name || t.id || t.tagName); }, true);
+    window.addEventListener('error', (e) => dbg('오류', e.message));
+    setInterval(() => dbg(), 1000);
+  }
   function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (t.hidden = true), 2000); }
 
   /* ---------- 저장 (체험 모드: 이 브라우저에만) ---------- */
@@ -32,8 +49,8 @@
   const PF = { club: null, isMaster: false, api: null, slug: null, handover: null, mode: 'demo', me: null, dev: null, rev: 0, base: null, busy: false, newDevices: [], people: null,
     approveId: new URLSearchParams(location.search).get('approve') };
   window.GAJI_APP = {
-    setClub(club, isMaster, api, slug) { PF.club = club; PF.isMaster = !!isMaster; PF.api = api; PF.slug = slug; startClub(); },
-    refresh() { render(); }, toast: (m) => toast(m),
+    setClub(club, isMaster, api, slug) { PF.club = club; PF.isMaster = !!isMaster; PF.api = api; PF.slug = slug; dbg('동아리설정'); startClub(); },
+    refresh() { render(); }, toast: (m) => toast(m), dbg: (k, v) => dbg(k, v),
     open(sc) { nav = [{ s: 'more' }, { s: sc }]; render(true); }
   };
   const brand = () => PF.club ? { clubName: PF.club.name, color: PF.club.color, logo: PF.club.logo || '' } : db.settings;
@@ -300,14 +317,15 @@
   }
   // 복사: 클립보드 → 안 되면 글상자 선택 후 execCommand → 그래도 안 되면 선택된 채로 안내
   function copyGs() {
-    try { copyGs2(); } catch (e) { toast('복사 오류: ' + e.message); }
+    dbg('복사', '누름 · 코드 ' + (PF.gs ? PF.gs.length + '자' : '없음'));
+    try { copyGs2(); } catch (e) { dbg('복사', '오류 ' + e.message); toast('복사 오류: ' + e.message); }
   }
   function copyGs2() {
     const ta = $('#gsCode');
     if (!PF.gs) { fetchGs(); return toast('코드를 불러오는 중이에요 · 잠시 뒤 다시 눌러 주세요'); }
     const sel = () => { if (!ta) return false; ta.focus(); ta.select(); ta.setSelectionRange(0, ta.value.length); try { return document.execCommand('copy'); } catch (e) { return false; } };
-    const fail = () => { if (sel()) toast('연결기 코드를 복사했어요 · Apps Script에 붙여 넣어 주세요'); else toast('코드가 선택됐어요 · 길게 눌러 복사해 주세요'); };
-    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(PF.gs).then(() => { if (ta) { ta.focus(); ta.select(); ta.scrollTop = 0; } toast('연결기 코드를 복사했어요 · Apps Script에 붙여 넣어 주세요'); }, fail);
+    const fail = (er) => { dbg('복사', '클립보드 실패: ' + (er && er.message || '없음')); if (sel()) toast('연결기 코드를 복사했어요 · Apps Script에 붙여 넣어 주세요'); else toast('코드가 선택됐어요 · 길게 눌러 복사해 주세요'); };
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(PF.gs).then(() => { dbg('복사', '성공 (클립보드)'); if (ta) { ta.focus(); ta.select(); ta.scrollTop = 0; } toast('연결기 코드를 복사했어요 · Apps Script에 붙여 넣어 주세요'); }, fail);
     else fail();
   }
   async function submitConnect(f) {
@@ -680,7 +698,7 @@
     const keep = [], act = document.activeElement;
     el.querySelectorAll('input:not([type=file]):not([type=checkbox]),textarea,select').forEach((f) => { const k = (f.form ? f.form.id : '') + '|' + (f.id || f.name); if (f.value && !f.readOnly) keep.push([k, f.value]); });
     const focusKey = act && el.contains(act) && /INPUT|TEXTAREA|SELECT/.test(act.tagName) ? [(act.form ? act.form.id : '') + '|' + (act.id || act.name), act.selectionStart, act.selectionEnd] : null;
-    el.innerHTML = html; lastHTML[sel] = html;
+    el.innerHTML = html; lastHTML[sel] = html; dbg('바뀜');
     const find = (k) => Array.from(el.querySelectorAll('input,textarea,select')).find((f) => (f.form ? f.form.id : '') + '|' + (f.id || f.name) === k);
     keep.forEach(([k, v]) => { const f = find(k); if (f && !f.value && f.id !== 'q') f.value = v; });
     if (focusKey) { const f = find(focusKey[0]); if (f) { f.focus(); try { f.setSelectionRange(focusKey[1], focusKey[2]); } catch (e) {} } }
@@ -692,7 +710,7 @@
     if (rTimes.length === 12) { const st = (new Error().stack || '').split('\n').slice(3, 6).map((l) => l.trim().replace(/^at /, '').replace(/\(.*\/([^/]+)\)/, '($1)')).join(' ← '); toast('화면 반복 그리기: ' + st); console.warn('render loop', new Error().stack); }
   }
   function render(scrollTop) {
-    renderWatch();
+    renderWatch(); dbg('그리기'); dbg('모드', PF.mode);
     applyBrand();
     const gated = GATE.has(PF.mode);
     $('.app').classList.toggle('gated', gated);
@@ -721,7 +739,7 @@
   $('#paneClose').addEventListener('click', () => { nav = nav.slice(0, mainIndex() + 1); render(); });
   // 화면 크기가 바뀌어도 두 칸 ↔ 한 칸이 바뀔 때만 다시 그림 (스크롤바 · 키보드로 생기는 작은 변화는 무시 → 입력 칸이 꺼지지 않게)
   let rz, lastWide = wide();
-  window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { const w = wide(); if (w === lastWide) return; lastWide = w; const f = document.activeElement; if (f && /INPUT|TEXTAREA|SELECT/.test(f.tagName)) return; render(); }, 150); });
+  window.addEventListener('resize', () => { dbg('크기변화'); clearTimeout(rz); rz = setTimeout(() => { const w = wide(); if (w === lastWide) return; lastWide = w; const f = document.activeElement; if (f && /INPUT|TEXTAREA|SELECT/.test(f.tagName)) return; render(); }, 150); });
   $('#sheetBg').addEventListener('click', closeSheet);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#sheet').hidden) closeSheet(); });
 

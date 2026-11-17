@@ -15,7 +15,7 @@ const RESERVED = ['demo', 'system', 'admin', 'api', 'www', 'gaji'];
 const LOGO = '<svg viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="9" r="2"/><path d="M6 7v10M18 11c0 4-6 3-12 6"/></svg>';
 
 let user = null;
-const authReady = new Promise((res) => onAuthStateChanged(auth, (u) => { user = u; res(); render(); }));
+const authReady = new Promise((res) => onAuthStateChanged(auth, (u) => { user = u; if (window.GAJI_APP && window.GAJI_APP.dbg) window.GAJI_APP.dbg('로그인변화'); res(); render(); }));
 
 async function login() {
   const p = new GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' });
