@@ -743,3 +743,8 @@ textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3p
 /* 원래 상자 안의 가로 막대는 숨김 (떠 있는 막대가 대신) */
 .board { scrollbar-width: none; } .board::-webkit-scrollbar { height: 0; display: none; }
 #tlScroll::-webkit-scrollbar:horizontal { height: 0; }
+
+/* 달력: 내 실험일 */
+.cal-dots i.exp { background: var(--exp); }
+.ev-row.exp { background: color-mix(in srgb, var(--exp) 10%, var(--surface)); border: 0; width: 100%; text-align: left; font: inherit; color: var(--fg); cursor: pointer; }
+.ev-row.exp .ev-tag { background: var(--exp); color: #fff; }

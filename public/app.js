@@ -762,7 +762,7 @@
   function homeCalendar() {
     const off = PF.calOff || 0, base = new Date(TODAY.getFullYear(), TODAY.getMonth() + off, 1), y = base.getFullYear(), m = base.getMonth();
     const key = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-    const byDay = {}; alive().filter((n) => (n.type === 'exp' || n.type === 'idea') && n.status !== '취소' && n.date).forEach((n) => { const k = String(n.date).slice(0, 10); (byDay[k] = byDay[k] || []).push(n); });
+    const byDay = {}; alive().filter((n) => n.type === 'exp' && inTeam(n) && n.status !== '취소' && n.date).forEach((n) => { /* 내 실험의 실험일만 (검토 · 승인 · 준비 같은 단계는 넣지 않음) */ const k = String(n.date).slice(0, 10); (byDay[k] = byDay[k] || []).push(n); });
     const evDay = {}; curEvents().forEach((e) => { (evDay[e.date] = evDay[e.date] || []).push(e); });
     const first = new Date(y, m, 1), start = new Date(first); start.setDate(1 - first.getDay());
     const todayK = key(TODAY), sel = PF.calDay && PF.calDay.slice(0, 7) === key(first).slice(0, 7) ? PF.calDay : '';
@@ -771,18 +771,18 @@
       const d = new Date(start); d.setDate(start.getDate() + i); const k = key(d), out = d.getMonth() !== m, list = byDay[k] || [], evs = evDay[k] || [], all = list.length + evs.length;
       if (i === 35 && out) break;   // 마지막 줄이 다음 달뿐이면 생략
       cells += '<button type="button" class="cal-d' + (out ? ' out' : '') + (k === todayK ? ' today' : '') + (k === sel ? ' sel' : '') + (all ? ' has' : '') + (evs.some((e) => e.scope === 'club') ? ' club' : '') + '" data-calday="' + k + '" aria-label="' + (d.getMonth() + 1) + '월 ' + d.getDate() + '일' + (all ? ' · ' + all + '개' : '') + '">' +
-        '<span class="cal-n">' + d.getDate() + '</span><span class="cal-dots">' + evs.slice(0, 2).map((e) => '<i class="ev ' + (e.scope === 'club' ? 'club' : 'me') + '"></i>').join('') + list.slice(0, Math.max(0, 3 - Math.min(2, evs.length))).map((n) => '<i style="background:' + nodeColor(n) + '"></i>').join('') + (all > 3 ? '<b>+</b>' : '') + '</span></button>';
+        '<span class="cal-n">' + d.getDate() + '</span><span class="cal-dots">' + evs.slice(0, 2).map((e) => '<i class="ev ' + (e.scope === 'club' ? 'club' : 'me') + '"></i>').join('') + list.slice(0, Math.max(0, 3 - Math.min(2, evs.length))).map(() => '<i class="exp"></i>').join('') + (all > 3 ? '<b>+</b>' : '') + '</span></button>';
     }
     const items = sel ? (byDay[sel] || []) : [], selEv = sel ? (evDay[sel] || []) : [];
     const ym = key(first).slice(0, 7), cnt = Object.keys(byDay).filter((k) => k.slice(0, 7) === ym).reduce((a, k) => a + byDay[k].length, 0) + Object.keys(evDay).filter((k) => k.slice(0, 7) === ym).reduce((a, k) => a + evDay[k].length, 0);
-    return '<h3 class="zone-sub">달력 <span class="cnt">' + cnt + '</span><small>실험 · 동아리 일정 · 내 일정</small></h3>' +
+    return '<h3 class="zone-sub">달력 <span class="cnt">' + cnt + '</span><small>내 실험일 · 동아리 일정 · 내 일정</small></h3>' +
       '<div class="cal"><div class="cal-top"><button type="button" class="chipbtn" data-calmove="-1" aria-label="이전 달">‹</button><b>' + (y !== TODAY.getFullYear() ? y + '년 ' : '') + (m + 1) + '월</b><button type="button" class="chipbtn" data-calmove="1" aria-label="다음 달">›</button>' +
       (off ? '<button type="button" class="chipbtn" data-calmove="0">오늘</button>' : '') + '<button type="button" class="chipbtn cal-add" data-act="evAdd">+ 일정</button></div>' +
       '<div class="cal-grid">' + WD.map((w, i) => '<span class="cal-w' + (i === 0 ? ' sun' : i === 6 ? ' sat' : '') + '">' + w + '</span>').join('') + cells + '</div>' +
       (sel ? '<div class="cal-list"><div class="cal-lh"><b>' + Number(sel.slice(5, 7)) + '월 ' + Number(sel.slice(8, 10)) + '일</b><span class="muted">' + (items.length + selEv.length ? items.length + selEv.length + '개' : '예정 없음') + '</span><button type="button" class="chipbtn" data-act="evAdd" style="margin-left:auto">+ 이 날 일정</button></div>' +
         selEv.map((e) => '<div class="ev-row ' + (e.scope === 'club' ? 'club' : 'me') + '"><span class="ev-tag">' + (e.scope === 'club' ? '동아리' : '내 일정') + '</span><b>' + esc(e.title) + '</b>' + (e.scope === 'club' ? '<span class="muted">' + esc(e.by) + '</span>' : '') +
           (e.mine || (e.scope === 'club' && isAdmin()) ? '<button type="button" class="chipbtn" data-evdel="' + esc(e.id) + '">지우기</button>' : '') + '</div>').join('') +
-        items.map((n) => '<button type="button" class="srow" data-item="' + esc(n.id) + '">' + ico(n) + '<span class="tx"><b>' + fieldTag(n) + esc(n.title) + '</b><small>' + esc([n.owner, lineName(n.line)].filter(Boolean).join(' · ')) + '</small></span>' + badge(n) + '</button>').join('') + '</div>' : '') + '</div>';
+        items.map((n) => '<button type="button" class="ev-row exp" data-item="' + esc(n.id) + '"><span class="ev-tag">내 실험</span><b>' + fieldTag(n) + esc(n.title) + '</b><span class="muted">실험일</span></button>').join('') + '</div>' : '') + '</div>';
   }
   function viewHome() {
     const t = myTodos(), club = isAdmin() ? todos().filter((x) => !t.some((y) => y.n.id === x.n.id)) : [], allLines = computeLines(), lines = allLines.slice().sort((a, b) => b.rows.length - a.rows.length || (a.state === 'done') - (b.state === 'done')).slice(0, 3);
