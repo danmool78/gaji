@@ -755,7 +755,7 @@
     if (t.closest('[data-fold]')) { prefs.showDone = !prefs.showDone; savePrefs(); return render(); }
     const ty = t.closest('[data-ty]'); if (ty) { prefs.ty = ty.dataset.ty; savePrefs(); return render(); }
     const col = t.closest('[data-color]'); if (col) return saveBrand({ color: col.dataset.color });
-    const th = t.closest('[data-theme]'); if (th) { prefs.theme = th.dataset.theme; savePrefs(); return render(); }
+    const th = t.closest('button[data-theme]'); if (th) { prefs.theme = th.dataset.theme; savePrefs(); return render(); }
     const a = t.closest('[data-act]'); if (!a) return;
     const n = cur().s === 'item' ? byId(cur().arg) : null, act = a.dataset.act;
     const did = a.dataset.id;
