@@ -9,6 +9,9 @@ D = os.path.dirname(os.path.abspath(__file__)); OUT = os.path.join(D, 'out'); VO
 SHORT = len(sys.argv) > 1 and sys.argv[1] == 'short'
 SR = 44100
 VOICE = os.environ.get('VOICE', 'Leda')
+TTS_MODEL = os.environ.get('TTS_MODEL', 'gemini-2.5-pro-preview-tts')   # 3.8 flash 는 소리가 찌그러짐(포화)
+MUSIC = os.environ.get('MUSIC', os.path.join(OUT, 'music', 'a-1.mp3'))   # Lyria 로 만든 배경음악 (music.py)
+SPEED = float(os.environ.get('SPEED', '1.12'))   # 내레이션 빠르기
 
 # (시작 초, 이 장면이 끝나는 초, 대사)  ‘EPEC’은 ‘이펙’으로 읽게 씀
 LINES = [
@@ -31,16 +34,22 @@ LINES_SHORT = [
 ]
 
 def read_wav(p):
-    with wave.open(p) as w: r = w.getframerate(); x = np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(np.float32) / 32768
-    if r != SR: x = np.interp(np.arange(int(len(x) * SR / r)) * r / SR, np.arange(len(x)), x)
-    return x
+    with wave.open(p) as w: r = w.getframerate()
+    if r != SR:   # 고품질로 44.1kHz 맞춤
+        q = p[:-4] + '_44k.wav'
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', p, '-af', 'aresample=%d:resampler=soxr' % SR, q], check=True); p = q
+    with wave.open(p) as w: return np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(np.float32) / 32768
+
+def edge(x, ms=15):   # 끝을 부드럽게 (딸깍 소리 방지)
+    k = min(len(x) // 2, int(SR * ms / 1000)); r = np.linspace(0, 1, k, dtype=np.float32)
+    x = x.copy(); x[:k] *= r; x[-k:] *= r[::-1]; return x
 
 def trim(x, th=0.01):
     i = np.where(np.abs(x) > th)[0]
     return x[max(0, i[0] - 800): i[-1] + 2400] if len(i) else x
 
 def tempo(x, f):   # 말 빠르기만 살짝 올림 (ffmpeg atempo)
-    if f <= 1.0: return x
+    if abs(f - 1.0) < 0.005: return x
     a, b = os.path.join(VO, '_a.wav'), os.path.join(VO, '_b.wav')
     with wave.open(a, 'wb') as w: w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR); w.writeframes((np.clip(x, -1, 1) * 32767).astype(np.int16).tobytes())
     subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', a, '-filter:a', 'atempo=%.3f' % f, b], check=True)
@@ -69,13 +78,16 @@ def bgm(length):
         else:   # pad
             env = np.minimum(1, tt / 0.6) * np.clip((dur + 0.6 - tt) / 0.6, 0, 1)
             w = np.sin(2 * np.pi * freq * tt) + 0.3 * np.sin(2 * np.pi * freq * 1.003 * tt)
+        tail = min(m, int(0.05 * SR)); env[-tail:] *= np.linspace(1, 0, tail)
         out[i0:i0 + m] += (amp * env * w).astype(np.float32)
     rng = np.random.default_rng(7)
     def hat(start, amp):
-        i0 = int(start * SR); m = min(n - i0, int(0.06 * SR))
+        i0 = int(start * SR); m = min(n - i0, int(0.09 * SR))
         if m <= 0: return
-        z = rng.standard_normal(m); z = np.diff(np.concatenate([[0], z]))   # 높은 소리만
-        out[i0:i0 + m] += (amp * z * np.exp(-np.arange(m) / SR * 70)).astype(np.float32)
+        z = rng.standard_normal(m)   # 셰이커: 거친 고음을 덜어 낸 부드러운 잡음
+        z = np.convolve(z, np.ones(4) / 4, mode='same'); z = z - np.convolve(z, np.ones(24) / 24, mode='same')
+        tt = np.arange(m) / SR; env = np.minimum(1, tt / 0.004) * np.exp(-tt * 45)
+        out[i0:i0 + m] += (amp * 0.7 * z * env).astype(np.float32)
     def kick(start, amp):
         i0 = int(start * SR); m = min(n - i0, int(0.25 * SR))
         if m <= 0: return
@@ -109,20 +121,31 @@ def main():
     n = int(length * SR); voice = np.zeros(n, np.float32); active = np.zeros(n, np.float32)
     for i, (st, en, text) in enumerate(LINES_SHORT if SHORT else LINES):
         p = os.path.join(VO, ('s' if SHORT else 'h') + '%02d.wav' % i)
-        if not os.path.exists(p): tts.tts(text, p, VOICE, style='')
+        if not os.path.exists(p): tts.tts(text, p, VOICE, model=TTS_MODEL, style='')
         x = trim(read_wav(p)); slot = en - st - 0.2; dur = len(x) / SR
-        if dur > slot: x = tempo(x, min(1.3, dur / slot)); print('  빠르게 %.2f배: %s' % (min(1.3, dur / slot), text[:20]))
+        f = max(SPEED, min(1.3, dur / slot))
+        x = edge(tempo(x, f))
         i0 = int(st * SR); m = min(len(x), n - i0); voice[i0:i0 + m] += x[:m]; active[i0:i0 + m] = 1
         print('%5.1f초 %4.1f초/%4.1f초  %s' % (st, len(x) / SR, slot + 0.2, text))
     # 말할 때 음악을 줄임 (부드럽게)
     k = int(0.35 * SR); env = np.convolve(active, np.ones(k) / k, mode='same')
-    music = bgm(length) * (0.42 - 0.30 * np.clip(env * 1.6, 0, 1))
-    voice = voice / (np.abs(voice).max() + 1e-9) * 0.92
-    mix = voice + music; mix = mix / max(1.0, np.abs(mix).max() / 0.89)   # 찌그러지지 않게
+    duck = (0.50 - 0.34 * np.clip(env * 1.6, 0, 1))[:, None]
+    if os.path.exists(MUSIC):
+        raw = subprocess.run(['ffmpeg', '-v', 'error', '-i', MUSIC, '-f', 's16le', '-ac', '2', '-ar', str(SR), '-'], capture_output=True, check=True).stdout
+        mu = np.frombuffer(raw, np.int16).reshape(-1, 2).astype(np.float32) / 32768
+        mu = np.concatenate([mu, np.zeros((max(0, n - len(mu)), 2), np.float32)])[:n]
+        fi, fo = int(0.4 * SR), int(3.0 * SR)
+        mu[:fi] *= np.linspace(0, 1, fi)[:, None]; mu[-fo:] *= np.linspace(1, 0, fo)[:, None]
+        mu = mu / (np.abs(mu).max() + 1e-9)
+    else:
+        mu = np.repeat(bgm(length)[:, None], 2, axis=1)
+    music = mu * duck
+    voice = voice / (np.abs(voice).max() + 1e-9) * 0.9
+    mix = voice[:, None] + music; mix = mix / max(1.0, np.abs(mix).max() / 0.89)   # 찌그러지지 않게
     wav = os.path.join(OUT, '_mix.wav')
-    with wave.open(wav, 'wb') as w: w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR); w.writeframes((mix * 32767).astype(np.int16).tobytes())
+    with wave.open(wav, 'wb') as w: w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR); w.writeframes((mix * 32767).astype(np.int16).tobytes())
     dst = vid.replace('.mp4', '-소리.mp4')
-    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', vid, '-i', wav, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-ac', '2', '-shortest', '-movflags', '+faststart', dst], check=True)
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', vid, '-i', wav, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '256k', '-shortest', '-movflags', '+faststart', dst], check=True)
     print('완료:', dst)
 
 if __name__ == '__main__': main()
