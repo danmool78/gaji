@@ -623,7 +623,8 @@
     return out.sort((a, b) => a.w - b.w).slice(0, 3);
   }
   function viewHome() {
-    const t = todos(), lines = computeLines().filter((l) => l.state !== 'done').slice(0, 3);
+    const t = todos(), lines = computeLines().sort((a, b) => b.rows.length - a.rows.length || (a.state === 'done') - (b.state === 'done')).slice(0, 4);
+    const reps = alive().filter((n) => n.type === 'exp' && n.status === '기록 완료' && n.report).sort((a, b) => (isFinal(b) - isFinal(a)) || String(b.date).localeCompare(String(a.date))).slice(0, 4);
     const nd = PF.mode === 'live' ? PF.newDevices : [];
     return (nd.length ? '<div class="card notice"><b>내 이름으로 새 기기' + (nd.length > 1 ? ' ' + nd.length + '대가' : '가') + ' 승인됐어요</b><span class="muted" style="font-size:13px">내가 연 기기가 아니면 ‘내가 아님’을 눌러 바로 막으세요.</span>' +
       nd.map((d) => '<div class="nd-row"><span>' + esc(d.label || '기기') + ' · ' + esc(String(d.at).slice(5, 10).replace('-', '/')) + '</span><button type="button" class="chipbtn" data-act="notMe" data-id="' + esc(d.id) + '">내가 아님</button></div>').join('') +
@@ -633,16 +634,18 @@
       '<div class="quick">' +
         '<button type="button" data-new="exp" style="background:#2F6FDB">' + svgIcon('exp', '#fff') + '새 실험</button>' +
         '<button type="button" data-new="idea" style="background:#B86200">' + svgIcon('idea', '#fff') + '아이디어</button>' +
-        '<button type="button" data-new="q" style="background:#6E4FE0">' + svgIcon('q', '#fff') + '질문</button></div></div>' +
-      '<div><h2 class="sec">진행 중인 가지 <small>누르면 줄기가 펼쳐져요</small></h2>' + lines.map(lineCard).join('') +
-      '<button type="button" class="fold" data-tab-go="tree">가지 전체 보기 →</button></div></div>';
+        '<button type="button" data-new="q" style="background:#6E4FE0">' + svgIcon('q', '#fff') + '질문</button></div>' +
+      (reps.length ? '<h2 class="sec">완성된 보고서 <small>누르면 보고서가 열려요</small></h2><div class="rep-list">' + reps.map((n) => '<button type="button" class="rep-card" data-report="' + esc(n.id) + '"><span class="rep-ic">' + svgIcon('res', '#fff') + '</span><span class="tx"><small class="code">' + esc(code(n)) + ' · ' + esc(n.owner || '') + '</small><b>' + esc(n.title) + '</b><small>' + esc(lineName(lineage(n)[0].line)) + ' · ' + fmt(n.date) + '</small></span>' + (isFinal(n) ? '<span class="badge t-ok">확정</span>' : badge(n)) + '</button>').join('') + '</div>' : '') + '</div>' +
+      '<div><h2 class="sec">연구 줄기 <small>큰 가지부터 · 누르면 펼쳐져요</small></h2>' + lines.map(lineCard).join('') +
+      '<button type="button" class="fold" data-tab-go="tree">가지 전체 보기 →</button>' +
+'</div></div>';
   }
 
   /* ---------- 가지 ---------- */
   function lineCard(L) {
     const st = { active: ['t-info', '진행 중'], idea: ['t-warn', '아이디어'], done: ['t-neutral', '끝남'] }[L.state];
     return '<button type="button" class="line-card" data-line="' + esc(L.key) + '"><span class="head"><b>' + esc(L.name) + '</b><span class="badge ' + st[0] + '">' + st[1] + '</span></span>' +
-      '<span class="mini">' + miniLine(L.rows) + '</span>' +
+      '<span class="mini">' + miniLine(L.rows) + '</span><small class="muted line-meta">실험 ' + L.rows.length + '개 · ' + (Math.max(...L.rows.map((r) => r.depth)) + 1) + '세대' + (L.rows.length > 1 ? ' · ' + String(L.rows.map((r) => r.n.created).sort()[0]).slice(0, 4) + '년부터' : '') + '</small>' +
       '<span class="next">' + (L.state === 'done' ? '마지막 ' + fmt(L.last) + ' · 실험 ' + L.rows.length + '개' : '다음: <b>' + fmt(L.next.date) + ' ' + esc(L.next.title) + '</b> · ' + esc(tone(L.next)[1].replace('● ', ''))) + '</span></button>';
   }
   function viewTree() {
@@ -1665,6 +1668,7 @@
   function onClick(e, src) {
     const t = e.target;
     const it = t.closest('[data-item],[data-go]'); if (it) return go('item', it.dataset.item || it.dataset.go, src);
+    const rpb = t.closest('[data-report]'); if (rpb) return go('report', rpb.dataset.report, src);
     const ln = t.closest('[data-line]'); if (ln) return go('line', ln.dataset.line, src);
     const nw = t.closest('[data-new]'); if (nw) return newForm(nw.dataset.new);
     const tg = t.closest('[data-tab-go]'); if (tg) return tab(tg.dataset.tabGo);
