@@ -19,7 +19,7 @@ const util = {
   now: () => new Date(clock).toISOString(), today: () => new Date(clock).toISOString().slice(0, 10),
   random: Math.random, token: (n) => crypto.randomBytes(n).toString('base64url').slice(0, n),
   sha256: (s) => crypto.createHash('sha256').update(s).digest('hex'),
-  bool: (v) => v === true || v === 'true', lock: (fn) => fn()
+  bool: (v) => v === true || v === 'true', lock: (fn) => fn(), secret: () => 'test-secret-123'
 };
 const store = memStore(), core = ctx.GajiCore(store, util);
 const call = (q) => core.handle(q);
@@ -151,6 +151,17 @@ const roles = store._t.members.reduce((o, m) => (o[m.studentId] = m.role, o), {}
 ok('old master demoted', roles['20301'] === '관리자' && roles['20401'] === '마스터', roles);
 store._t.settings.find((x) => x.key === 'masterKeyHash').value = '';
 ok('key reset via sheet', call({ action: 'masterRegister', masterKey: 'z'.repeat(24), studentId: '20401', label: 'x' }).ok);
+
+// 내 개인 코드 보기
+const add9 = call({ action: 'addMember', device: M, studentId: '20399', name: '정다온' });
+const r9 = call({ action: 'register', studentId: '20399', code: add9.data.code }); call({ action: 'approve', device: M, id: r9.data.device.id });
+const mc = call({ action: 'myCode', device: r9.data.device });
+ok('myCode returns own code', mc.ok && mc.data.code === add9.data.code, mc);
+ok('pending device cannot see code', call({ action: 'myCode', device: call({ action: 'register', studentId: '20399', code: add9.data.code }).data.device }).code === 'pending');
+const rc9 = call({ action: 'resetCode', device: M, id: add9.data.id });
+ok('code not plaintext in sheet', !JSON.stringify(store._t.members.find((m) => m.studentId === '20399')).includes('"' + rc9.data.code + '"'));
+const r9b = call({ action: 'register', studentId: '20399', code: rc9.data.code }); call({ action: 'approve', device: M, id: r9b.data.device.id });
+ok('myCode after reset', call({ action: 'myCode', device: r9b.data.device }).data.code === rc9.data.code);
 
 console.log(`connector: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

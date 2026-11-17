@@ -9,7 +9,7 @@
  *       → 유형: 웹 앱 / 실행: 나 / 액세스 권한: 모든 사용자 → 배포 → 웹 앱 URL을 가지에 붙여넣기
  * ------------------------------------------------------------
  */
-var GAJI_CONNECTOR_VERSION = '1.0.0';
+var GAJI_CONNECTOR_VERSION = '1.1.0';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util) {
@@ -26,6 +26,9 @@ function GajiCore(store, util) {
   function digits(n) { var s = ''; for (var i = 0; i < n; i++) s += Math.floor(util.random() * 10); return s; }
   function newId(p) { return p + util.token(10); }
   function days(iso) { return iso ? (Date.parse(util.now()) - Date.parse(iso)) / 864e5 : 9999; }
+  /* 개인 코드 잠금: 연결기 비밀 열쇠(스크립트 속성, 시트에 없음)로 숫자마다 섞어서 저장 → 본인만 다시 볼 수 있음 */
+  function seal(id, code) { var k = util.sha256(util.secret() + ':code:' + id), o = ''; for (var i = 0; i < code.length; i++) o += (Number(code[i]) + parseInt(k.substr(i * 2, 2), 16)) % 10; return 'v1:' + o; }
+  function unseal(id, v) { if (!v || v.indexOf('v1:') !== 0) return ''; v = v.slice(3); var k = util.sha256(util.secret() + ':code:' + id), o = ''; for (var i = 0; i < v.length; i++) o += (Number(v[i]) - parseInt(k.substr(i * 2, 2), 16) % 10 + 10) % 10; return o; }
   function str(v) { return v === undefined || v === null ? '' : String(v); }
   function initialized() { return setting('initializedAt', '') !== ''; }
 
@@ -56,7 +59,7 @@ function GajiCore(store, util) {
     setSetting('no_exp', q.startNo || 0); setSetting('no_q', 0); setSetting('no_res', 0);
     if (q.masterKey) setSetting('masterKeyHash', hash('master', q.masterKey));
     var code = digits(4), mid = newId('m');
-    store.append('members', { id: mid, studentId: String(q.studentId), name: String(q.name).slice(0, 20), role: '마스터', codeHash: hash(mid, code), status: '활동', createdAt: util.now() });
+    store.append('members', { id: mid, studentId: String(q.studentId), name: String(q.name).slice(0, 20), role: '마스터', codeHash: hash(mid, code), codeEnc: seal(mid, code), status: '활동', createdAt: util.now() });
     var did = newId('d'), secret = util.token(32);
     store.append('devices', { id: did, memberId: mid, label: String(q.label || '').slice(0, 40), secretHash: hash(did, secret), status: '승인', confirm: '', shared: 'false', createdAt: util.now(), approvedAt: util.now(), approvedBy: '처음 설정', lastSeen: util.now() });
     setSetting('initializedAt', util.now());
@@ -99,7 +102,7 @@ function GajiCore(store, util) {
     if (!mem) {
       if (!q.name) err('need_name', '처음 쓰는 학번이에요. 이름도 넣어 주세요');
       code = digits(4); var mid = newId('m');
-      store.append('members', { id: mid, studentId: sid, name: String(q.name).slice(0, 20), role: '마스터', codeHash: hash(mid, code), status: '활동', createdAt: util.now() });
+      store.append('members', { id: mid, studentId: sid, name: String(q.name).slice(0, 20), role: '마스터', codeHash: hash(mid, code), codeEnc: seal(mid, code), status: '활동', createdAt: util.now() });
       mem = store.rows('members').filter(function (m) { return m.id === mid; })[0];
     }
     var mid2 = mem.id;
@@ -109,6 +112,13 @@ function GajiCore(store, util) {
     store.append('devices', { id: did, memberId: mem.id, label: String(q.label || '').slice(0, 40), secretHash: hash(did, secret), status: '승인', confirm: '', shared: 'false', createdAt: util.now(), approvedAt: util.now(), approvedBy: '마스터 키', lastSeen: util.now() });
     bump(); log({ name: mem.name, deviceId: did }, '마스터 기기 연결', q.label);
     return { device: { id: did, secret: secret }, name: mem.name, code: code };
+  };
+
+  A.myCode = function (q) {
+    var me = deviceOf(q), m = store.rows('members').filter(function (x) { return x.id === me.id; })[0];
+    var code = m ? unseal(m.id, m.codeEnc) : '';
+    if (!code) err('no_code', '예전 방식으로 만든 코드라 보여 줄 수 없어요. 관리자에게 코드 다시 만들기를 부탁해 주세요');
+    return { code: code, name: me.name, studentId: me.studentId };
   };
 
   A.rev = function (q) { deviceOf(q); return { rev: Number(setting('rev', '0')) }; };
@@ -191,14 +201,14 @@ function GajiCore(store, util) {
     if (!sid || !name) err('bad', '학번과 이름을 넣어 주세요');
     if (store.rows('members').some(function (m) { return m.studentId === sid && m.status === '활동'; })) err('dup', '이미 있는 학번이에요');
     var id = newId('m'), code = digits(4);
-    store.append('members', { id: id, studentId: sid, name: name, role: '부원', codeHash: hash(id, code), status: '활동', createdAt: util.now() });
+    store.append('members', { id: id, studentId: sid, name: name, role: '부원', codeHash: hash(id, code), codeEnc: seal(id, code), status: '활동', createdAt: util.now() });
     bump(); log(me, '부원 추가', name);
     return { id: id, code: code };
   };
   A.resetCode = function (q) {
     var me = deviceOf(q); needAdmin(me);
     var m = store.rows('members').filter(function (x) { return x.id === q.id; })[0]; if (!m) err('bad');
-    var code = digits(4); m.codeHash = hash(m.id, code); store.update('members', m._row, m);
+    var code = digits(4); m.codeHash = hash(m.id, code); m.codeEnc = seal(m.id, code); store.update('members', m._row, m);
     store.rows('devices').forEach(function (d) { if (d.memberId === m.id && d.status !== '차단') { d.status = '차단'; store.update('devices', d._row, d); } });
     bump(); log(me, '코드 재발급 · 기기 해제', m.name);
     return { code: code };
@@ -256,7 +266,7 @@ function GajiCore(store, util) {
 /* ================= 구글 시트 저장소 ================= */
 var GAJI_TABS = {
   settings: { name: '설정', cols: ['key', 'value'] },
-  members: { name: '부원', cols: ['id', 'studentId', 'name', 'role', 'codeHash', 'status', 'createdAt'] },
+  members: { name: '부원', cols: ['id', 'studentId', 'name', 'role', 'codeHash', 'status', 'createdAt', 'codeEnc'] },
   devices: { name: '기기', cols: ['id', 'memberId', 'label', 'secretHash', 'status', 'confirm', 'shared', 'createdAt', 'approvedAt', 'approvedBy', 'lastSeen'] },
   nodes: { name: '실험', cols: ['id', 'no', 'type', 'title', 'field', 'status', 'line', 'date', 'owner', 'signal', 'review', 'verdict', 'fans', 'volunteer', 'equip', 'desc', 'private', 'report', 'created', 'createdBy', 'updatedAt', 'updatedBy'] },
   links: { name: '연결', cols: ['id', 's', 't', 'k', 'createdBy', 'createdAt'] },
@@ -271,6 +281,7 @@ function GajiSheetStore(ss) {
   function sheet(t) {
     var def = GAJI_TABS[t], sh = ss.getSheetByName(def.name);
     if (!sh) { sh = ss.insertSheet(def.name); sh.getRange(1, 1, 1, def.cols.length).setValues([def.cols]); sh.setFrozenRows(1); sh.getRange('A:Z').setNumberFormat('@'); }
+    else if (sh.getLastColumn() < def.cols.length) sh.getRange(1, 1, 1, def.cols.length).setValues([def.cols]);   // 새 열 추가 (지우지 않음)
     return sh;
   }
   function enc(k, v) { if (v === undefined || v === null) return ''; if (GAJI_JSON[k]) return typeof v === 'string' ? v : JSON.stringify(v); return String(v); }
@@ -297,6 +308,7 @@ function gajiUtil() {
     token: function (n) { var a = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789', s = ''; var b = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, ''); for (var i = 0; i < n; i++) s += a[(parseInt(b.substr((i * 2) % 60, 2), 16) + Math.floor(Math.random() * 256)) % a.length]; return s; },
     sha256: function (s) { return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, s, Utilities.Charset.UTF_8).map(function (b) { return ('0' + (b & 255).toString(16)).slice(-2); }).join(''); },
     bool: function (v) { return v === true || v === 'true'; },
+    secret: function () { var p = PropertiesService.getScriptProperties(), v = p.getProperty('GAJI_SECRET'); if (!v) { v = Utilities.getUuid() + Utilities.getUuid(); p.setProperty('GAJI_SECRET', v); } return v; },
     lock: function (fn) { var l = LockService.getScriptLock(); l.waitLock(20000); try { return fn(); } finally { l.releaseLock(); } }
   };
 }
