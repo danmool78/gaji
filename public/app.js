@@ -2003,6 +2003,7 @@
     return { main, light: light || '#FFFFFF', on, soft, softDark: mix(main, '#14171C', 0.72) };
   }
   function applyBrand() {
+    if (window.GAJI_PORTAL && $('.app').hidden) return;   // 가지 첫 화면이 떠 있으면 동아리 색을 칠하지 않음
     const st = brand();
     const pill = $('#demoPill');
     pill.hidden = GATE.has(PF.mode);

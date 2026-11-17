@@ -594,3 +594,8 @@ mark { background: var(--warn-bg); color: var(--fg); border-radius: 3px; padding
 .p-video { display: flex; flex-direction: column; gap: 8px; }
 .p-video .about-video { border-radius: 16px; box-shadow: var(--shadow); }
 .p-video span { font-size: 13px; padding: 0 4px; } .p-video a { color: inherit; font-weight: 700; }
+
+/* 첫 화면: 구글 드라이브 안내 */
+.p-note-drive { display: flex; flex-direction: row !important; align-items: center; gap: 16px; }
+.p-note-drive > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.p-drive { width: 44px; height: 40px; flex: none; }

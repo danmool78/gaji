@@ -31,8 +31,10 @@ const route = parts[0] === 'c' && parts[1] ? { page: 'club', slug: decodeURIComp
 const params = new URLSearchParams(location.search);
 
 /* 포털(첫 화면 · 만들기 · 시스템) ↔ 동아리 앱 전환 */
-function portal(html) { $('.app').hidden = true; const p = $('#portal'); p.hidden = false; p.innerHTML = '<div class="portal">' + html + '</div>'; }
-function showApp() { $('#portal').hidden = true; $('.app').hidden = false; }
+// 가지 첫 화면 · 만들기 · 로그인 화면은 언제나 가지 기본 색 (체험이나 동아리에서 고른 색이 넘어오지 않게)
+function gajiColors() { window.GAJI_PORTAL = true; const R = document.documentElement.style; R.setProperty('--brand', '#1F8F5A'); R.setProperty('--on-brand', '#FFFFFF'); R.setProperty('--brand-soft', '#E6F4EC'); R.setProperty('--brand-2', '#FFFFFF'); }
+function portal(html) { gajiColors(); $('.app').hidden = true; const p = $('#portal'); p.hidden = false; p.innerHTML = '<div class="portal">' + html + '</div>'; }
+function showApp() { window.GAJI_PORTAL = false; $('#portal').hidden = true; $('.app').hidden = false; }
 const head = (sub) => '<header class="p-head"><a class="p-brand" href="/"><span class="logo">' + LOGO + '</span><span><b>가지</b><small>' + esc(sub || '실험이 가지를 치며 이어지는 곳') + '</small></span></a>' +
   (user ? '<button type="button" class="chipbtn" data-p="logout">로그아웃</button>' : '') + '</header>';
 
@@ -50,7 +52,7 @@ async function landing() {
     '<div class="p-video"><video class="about-video" controls playsinline preload="metadata" poster="/intro/gaji-intro.jpg"><source src="/intro/gaji-intro.mp4" type="video/mp4"></video><span class="muted">가지 소개 영상 · 1분 24초 <a href="/intro/gaji-shorts.mp4" target="_blank" rel="noopener">세로 영상(쇼츠)</a></span></div>' +
     '<div class="p-actions"><a class="btn primary" href="/c/demo">체험해 보기</a><button type="button" class="btn" data-p="create">우리 동아리 만들기</button></div>' +
     mine +
-    '<div class="card p-note"><b>데이터는 각 동아리 구글 드라이브에만</b><span>가지 서버에는 동아리 이름 · 로고와 마스터 한 명의 계정 ID, 사용 현황 숫자만 저장돼요. 제작자도 동아리 기록을 볼 수 없습니다.</span></div>' +
+    '<div class="card p-note p-note-drive"><svg class="p-drive" viewBox="0 0 87.3 78" aria-label="구글 드라이브" role="img"><path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/><path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/><path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg><div><b>데이터는 각 동아리 구글 드라이브에만</b><span>가지 서버에는 동아리 이름 · 로고와 마스터 한 명의 계정 ID, 사용 현황 숫자만 저장돼요. 제작자도 동아리 기록을 볼 수 없습니다.</span></div></div>' +
     '<p class="p-foot">가지 ' + VERSION + ' · 동아리 주소는 관리자에게 받으세요</p>');
 }
 
