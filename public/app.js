@@ -673,12 +673,20 @@
 
   /* ---------- 가지 ---------- */
   /* 전체 가지: 달을 가로로 놓고, 줄기마다 실험이 날짜 자리에서 가지를 침 (끌어서 옆으로 · 한 번 누르면 요약 · 두 번 누르면 상세) */
+  // 그림 속 실험 제목: 작은 글씨로 두 줄까지 (띄어쓰기에서 나눔, 넘치면 …)
+  function svgTitle(title, x, y, per, size) {
+    const words = String(title).split(' '), lines = ['']; per = per || 15;
+    words.forEach((w) => { const cur = lines[lines.length - 1]; if ((cur + ' ' + w).trim().length <= per || !cur) lines[lines.length - 1] = (cur + ' ' + w).trim(); else lines.push(w); });
+    let out = lines.slice(0, 2); if (lines.length > 2) out[1] = out[1].slice(0, per - 1) + '…';
+    out = out.map((l) => l.length > per + 3 ? l.slice(0, per + 2) + '…' : l);
+    return '<text x="' + x + '" y="' + y + '" text-anchor="middle" font-size="' + (size || 11.5) + '" font-weight="700" fill="var(--fg)" style="paint-order:stroke;stroke:var(--surface);stroke-width:4px">' + out.map((l, i) => '<tspan x="' + x + '" dy="' + (i ? 1.25 : 0) + 'em">' + esc(l) + '</tspan>').join('') + '<title>' + esc(title) + '</title></text>';
+  }
   function viewAllBranches() {
     const Ls = computeLines(); if (!Ls.length) return '<div class="card empty">아직 가지가 없어요. 홈에서 새 실험이나 아이디어를 올려 보세요.</div>';
     const D = (s) => new Date(String(s).slice(0, 10) + 'T00:00:00');
     const all = Ls.flatMap((L) => L.rows.map((r) => r.n)), ds = all.map((n) => D(n.date).getTime()).filter((x) => !isNaN(x)).concat([TODAY.getTime()]);
     const s0 = new Date(Math.min(...ds)); s0.setDate(1); s0.setMonth(s0.getMonth() - 0); const e0 = new Date(Math.max(...ds)); e0.setMonth(e0.getMonth() + 1); e0.setDate(1);
-    const PX = 3.2, LAB = 150, RH = 64, GAP = 26, TOP = 40, day = 864e5;
+    const PX = 3.4, LAB = 150, RH = 74, GAP = 26, TOP = 40, day = 864e5;
     const X = (d) => Math.round((D(d) - s0) / day * PX) + 40, W = Math.round((e0 - s0) / day * PX) + 120;
     let y = TOP, rowsOut = [], labels = '';
     Ls.forEach((L, gi) => {
@@ -698,14 +706,14 @@
     rowsOut.forEach((o) => { const r = o.r; if (!r.parent || !pos[r.parent.id]) return; const p = pos[r.parent.id], q = pos[r.n.id], c = nodeColor(r.n), hot = chain.has(r.n.id) && chain.has(r.parent.id);
       const fut = r.n.type === 'idea' || (days(r.n.date) > 0 && r.n.status !== '기록 완료'), rr = 10, dx = q.x >= p.x ? 1 : -1;
       g += '<path d="M' + p.x + ' ' + (p.y + 16) + 'V' + (q.y - rr) + 'Q' + p.x + ' ' + q.y + ' ' + (p.x + rr * dx) + ' ' + q.y + 'H' + (q.x - 16 * dx) + '" fill="none" stroke="' + c + '" stroke-width="' + (hot ? 5 : 3) + '" stroke-linecap="round"' + (fut ? ' stroke-dasharray="7 6"' : '') + ' opacity="' + (chain.size && !hot ? .35 : .9) + '"/>'; });
-    rowsOut.forEach((o) => { const n = o.r.n, p = pos[n.id], c = nodeColor(n), idea = n.type === 'idea', t = n.title.length > 14 ? n.title.slice(0, 13) + '…' : n.title, on = sel === n.id, dim = chain.size && !chain.has(n.id);
+    rowsOut.forEach((o) => { const n = o.r.n, p = pos[n.id], c = nodeColor(n), idea = n.type === 'idea', on = sel === n.id, dim = chain.size && !chain.has(n.id);
       g += '<g data-tnode="' + n.id + '" style="cursor:pointer" opacity="' + (dim ? .4 : 1) + '">' + (on ? '<circle cx="' + p.x + '" cy="' + p.y + '" r="25" fill="var(--halo)"/>' : '') +
         '<circle cx="' + p.x + '" cy="' + p.y + '" r="15" fill="' + (idea ? 'var(--surface)' : c) + '" stroke="' + c + '" stroke-width="3"' + (idea ? ' stroke-dasharray="4 3"' : '') + '/>' +
         (n.status === '기록 완료' ? '<path d="m' + (p.x - 6) + ' ' + p.y + ' 4 4 8-9" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' : '') +
-        '<text x="' + p.x + '" y="' + (p.y + 32) + '" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--fg)" style="paint-order:stroke;stroke:var(--surface);stroke-width:4px">' + esc(t) + '</text></g>'; });
+        svgTitle(n.title, p.x, p.y + 30, 15, 11.5) + '</g>'; });
     const sn = sel && byId(sel);
     setTimeout(() => { const sc = $('#tlScroll'); if (!sc) return; sc.scrollLeft = PF.tlScroll != null ? PF.tlScroll : Math.max(0, tx - sc.clientWidth * 0.6); }, 0);
-    return '<p class="muted" style="margin:0 2px;font-size:13px">달을 따라 줄기마다 실험이 가지를 쳐요. <b>끌어서 옆으로</b> 움직이고, 원을 한 번 누르면 요약 · <b>두 번 누르면 상세</b>로 들어가요.</p>' +
+    return '<p class="muted" style="margin:0 2px;font-size:13px">달을 따라 줄기마다 실험이 가지를 쳐요. <b>끌어서 옆으로</b> 움직이고, 원을 한 번 누르면 요약 · <b>두 번 누르면 상세</b>로 들어가요. <button type="button" class="chipbtn" data-go-screen="map">3D 전체 지도 보기</button></p>' +
       '<div class="tl-box"><div class="tl-scroll" id="tlScroll"><div class="tl-inner" style="width:' + (W + LAB) + 'px;height:' + H + 'px"><div class="tl-labels" style="height:' + H + 'px">' + labels + '</div>' +
       '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" style="margin-left:' + LAB + 'px">' + g + '</svg></div></div>' +
       (sn ? '<div class="map-tip"><span class="code muted">' + esc(code(sn)) + '</span><b>' + fieldTag(sn) + esc(sn.title) + '</b><span class="muted">' + esc([sn.status, sn.owner, md(sn.date)].filter(Boolean).join(' · ')) + '</span><div class="btn-row" style="margin-top:6px"><button type="button" class="btn primary" data-go="' + esc(sn.id) + '">상세 보기</button><button type="button" class="btn" data-tlclear>닫기</button></div></div>' : '') +
@@ -1664,21 +1672,96 @@
     return '<p class="muted" style="margin:0 2px;font-size:13px">카드를 누르면 상세로 들어가요. 단계는 상세의 버튼으로 바꿉니다.</p><div class="board">' + STAGES.map((st) => { const l = items.filter((n) => n.status === st);
       return '<div class="col"><h3>' + st + '<span class="badge t-neutral">' + l.length + '</span></h3>' + l.map((n) => '<button type="button" class="bcard' + (n.type === 'idea' ? ' idea' : '') + '" data-item="' + n.id + '"><span class="code">' + esc(code(n)) + '</span><b>' + esc(n.title) + '</b>' + badge(n) + '</button>').join('') + '</div>'; }).join('') + '</div>';
   }
+  /* 전체 지도 (3D): 분야마다 별무리처럼 모인 실험들, 끌어서 돌리기 · 휠/두 손가락 확대 · 한 번=요약 · 두 번=상세 */
   function viewMap() {
-    const W = 760, H = 520, ns = alive().filter((n) => n.status !== '취소');
-    const CEN = { '생명': [200, 260], '화학': [500, 200], '물리': [540, 400], '공통': [360, 300], '지구': [180, 430], '융합': [360, 110] };
-    const P = {}; ns.forEach((n, i) => { const c = CEN[n.field] || [W / 2, H / 2], a = i * 2.4; P[n.id] = { x: c[0] + Math.cos(a) * 50, y: c[1] + Math.sin(a) * 50 }; });
-    for (let it = 0; it < 260; it++) {
-      ns.forEach((a) => ns.forEach((b) => { if (a === b) return; const p = P[a.id], q = P[b.id], dx = p.x - q.x, dy = p.y - q.y, d2 = dx * dx + dy * dy + .01, f = 2600 / d2, d = Math.sqrt(d2); p.x += dx / d * f * .5; p.y += dy / d * f * .5; }));
-      db.links.forEach((l) => { const p = P[l.s], q = P[l.t]; if (!p || !q) return; const dx = q.x - p.x, dy = q.y - p.y, d = Math.sqrt(dx * dx + dy * dy) + .01, k = (d - 90) * .02; p.x += dx / d * k; p.y += dy / d * k; q.x -= dx / d * k; q.y -= dy / d * k; });
-      ns.forEach((n) => { const c = CEN[n.field] || [W / 2, H / 2], p = P[n.id]; p.x += (c[0] - p.x) * .02; p.y += (c[1] - p.y) * .02; p.x = Math.min(W - 50, Math.max(50, p.x)); p.y = Math.min(H - 40, Math.max(40, p.y)); });
-    }
-    let s = '';
-    db.links.forEach((l) => { const p = P[l.s], q = P[l.t]; if (p && q) s += '<line x1="' + p.x + '" y1="' + p.y + '" x2="' + q.x + '" y2="' + q.y + '" stroke="var(--edge)" stroke-width="2"' + (l.k === 'next' ? ' stroke-dasharray="6 5"' : '') + '/>'; });
-    ns.forEach((n) => { const p = P[n.id], c = nodeColor(n), t = n.title.length > 9 ? n.title.slice(0, 8) + '…' : n.title;
-      s += '<g data-go="' + n.id + '" style="cursor:pointer"><circle cx="' + p.x + '" cy="' + p.y + '" r="14" fill="' + (n.type === 'idea' ? 'var(--surface)' : c) + '" stroke="' + c + '" stroke-width="3"' + (n.type === 'idea' ? ' stroke-dasharray="4 3"' : '') + '/><text x="' + p.x + '" y="' + (p.y + 30) + '" text-anchor="middle" font-size="12" font-weight="700" style="paint-order:stroke;stroke:var(--surface);stroke-width:4px">' + esc(t) + '</text></g>'; });
-    return '<p class="muted" style="margin:0 2px;font-size:13px">동아리 연구 전체가 어떻게 이어졌는지 보는 발표용 화면이에요. 원을 누르면 상세로 들어가요.</p><div class="mapbox"><svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;min-width:560px;height:auto">' + s + '</svg></div>';
+    const sel = PF.m3 && PF.m3.sel && byId(PF.m3.sel);
+    setTimeout(map3dStart, 0);
+    return '<p class="muted" style="margin:0 2px;font-size:13px">동아리 연구 전체를 3D로 봐요. <b>끌어서 돌리고</b>, 휠이나 두 손가락으로 확대해요. 별을 한 번 누르면 요약, <b>두 번 누르면 상세</b>로 들어가요.</p>' +
+      '<div class="map3d" id="map3dBox"><canvas id="map3d"></canvas>' +
+      '<div class="map-ctl"><button type="button" data-m3="in" aria-label="크게">+</button><button type="button" data-m3="out" aria-label="작게">−</button><button type="button" data-m3="spin" aria-pressed="' + !(PF.m3 && PF.m3.still) + '">회전</button><button type="button" data-m3="fit">처음</button></div>' +
+      '<div class="m3-legend"><span><i style="background:#3DDC97"></i>끝난 실험</span><span><i style="background:#5B9BFF"></i>진행 중</span><span><i class="ring"></i>아이디어</span><span><i style="background:#B58CFF"></i>질문 · 자료</span></div>' +
+      (sel ? '<div class="map-tip"><span class="code muted">' + esc(code(sel)) + '</span><b>' + fieldTag(sel) + esc(sel.title) + '</b><span class="muted">' + esc([sel.status, sel.owner, lineName(sel.line)].filter(Boolean).join(' · ')) + '</span><div class="btn-row" style="margin-top:6px"><button type="button" class="btn primary" data-go="' + esc(sel.id) + '">상세 보기</button><button type="button" class="btn" data-m3="close">닫기</button></div></div>' : '') + '</div>';
   }
+  // 3D 배치 (데이터가 바뀔 때만 다시 계산)
+  function map3dLayout() {
+    const ns = alive().filter((n) => n.status !== '취소'), key = ns.map((n) => n.id).join(',') + '|' + db.links.length;
+    if (PF.m3L && PF.m3L.key === key) return PF.m3L;
+    const F = ['생명', '화학', '물리', '지구', '융합', '공통'], C = {};
+    F.forEach((f, i) => { const a = i / F.length * Math.PI * 2; C[f] = [Math.cos(a) * 320, (i % 2 ? 90 : -90), Math.sin(a) * 320]; });
+    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5;
+    const P = {}; ns.forEach((n) => { const c = C[n.field] || [0, 0, 0]; P[n.id] = [c[0] + rnd() * 120, c[1] + rnd() * 120, c[2] + rnd() * 120]; });
+    const L = db.links.filter((l) => P[l.s] && P[l.t]);
+    for (let it = 0; it < 180; it++) {
+      for (let i = 0; i < ns.length; i++) for (let j = i + 1; j < ns.length; j++) { const p = P[ns[i].id], q = P[ns[j].id], d = [p[0] - q[0], p[1] - q[1], p[2] - q[2]], d2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2] + .01, f = 2600 / d2; for (let k = 0; k < 3; k++) { p[k] += d[k] * f * .02; q[k] -= d[k] * f * .02; } }
+      L.forEach((l) => { const p = P[l.s], q = P[l.t], d = [q[0] - p[0], q[1] - p[1], q[2] - p[2]], len = Math.hypot(...d) + .01, f = (len - 70) * .03 / len; for (let k = 0; k < 3; k++) { p[k] += d[k] * f; q[k] -= d[k] * f; } });
+      ns.forEach((n) => { const c = C[n.field] || [0, 0, 0], p = P[n.id]; for (let k = 0; k < 3; k++) p[k] += (c[k] - p[k]) * .03; });
+    }
+    return (PF.m3L = { key, ns, P, L, C, F });
+  }
+  function map3dStart() {
+    const cv = $('#map3d'); if (!cv || cv.dataset.on) return; cv.dataset.on = '1';
+    const M = map3dLayout(), S = (PF.m3 = PF.m3 || { yaw: .6, pitch: -.35, dist: 720, sel: null, still: false, idle: 0 });
+    const ctx = cv.getContext('2d'), stars = Array.from({ length: 160 }, (_, i) => [((i * 97) % 1000) / 1000, ((i * 61 + 13) % 1000) / 1000, ((i * 37) % 10) / 10]);
+    const col = (n) => n.type === 'idea' ? '#FFB547' : n.type === 'q' || n.type === 'res' ? '#B58CFF' : n.status === '기록 완료' ? '#3DDC97' : '#5B9BFF';
+    let W = 0, H = 0, dpr = 1, proj = [];
+    const wrap = (t, per) => { const w = String(t).split(' '), out = ['']; w.forEach((x) => { const c = out[out.length - 1]; if ((c + ' ' + x).trim().length <= per || !c) out[out.length - 1] = (c + ' ' + x).trim(); else out.push(x); }); const r = out.slice(0, 2); if (out.length > 2) r[1] = r[1].slice(0, per - 1) + '…'; return r; };
+    function frame() {
+      if (!cv.isConnected) return;   // 화면을 떠나면 멈춤
+      const rw = cv.clientWidth, rh = cv.clientHeight; dpr = window.devicePixelRatio || 1;
+      if (rw !== W || rh !== H) { W = rw; H = rh; cv.width = W * dpr; cv.height = H * dpr; }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (!S.still && !S.drag && Date.now() > S.idle) S.yaw += .0025;
+      const g = ctx.createRadialGradient(W * .5, H * .45, 0, W * .5, H * .5, Math.max(W, H) * .75); g.addColorStop(0, '#13233A'); g.addColorStop(1, '#05080F');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      stars.forEach((s, i) => { const x = ((s[0] * W + S.yaw * 30 * (s[2] + .3)) % W + W) % W, y = s[1] * H; ctx.fillStyle = 'rgba(255,255,255,' + (.15 + s[2] * .5) + ')'; ctx.fillRect(x, y, s[2] > .7 ? 1.6 : 1, s[2] > .7 ? 1.6 : 1); });
+      const cy = Math.cos(S.yaw), sy = Math.sin(S.yaw), cp = Math.cos(S.pitch), sp = Math.sin(S.pitch), fl = Math.min(W, H) * 1.1;
+      const pj = (v) => { const x = v[0] * cy - v[2] * sy, z0 = v[0] * sy + v[2] * cy, y = v[1] * cp - z0 * sp, z = v[1] * sp + z0 * cp + S.dist; const k = fl / Math.max(60, z); return { x: W / 2 + x * k, y: H / 2 + y * k, k, z }; };
+      // 분야 이름 (떠 있는 큰 글자)
+      ctx.textAlign = 'center';
+      M.F.forEach((f) => { if (!M.ns.some((n) => n.field === f)) return; const p = pj([M.C[f][0], M.C[f][1] - 150, M.C[f][2]]); ctx.font = '900 ' + Math.round(26 * p.k) + 'px "Noto Sans KR", sans-serif'; ctx.fillStyle = 'rgba(160,190,255,' + Math.min(.32, .5 * p.k) + ')'; ctx.fillText(f, p.x, p.y); });
+      const hot = new Set(S.sel && byId(S.sel) ? lineage(byId(S.sel)).concat(treeRows([byId(S.sel)]).map((r) => r.n)).map((x) => x.id) : []);
+      proj = M.ns.map((n) => Object.assign(pj(M.P[n.id]), { n })); const pm = {}; proj.forEach((p) => { pm[p.n.id] = p; });
+      M.L.forEach((l) => { const a = pm[l.s], b = pm[l.t]; if (!a || !b) return; const on = hot.has(l.s) && hot.has(l.t), al = Math.max(.08, Math.min(.6, 1.6 * (a.k + b.k) / 2 - .35));
+        ctx.strokeStyle = on ? 'rgba(255,230,140,.95)' : 'rgba(140,180,255,' + (hot.size ? al * .35 : al) + ')'; ctx.lineWidth = on ? 2.4 : 1.1; ctx.setLineDash(l.k === 'next' ? [] : [4, 4]);
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); });
+      ctx.setLineDash([]);
+      proj.sort((a, b) => b.z - a.z); const near = proj.length ? proj[Math.floor(proj.length * .5)].z : 0; cv._proj = proj;
+      proj.forEach((p) => {
+        const n = p.n, c = col(n), r = Math.max(3, 9 * p.k), dim = hot.size && !hot.has(n.id), on = S.sel === n.id;
+        ctx.globalAlpha = dim ? .25 : Math.min(1, .35 + p.k);
+        const gl = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 3.2); gl.addColorStop(0, c + 'AA'); gl.addColorStop(1, c + '00'); ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(p.x, p.y, r * 3.2, 0, 7); ctx.fill();
+        if (n.type === 'idea') { ctx.strokeStyle = c; ctx.lineWidth = 2; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
+        else { const b = ctx.createRadialGradient(p.x - r * .35, p.y - r * .35, r * .1, p.x, p.y, r); b.addColorStop(0, '#FFFFFF'); b.addColorStop(.35, c); b.addColorStop(1, c); ctx.fillStyle = b; ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 7); ctx.fill(); }
+        if (on) { ctx.strokeStyle = '#FFE68C'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(p.x, p.y, r + 6, 0, 7); ctx.stroke(); }
+        if ((p.z <= near || on || hot.has(n.id)) && !dim) {   // 앞쪽 절반 · 고른 계보만 이름
+          const fs = Math.max(10, Math.min(13, 11 * p.k)); ctx.font = '700 ' + fs + 'px "Noto Sans KR", sans-serif';
+          wrap(n.title, 16).forEach((t, i) => { const yy = p.y + r + 13 + i * (fs + 3); ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(5,8,15,.85)'; ctx.strokeText(t, p.x, yy); ctx.fillStyle = on ? '#FFE68C' : 'rgba(235,242,255,.95)'; ctx.fillText(t, p.x, yy); });
+        }
+        ctx.globalAlpha = 1;
+      });
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+    // 손으로 움직이기
+    const ptr = new Map(); let st = null, moved = false; const last = S.last || (S.last = { id: '', t: 0 });   // 다시 그려져도 첫 번째 누름을 기억
+    const pick = (e) => { const b = cv.getBoundingClientRect(), x = e.clientX - b.left, y = e.clientY - b.top; let best = null, bd = 26; proj.forEach((p) => { const d = Math.hypot(p.x - x, p.y - y); if (d < Math.max(bd, 9 * p.k + 6) && (!best || p.z < best.z || d < bd)) { best = p; bd = d; } }); return best && best.n; };
+    cv.addEventListener('pointerdown', (e) => { ptr.set(e.pointerId, [e.clientX, e.clientY]); cv.setPointerCapture(e.pointerId); moved = false; S.drag = true;
+      st = ptr.size === 2 ? { pinch: Math.hypot(...[...ptr.values()].reduce((a, b) => [a[0] - b[0], a[1] - b[1]])), dist: S.dist } : { x: e.clientX, y: e.clientY, yaw: S.yaw, pitch: S.pitch }; });
+    cv.addEventListener('pointermove', (e) => { if (!ptr.has(e.pointerId)) return; ptr.set(e.pointerId, [e.clientX, e.clientY]);
+      if (ptr.size === 2 && st.pinch) { const d = Math.hypot(...[...ptr.values()].reduce((a, b) => [a[0] - b[0], a[1] - b[1]])); S.dist = Math.min(2200, Math.max(300, st.dist * st.pinch / d)); moved = true; return; }
+      if (st && st.x != null) { const dx = e.clientX - st.x, dy = e.clientY - st.y; if (Math.abs(dx) + Math.abs(dy) > 5) moved = true; S.yaw = st.yaw + dx * .008; S.pitch = Math.max(-1.3, Math.min(1.3, st.pitch + dy * .006)); } });
+    const end = (e) => { if (!ptr.has(e.pointerId)) return; ptr.delete(e.pointerId); S.idle = Date.now() + 4000; if (ptr.size) return; S.drag = false; if (moved) return;
+      const n = pick(e), now = Date.now();
+      if (!n) { if (S.sel) { S.sel = null; render(); } return; }
+      if (last.id === n.id && now - last.t < 450) { last.id = ''; last.t = 0; S.sel = null; return go('item', n.id); }
+      last.id = n.id; last.t = now; S.sel = n.id; render(); };
+    cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', (e) => { ptr.delete(e.pointerId); S.drag = false; });
+    cv.addEventListener('wheel', (e) => { e.preventDefault(); S.dist = Math.min(2200, Math.max(300, S.dist * (e.deltaY > 0 ? 1.12 : 1 / 1.12))); S.idle = Date.now() + 4000; }, { passive: false });
+  }
+  document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('[data-m3]'); if (!b || !PF.m3) return; const S = PF.m3, a = b.dataset.m3;
+    if (a === 'in') S.dist = Math.max(300, S.dist / 1.25); if (a === 'out') S.dist = Math.min(2200, S.dist * 1.25);
+    if (a === 'fit') { S.yaw = .6; S.pitch = -.35; S.dist = 720; } if (a === 'spin') { S.still = !S.still; b.setAttribute('aria-pressed', String(!S.still)); }
+    if (a === 'close') { S.sel = null; render(); } });
   const COLORS = ['#1F8F5A', '#7D1029', '#2F6FDB', '#1D3A8A', '#C26A00', '#6E4FE0', '#D2394B', '#0E7C7B', '#475467'];
   const LIGHTS = ['#FFFFFF', '#FFFFCC', '#E6F4EC', '#E8F0FD', '#FFF3E3', '#F6E8F0', '#EEE9FD', '#E0F5F2'];
   const PAIRS = [['녹색 & 흰색', '#1F8F5A', '#FFFFFF'], ['버건디 & 연노랑', '#7D1029', '#FFFFCC'], ['남색 & 하늘', '#1D3A8A', '#E8F0FD'], ['주황 & 크림', '#C26A00', '#FFF3E3'], ['보라 & 연보라', '#6E4FE0', '#EEE9FD'], ['청록 & 민트', '#0E7C7B', '#E0F5F2']];

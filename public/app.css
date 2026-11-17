@@ -558,3 +558,23 @@ mark { background: var(--warn-bg); color: var(--fg); border-radius: 3px; padding
 :root[data-theme="dark"] .ftag { filter: brightness(.82) saturate(1.2); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ftag { filter: brightness(.82) saturate(1.2); } }
 @media print { .ftag { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+/* 스크롤바: 얇고 둥글게, 평소엔 연하게 · 올리면 진하게 (전체 가지 · 아래 창 · 표) */
+@supports not selector(::-webkit-scrollbar) { .tl-scroll, .sheet, .mapbox { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent; } }   /* 파이어폭스 */
+.tl-scroll::-webkit-scrollbar, .sheet::-webkit-scrollbar, .mapbox::-webkit-scrollbar { width: 10px; height: 10px; }
+.tl-scroll::-webkit-scrollbar-track, .sheet::-webkit-scrollbar-track, .mapbox::-webkit-scrollbar-track { background: transparent; }
+.tl-scroll::-webkit-scrollbar-thumb, .sheet::-webkit-scrollbar-thumb, .mapbox::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 38%, transparent); border-radius: 99px; border: 3px solid transparent; background-clip: padding-box; }
+.tl-scroll::-webkit-scrollbar-thumb:hover, .sheet::-webkit-scrollbar-thumb:hover, .mapbox::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--brand) 70%, transparent); }
+.tl-scroll::-webkit-scrollbar-corner { background: transparent; }
+.tl-scroll::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+
+/* 전체 지도 3D */
+.map3d { position: relative; height: calc(100vh - 220px); min-height: 440px; border-radius: 18px; overflow: hidden; background: #05080F; border: 1px solid #1B2A44; }
+.map3d canvas { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+.map3d canvas:active { cursor: grabbing; }
+.map3d .map-ctl { position: absolute; right: 12px; top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.map3d .map-ctl button { min-width: 44px; height: 38px; padding: 0 10px; border-radius: 10px; border: 1px solid rgba(160,190,255,.25); background: rgba(20,32,54,.75); color: #E6EEFF; font: inherit; font-weight: 800; font-size: 14px; cursor: pointer; backdrop-filter: blur(6px); white-space: nowrap; }
+.map3d .map-ctl button[aria-pressed="true"] { border-color: #FFE68C; color: #FFE68C; }
+.m3-legend { position: absolute; left: 12px; top: 12px; display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; color: #C9D6F2; background: rgba(10,18,32,.6); padding: 6px 10px; border-radius: 10px; max-width: calc(100% - 90px); }
+.m3-legend span { display: inline-flex; align-items: center; gap: 6px; } .m3-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; box-shadow: 0 0 8px currentColor; } .m3-legend i.ring { border: 2px dashed #FFB547; box-sizing: border-box; }
+.map3d .map-tip { position: absolute; left: 12px; bottom: 12px; right: 12px; max-width: 380px; z-index: 3; }
+.map3d .map-tip { left: auto; right: 12px; }
