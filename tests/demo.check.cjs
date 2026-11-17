@@ -36,7 +36,7 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) process
   await click('[data-act=approve]'); await p.waitForTimeout(150); ok((await p.textContent('#toast')).includes('먼저 승인해야'), '부원 2명 전에는 선생님 최종 승인 안 됨');
   ok(!(await p.$('[data-act=advance]')), '승인 전에는 준비 시작 버튼 없음');
   // 기록 대기 실험(적양배추)에서 결과 기록하기
-  await click('.tabs [data-tab="home"]'); t = await body(); ok(t.includes('적양배추') || t.includes('결과 기록'), '홈: 지금 챙길 것');
+  await click('.tabs [data-tab="home"]'); t = await body(); ok(t.includes('내가 할 일') && !!(await p.$('.todo-item')), '홈: 지금 챙길 것');
   // 매일 리셋: 저장된 날짜를 어제로 바꾸고 다시 열면 처음 상태
   await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('gaji-demo-v2')); s.day = '2000-01-01'; localStorage.setItem('gaji-demo-v2', JSON.stringify(s)); });
   await p.reload(); await p.waitForTimeout(300);

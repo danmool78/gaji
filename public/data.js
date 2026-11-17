@@ -3,7 +3,7 @@
 // 날짜는 2026-11-16 기준으로 적었고, 앱이 오늘 날짜에 맞춰 옮겨서 보여 줍니다.
 window.GAJI_SAMPLE = {
   base: '2026-11-16',
-  ver: '2026-11-17-expok',
+  ver: '2026-11-17-tfinal',
   events: [
     { id: 'ev1', date: '2026-11-27', title: '전지 연구 발표회 (7교시 · 과학실)', scope: 'club', by: '김기장', at: '2026-11-10T08:00:00.000Z' },
     { id: 'ev2', date: '2026-12-04', title: '과학탐구대회 원서 마감', scope: 'club', by: '홍교사', at: '2026-11-12T08:00:00.000Z' },
@@ -118,6 +118,8 @@ window.GAJI_SAMPLE = {
     { id: 'c3', node: 'b1', sec: '', kind: 'approve', text: '', by: '박준서', role: '부원', at: T('2026-10-30', '06:00'), resolved: false },
     { id: 'c4', node: 'b1', sec: 'report.discuss', kind: 'fix', text: '산화막을 어떻게 확인했는지 근거를 한 줄 더 써 주세요.', by: '홍교사', role: '교사', at: T('2026-11-12', '05:00'), resolved: true },
     { id: 'c5', node: 'b1', sec: '', kind: 'note', text: '알루미늄 결과가 재밌네요. 다음엔 사포로 닦기 전후를 따로 재 보면 좋겠어요.', by: '김기장', role: '마스터', at: T('2026-11-13', '09:00'), resolved: false },
+    { id: 'c6a', node: 'e7', sec: '', kind: 'approve', text: '', by: '박준서', role: '부원', at: T('2026-11-16', '05:00'), resolved: false },
+    { id: 'c6b', node: 'e7', sec: '', kind: 'approve', text: '', by: '윤서연', role: '부원', at: T('2026-11-16', '06:00'), resolved: false },
     { id: 'c6', node: 'b5', sec: '', kind: 'approve', text: '', by: '윤서연', role: '부원', at: T('2026-11-15', '05:00'), resolved: false },
     { id: 'c7', node: 'b5', sec: 'plan.steps', kind: 'change', text: '전류를 재려면 멀티미터를 LED와 직렬로 연결해야 해요. 방법에 연결 그림이나 설명을 넣어 주세요.', by: '김기장', role: '마스터', at: T('2026-11-15', '06:00'), resolved: false },
     { id: 'c8', node: 'bq', sec: '', kind: 'answer', text: '전압보다 전류가 문제예요. 레몬 전지는 내부 저항이 커서(수 kΩ) 전류가 1mA도 안 돼요. 병렬로 연결하면 전류를 키울 수 있어요.', by: '홍교사', role: '교사', at: T('2026-11-12', '10:00'), resolved: false },

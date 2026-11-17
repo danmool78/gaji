@@ -682,8 +682,7 @@
     const out = [];
     alive().forEach((n) => {
       if (n.type === 'exp' && n.status === '준비 중' && (n.signal || 0) < 5 && days(n.date) <= 14) out.push({ n, why: '실험 ' + (days(n.date) >= 0 ? 'D-' + days(n.date) : '날짜 지남') + ' · 출발 신호 ' + (n.signal || 0) + '/5', w: days(n.date) });
-      if (n.type === 'exp' && n.status === '검토 중' && (n.review || 0) < 2) out.push({ n, why: '검토가 ' + (2 - (n.review || 0)) + '명 더 필요해요', w: days(n.date) - 3 });
-      if (n.type === 'exp' && n.status === '실험 완료') out.push({ n, why: '결과 기록을 남겨 주세요', w: 1 });
+      if (n.type === 'exp' && n.status === '검토 중' && planReady(n.plan) && reviewCount(n) < rules().peers) out.push({ n, why: '검토할 부원이 ' + (rules().peers - reviewCount(n)) + '명 더 필요해요', w: days(n.date) - 3 });
       if (n.type === 'q' && n.status !== '해결') out.push({ n, why: '함께 답을 찾아 주세요', w: 10 });
       if (n.type === 'idea' && ready(n).every(Boolean)) out.push({ n, why: '계획서로 바꿀 수 있어요', w: 6 });
     });
