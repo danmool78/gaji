@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>가지 쇼츠</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+/* 1080×1920 세로 무대 (쇼츠 · 릴스). 움직임은 index.html 과 같은 방식 */
+:root { --g: #7D1029; --g2: #A3324B; --gd: #5A0A1D; --sprout: #FFF3A0; --blue: #8A3D6E; --amber: #C26A00; --ink: #2A1016; --mute: #7A6268; --bg: #FFFDF0; }
+* { box-sizing: border-box; margin: 0; }
+html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Noto Sans KR', sans-serif; color: var(--ink); }
+#stage { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; transform-origin: 0 0; background: var(--bg); overflow: hidden; }
+.scene { position: absolute; inset: 0; opacity: 0; animation: life var(--len) linear var(--at) both; }
+@keyframes life { 0% { opacity: 0; } 5% { opacity: 1; } 95% { opacity: 1; } 100% { opacity: 0; } }
+.scene.last { animation-name: lifeEnd; }
+@keyframes lifeEnd { 0% { opacity: 0; } 5% { opacity: 1; } 100% { opacity: 1; } }
+.pop { animation: pop .7s cubic-bezier(.2, 1.5, .4, 1) var(--d) both; }
+@keyframes pop { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.up { animation: up .8s cubic-bezier(.2, .8, .2, 1) var(--d) both; }
+@keyframes up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+.fade { animation: fade .8s ease var(--d) both; }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+.draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw var(--dur, 1s) cubic-bezier(.5, 0, .3, 1) var(--d) forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+.breathe { transform-box: fill-box; transform-origin: center; animation: breathe 1.6s ease-in-out var(--d) infinite; }
+@keyframes breathe { 0%, 100% { transform: scale(1); opacity: .95; } 50% { transform: scale(1.18); opacity: .6; } }
+.cap { position: absolute; left: 60px; right: 60px; text-align: center; font-weight: 900; letter-spacing: -1.5px; line-height: 1.3; }
+
+.green { background: radial-gradient(circle at 50% 40%, #A11F3E, #4A0616 72%); color: #fff; }
+.logo { position: absolute; left: 240px; width: 600px; height: 600px; }
+.big { position: absolute; left: 0; right: 0; text-align: center; }
+
+.nl { position: absolute; width: 300px; margin-left: -150px; background: rgba(255, 253, 240, .94); border-radius: 14px; padding: 6px 8px; text-align: center; font-size: 30px; font-weight: 700; line-height: 1.3; letter-spacing: -.5px; }
+.nl i { display: block; font-style: normal; font-size: 22px; font-weight: 500; color: var(--mute); margin-bottom: 4px; }
+.nl.idea { color: var(--amber); }
+
+.vsteps { position: absolute; left: 120px; right: 120px; top: 380px; display: flex; flex-direction: column; gap: 22px; }
+.vs { display: flex; align-items: center; gap: 28px; background: #fff; border-radius: 26px; padding: 22px 30px; box-shadow: 0 12px 30px rgba(60, 10, 25, .08); font-size: 40px; font-weight: 800; letter-spacing: -1px; }
+.vs .c { width: 70px; height: 70px; border-radius: 50%; background: #EADFD9; flex: none; position: relative; display: grid; place-items: center; }
+.vs .c::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: var(--g); transform: scale(0); animation: pop .5s cubic-bezier(.2, 1.5, .4, 1) var(--d) forwards; }
+.vs.key .c::after { background: var(--blue); }
+.vs .c svg { position: relative; z-index: 1; width: 38px; height: 38px; }
+.vs small { display: block; font-size: 26px; font-weight: 500; color: var(--mute); letter-spacing: -.5px; }
+.tablet { position: absolute; left: 60px; width: 960px; height: 680px; border-radius: 40px; background: #101512; padding: 20px; box-shadow: 0 30px 60px rgba(50, 5, 20, .25); }
+.tablet .scr { width: 100%; height: 100%; border-radius: 22px; overflow: hidden; position: relative; background: #fff; }
+.tablet img { position: absolute; left: 0; top: 0; width: 100%; }
+
+.search { position: absolute; left: 70px; right: 70px; top: 520px; height: 130px; background: #fff; border-radius: 70px; box-shadow: 0 20px 50px rgba(60, 10, 25, .12); display: flex; align-items: center; padding: 0 50px; font-size: 54px; font-weight: 700; gap: 26px; }
+.search svg { width: 60px; height: 60px; flex: none; }
+.typed { display: inline-block; white-space: nowrap; clip-path: inset(0 100% 0 0); animation: type 1.2s steps(5) var(--d) forwards; }
+@keyframes type { to { clip-path: inset(0 0 0 0); } }
+.caret { width: 5px; height: 62px; background: var(--g); animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.res { position: absolute; left: 70px; right: 70px; top: 740px; display: flex; flex-direction: column; gap: 24px; }
+.res div { background: #fff; border-radius: 26px; padding: 28px 36px; font-size: 36px; font-weight: 700; box-shadow: 0 10px 30px rgba(60, 10, 25, .08); letter-spacing: -.5px; line-height: 1.35; }
+.res i { font-style: normal; display: block; font-size: 26px; font-weight: 500; color: var(--mute); margin-bottom: 6px; }
+mark { background: #FFF4B0; color: inherit; border-radius: 6px; padding: 0 4px; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <!-- 1. 질문 + 로고 (0~5.4초) -->
+  <section class="scene green" style="--at:0s;--len:5.6s">
+    <svg class="logo" style="top:330px" viewBox="0 0 512 512">
+      <circle cx="164" cy="432" r="18" fill="#fff" class="pop" style="--d:.2s;transform-origin:164px 432px"/>
+      <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+        <path pathLength="1" class="draw" style="--d:.6s;--dur:1.3s" d="M164 432C190 356 228 304 284 254C326 216 356 176 368 128" stroke-width="42"/>
+        <path pathLength="1" class="draw" style="--d:1.4s;--dur:.7s" d="M232 318C196 292 164 262 140 222" stroke-width="30"/>
+        <path pathLength="1" class="draw" style="--d:1.7s;--dur:.7s" d="M298 240C334 246 368 262 400 288" stroke-width="28"/>
+      </g>
+      <g fill="#FFFFCC">
+        <g class="pop" style="--d:2.1s;transform-origin:138px 222px"><path d="M0 0C26-30 74-34 104-6C74 22 28 26 0 0Z" transform="translate(138 222) rotate(-132)"/></g>
+        <g class="pop" style="--d:2.3s;transform-origin:402px 290px"><path d="M0 0C26-30 74-34 104-6C74 22 28 26 0 0Z" transform="translate(402 290) rotate(28)"/></g>
+        <g class="pop" style="--d:2.5s;transform-origin:330px 182px"><path d="M0 0C22-26 62-28 88-6C62 18 24 22 0 0Z" transform="translate(330 182) rotate(-12)"/></g>
+      </g>
+      <g fill="#FFE27A" class="pop" style="--d:2.8s;transform-origin:368px 122px"><path d="M0 0C16-20 48-24 68-6C48 12 18 16 0 0Z" transform="translate(366 122) rotate(-128)"/><path d="M0 0C16-20 48-24 68-6C48 12 18 16 0 0Z" transform="translate(370 122) rotate(-58)"/></g>
+    </svg>
+    <div class="big up" style="--d:3s;top:1000px;font-size:150px;font-weight:900;letter-spacing:8px">가지</div>
+    <div class="big fade" style="--d:.1s;top:60px;font-size:44px;font-weight:900;letter-spacing:14px;color:#FFFFCC">EPEC</div>
+    <div class="cap up" style="--d:.3s;top:150px;font-size:70px">EPEC의 실험 기록,<br>졸업하면 어디로 갈까요?</div>
+    <div class="big up" style="--d:3.5s;top:1210px;font-size:46px;font-weight:500;opacity:.92">실험이 가지를 치며 자라는 곳</div>
+  </section>
+
+  <!-- 2. 위로 자라는 가지 (5~17초) -->
+  <section class="scene" style="--at:5.2s;--len:12s">
+    <svg id="tree" viewBox="0 0 1080 1920" style="position:absolute;inset:0"></svg><div id="labels"></div>
+    <div class="cap" style="top:130px;font-size:66px;animation:life 6.2s linear 5.4s both">하나의 질문이,<br>다음 실험을 낳고</div>
+    <div class="cap" style="top:130px;font-size:66px;animation:lifeEnd 5.6s linear 11.6s both">선배의 실험에서,<br>후배의 실험이 자랍니다</div>
+  </section>
+
+  <!-- 3. 과정 + 보고서 (17~27초) -->
+  <section class="scene" style="--at:17s;--len:10.2s">
+    <div class="cap up" style="--d:17.3s;top:150px;font-size:64px">계획 없이 시작하지 않고,<br>결과 없이 끝내지 않습니다</div>
+    <div class="vsteps"></div>
+    <div class="tablet up" style="--d:22.6s;top:1160px"><div class="scr"><img src="shots/report.png" alt=""><img src="shots/report-chart.png" alt="" class="fade" style="--d:24.6s"></div></div>
+  </section>
+
+  <!-- 4. 검색 (27~34초) -->
+  <section class="scene" style="--at:27s;--len:7.2s">
+    <div class="cap up" style="--d:27.3s;top:200px;font-size:68px">10년 뒤의 후배도,<br>검색 한 번으로</div>
+    <div class="search up" style="--d:27.8s"><svg viewBox="0 0 24 24" fill="none" stroke="#7D1029" stroke-width="2.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="typed" style="--d:28.4s">레몬 전지</span><span class="caret"></span></div>
+    <div class="res">
+      <div class="up" style="--d:29.8s"><i>2025 · 김기장</i>동전 전지: 구리 동전과 알루미늄 호일</div>
+      <div class="up" style="--d:30.3s"><i>2026 · 정다온</i><mark>레몬 전지</mark>: 전극 금속에 따라 전압이 달라질까?</div>
+      <div class="up" style="--d:30.8s"><i>2026 · 이하늘</i><mark>레몬 전지</mark> 병렬 연결: LED가 더 밝아질까?</div>
+      <div class="up" style="--d:31.3s"><i>2036 · 10년 뒤의 후배</i>선배의 실험에서 이어서, 나의 첫 실험</div>
+    </div>
+  </section>
+
+  <!-- 5. 마무리 (34~41초) -->
+  <section class="scene green last" style="--at:34s;--len:7s">
+    <svg class="logo" style="top:300px" viewBox="0 0 512 512">
+      <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+        <path pathLength="1" class="draw" style="--d:34.3s;--dur:1s" d="M164 432C190 356 228 304 284 254C326 216 356 176 368 128" stroke-width="42"/>
+        <path pathLength="1" class="draw" style="--d:34.9s;--dur:.6s" d="M232 318C196 292 164 262 140 222" stroke-width="30"/>
+        <path pathLength="1" class="draw" style="--d:35.1s;--dur:.6s" d="M298 240C334 246 368 262 400 288" stroke-width="28"/>
+      </g>
+      <g fill="#FFFFCC">
+        <g class="pop" style="--d:35.4s;transform-origin:138px 222px"><path d="M0 0C26-30 74-34 104-6C74 22 28 26 0 0Z" transform="translate(138 222) rotate(-132)"/></g>
+        <g class="pop" style="--d:35.6s;transform-origin:402px 290px"><path d="M0 0C26-30 74-34 104-6C74 22 28 26 0 0Z" transform="translate(402 290) rotate(28)"/></g>
+        <g class="pop" style="--d:35.8s;transform-origin:330px 182px"><path d="M0 0C22-26 62-28 88-6C62 18 24 22 0 0Z" transform="translate(330 182) rotate(-12)"/></g>
+      </g>
+      <g fill="#FFE27A" class="pop" style="--d:36s;transform-origin:368px 122px"><g class="breathe" style="--d:37s"><path d="M0 0C16-20 48-24 68-6C48 12 18 16 0 0Z" transform="translate(366 122) rotate(-128)"/><path d="M0 0C16-20 48-24 68-6C48 12 18 16 0 0Z" transform="translate(370 122) rotate(-58)"/></g></g>
+    </svg>
+    <div class="big up" style="--d:36s;top:900px;font-size:46px;font-weight:900;letter-spacing:12px;color:#FFFFCC">EPEC × 가지</div>
+    <div class="big up" style="--d:36.3s;top:1000px;font-size:68px;font-weight:900;line-height:1.4;letter-spacing:-1.5px">한 번 하고 끝나는 실험 말고,<br><span style="color:var(--sprout)">가지를 치며 자라는 연구</span></div>
+    <div class="big up" style="--d:37.4s;top:1330px;font-size:52px;font-weight:700;letter-spacing:1px">gaji-lab.web.app</div>
+    <div class="big up" id="by" style="--d:38s;top:1440px;font-size:36px;opacity:.85"></div>
+  </section>
+</div>
+<script>
+(function () {
+  var C = { done: '#7D1029', run: '#8A3D6E', idea: '#C26A00' };
+  var N = [
+    { id: 'p1', x: 540, y: 1700, t: '동전 전지', m: '2025 · 김기장', k: 'done', d: 5.6 },
+    { id: 'p2', x: 230, y: 1440, t: '소금물 농도와 전압', m: '2025 · 정다온', k: 'done', d: 6.8, p: 'p1' },
+    { id: 'b1', x: 790, y: 1430, t: '레몬 전지: 전극 금속', m: '2026 · 정다온', k: 'done', d: 7.2, p: 'p1' },
+    { id: 'b2', x: 540, y: 1150, t: '레몬 전지 직렬 연결', m: '2026 · 정다온', k: 'done', d: 8.4, p: 'b1' },
+    { id: 'g1', x: 880, y: 1130, t: '과일 종류와 전압', m: '2026 · 한결', k: 'done', d: 8.8, p: 'b1' },
+    { id: 'b5', x: 230, y: 860, t: '레몬 전지 병렬 연결', m: '2026 · 이하늘 · 검토 중', k: 'run', d: 10, p: 'b2' },
+    { id: 'g3', x: 560, y: 870, t: '레몬 전지 시계', m: '아이디어', k: 'idea', d: 10.4, p: 'b2' },
+    { id: 'g2', x: 880, y: 850, t: '삶은 감자 전지', m: '2026 · 한결 · 준비 중', k: 'run', d: 10.8, p: 'g1' },
+    { id: 'g23', x: 230, y: 580, t: '과학전람회: 내부 저항', m: '2026 · 이하늘', k: 'run', d: 12.4, p: 'b5' },
+    { id: 'g22', x: 560, y: 590, t: '왜 전류가 작을까?', m: '아이디어 · 새싹', k: 'idea', d: 12.8, p: 'b5' },
+    { id: 'n1', x: 880, y: 570, t: '다음 실험은, 당신이', m: '2027 · ?', k: 'idea', d: 14, p: 'g2' }
+  ];
+  var by = {}; N.forEach(function (n) { by[n.id] = n; });
+  var svg = '', lab = '';
+  N.forEach(function (n) {
+    if (n.p) { var a = by[n.p], my = (a.y + n.y) / 2;
+      svg += '<path pathLength="1" class="draw" style="--d:' + (n.d - .9) + 's;--dur:.9s" d="M' + a.x + ' ' + a.y + 'C' + a.x + ' ' + my + ' ' + n.x + ' ' + my + ' ' + n.x + ' ' + n.y + '" fill="none" stroke="' + (n.k === 'idea' ? '#E4B676' : '#DDA9B4') + '" stroke-width="' + (n.k === 'idea' ? 7 : 12) + '" stroke-linecap="round"/>'; }
+    var o = 'transform-origin:' + n.x + 'px ' + n.y + 'px';
+    if (n.k === 'idea') svg += '<g class="pop" style="--d:' + n.d + 's;' + o + '"><circle class="breathe" style="--d:' + (n.d + .7) + 's" cx="' + n.x + '" cy="' + n.y + '" r="30" fill="#FFF3E3" stroke="' + C.idea + '" stroke-width="7" stroke-dasharray="10 8"/></g>';
+    else svg += '<g class="pop" style="--d:' + n.d + 's;' + o + '"><circle cx="' + n.x + '" cy="' + n.y + '" r="36" fill="' + C[n.k] + '"/>' + (n.k === 'done' ? '<path d="m' + (n.x - 14) + ' ' + n.y + ' 10 10 19-21" stroke="#fff" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' : '<circle cx="' + n.x + '" cy="' + n.y + '" r="12" fill="#fff"/>') + '</g>';
+    lab += '<div class="nl up' + (n.k === 'idea' ? ' idea' : '') + '" style="--d:' + (n.d + .2) + 's;left:' + n.x + 'px;top:' + (n.y + 50) + 'px"><i>' + n.m + '</i>' + n.t + '</div>';
+  });
+  document.getElementById('tree').innerHTML = svg; document.getElementById('labels').innerHTML = lab;
+  var S = [['계획서', '목적 · 가설 · 방법'], ['교차 검토', '팀 밖 부원 2명'], ['최종 승인', '지도 선생님', 1], ['실험 · 결과 기록', '측정값 · 사진'], ['보고서', '그래프까지 자동 완성']];
+  var chk = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg>';
+  document.querySelector('.vsteps').innerHTML = S.map(function (s, i) { return '<div class="vs up' + (s[2] ? ' key' : '') + '" style="--d:' + (17.6 + i * .15) + 's"><div class="c" style="--d:' + (18.6 + i * .8) + 's">' + chk + '</div><div>' + s[0] + '<small>' + s[1] + '</small></div></div>'; }).join('');
+  var q = new URLSearchParams(location.search); if (q.get('by')) document.getElementById('by').textContent = q.get('by');
+  function fit() { var s = Math.min(innerWidth / 1080, innerHeight / 1920), st = document.getElementById('stage'); st.style.transform = 'translate(' + (innerWidth - 1080 * s) / 2 + 'px,' + (innerHeight - 1920 * s) / 2 + 'px) scale(' + s + ')'; }
+  addEventListener('resize', fit); fit();
+  window.LENGTH = 41;
+  window.seek = function (t) { document.getAnimations().forEach(function (a) { a.pause(); a.currentTime = t * 1000; }); };
+  if (q.has('record')) window.seek(0);
+})();
+</script>
+</body>
+</html>

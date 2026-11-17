@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>가지 소개 영상</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+/* 1920×1080 무대. 모든 움직임은 CSS 애니메이션(시작 시각 = animation-delay)이라 아무 시각으로나 멈춰 찍을 수 있음 */
+:root { --g: #7D1029; --g2: #A3324B; --gd: #5A0A1D; --leaf: #FFFFCC; --sprout: #FFF3A0; --blue: #8A3D6E; --amber: #C26A00; --ink: #2A1016; --mute: #7A6268; --bg: #FFFDF0; }
+* { box-sizing: border-box; margin: 0; }
+html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Noto Sans KR', sans-serif; color: var(--ink); }
+#stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; background: var(--bg); overflow: hidden; }
+.scene { position: absolute; inset: 0; opacity: 0; animation: life var(--len) linear var(--at) both; }
+@keyframes life { 0% { opacity: 0; } 5% { opacity: 1; } 95% { opacity: 1; } 100% { opacity: 0; } }
+.scene.last { animation-name: lifeEnd; }
+@keyframes lifeEnd { 0% { opacity: 0; } 5% { opacity: 1; } 100% { opacity: 1; } }
+
+/* 공통 움직임 (--d = 시작 시각, 초) */
+.pop { animation: pop .7s cubic-bezier(.2, 1.5, .4, 1) var(--d) both; }
+@keyframes pop { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.up { animation: up .8s cubic-bezier(.2, .8, .2, 1) var(--d) both; }
+@keyframes up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+.fade { animation: fade .8s ease var(--d) both; }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+.draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw var(--dur, 1s) cubic-bezier(.5, 0, .3, 1) var(--d) forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+.out { animation: out .8s ease var(--d) forwards; }
+@keyframes out { to { opacity: 0; transform: translateY(30px) rotate(var(--rot, 6deg)); filter: grayscale(1); } }
+.breathe { transform-box: fill-box; transform-origin: center; animation: breathe 1.6s ease-in-out var(--d) infinite; }
+@keyframes breathe { 0%, 100% { transform: scale(1); opacity: .95; } 50% { transform: scale(1.18); opacity: .6; } }
+
+.cap { position: absolute; left: 0; right: 0; text-align: center; font-weight: 900; letter-spacing: -1.5px; }
+.cap.top { top: 84px; font-size: 64px; }
+.cap small { display: block; font-size: 30px; font-weight: 500; color: var(--mute); letter-spacing: -.5px; margin-top: 14px; }
+.swap { position: absolute; left: 0; right: 0; top: 84px; }
+.swap > div { position: absolute; left: 0; right: 0; }
+
+/* 1. 시작 */
+#s1 { background: radial-gradient(circle at 50% 42%, #A11F3E, #4A0616 72%); color: #fff; }
+#s1 svg { position: absolute; left: 660px; top: 120px; width: 600px; height: 600px; }
+.epec { position: absolute; left: 0; right: 0; top: 64px; text-align: center; font-size: 44px; font-weight: 900; letter-spacing: 14px; color: #FFFFCC; }
+#s1 .t { position: absolute; left: 0; right: 0; top: 760px; text-align: center; font-size: 120px; font-weight: 900; letter-spacing: 6px; }
+#s1 .s { position: absolute; left: 0; right: 0; top: 920px; text-align: center; font-size: 40px; font-weight: 500; opacity: .92; }
+
+/* 2. 흩어진 기록 */
+.scrap { position: absolute; width: 420px; white-space: nowrap; padding: 30px 32px; border-radius: 26px; background: #fff; box-shadow: 0 20px 50px rgba(60, 10, 25, .14); font-size: 30px; font-weight: 700; }
+.scrap i { display: block; font-style: normal; font-size: 22px; color: var(--mute); font-weight: 500; margin-top: 6px; }
+.scrap svg { width: 64px; height: 64px; margin-bottom: 14px; }
+.wrap { transform: rotate(var(--r)); }
+
+/* 3. 살아 있는 가지 */
+#tree { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+#treeWrap { position: absolute; inset: 0; transform-origin: 10% 55%; animation: zoom 18s ease-in-out 15s both; }
+@keyframes zoom { from { transform: scale(.94) translateX(20px); } to { transform: scale(1.03) translateX(-30px); } }
+.nl { position: absolute; width: 340px; background: rgba(255, 253, 240, .94); border-radius: 14px; padding: 6px 10px; font-size: 25px; font-weight: 700; line-height: 1.35; letter-spacing: -.5px; }
+.nl i { display: block; font-style: normal; font-size: 19px; font-weight: 500; color: var(--mute); margin-bottom: 4px; }
+.nl.idea { color: var(--amber); }
+.tag { display: inline-block; font-size: 17px; font-weight: 700; padding: 2px 10px; border-radius: 99px; margin-left: 6px; vertical-align: 3px; }
+
+/* 4. 과정 */
+.steps { position: absolute; left: 110px; right: 110px; top: 330px; height: 200px; }
+.st { position: absolute; top: 0; width: 220px; margin-left: -110px; text-align: center; }
+.st .c { width: 96px; height: 96px; margin: 0 auto 18px; border-radius: 50%; background: #fff; border: 6px solid #EADFD9; display: grid; place-items: center; font-size: 36px; font-weight: 900; color: #9AA8A0; position: relative; }
+.st .c::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; background: var(--g); transform: scale(0); animation: pop .5s cubic-bezier(.2, 1.5, .4, 1) var(--d) forwards; }
+.st .c svg { position: relative; z-index: 1; width: 46px; height: 46px; opacity: 0; animation: fade .3s ease calc(var(--d) + .25s) forwards; }
+.st b { display: block; font-size: 28px; letter-spacing: -.5px; }
+.st span { display: block; font-size: 20px; color: var(--mute); margin-top: 6px; font-weight: 500; }
+.st.key .c::after { background: var(--blue); }
+.rail { position: absolute; left: 0; right: 0; top: 48px; height: 8px; background: #EADFD9; border-radius: 9px; }
+.rail i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--g); border-radius: 9px; animation: rail 8.4s linear 34s forwards; }
+@keyframes rail { to { width: 100%; } }
+.rules { position: absolute; left: 150px; right: 150px; top: 680px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 36px; }
+.rule { background: #fff; border-radius: 26px; padding: 34px 36px; box-shadow: 0 16px 40px rgba(60, 10, 25, .1); font-size: 30px; font-weight: 700; line-height: 1.45; letter-spacing: -.5px; }
+.rule i { display: block; font-style: normal; font-size: 22px; color: var(--g); font-weight: 900; margin-bottom: 10px; letter-spacing: 1px; }
+
+/* 휴대폰 */
+.phone { position: absolute; width: 420px; height: 880px; border-radius: 58px; background: #101512; padding: 14px; box-shadow: 0 40px 80px rgba(50, 5, 20, .28); }
+.phone .scr { width: 100%; height: 100%; border-radius: 46px; overflow: hidden; background: #fff; position: relative; }
+.phone img { position: absolute; left: 0; top: 0; width: 100%; }
+
+/* 태블릿 (가로형) */
+.tablet { position: absolute; width: 1062px; height: 750px; border-radius: 44px; background: #101512; padding: 22px; box-shadow: 0 40px 80px rgba(50, 5, 20, .28); }
+.tablet .scr { width: 100%; height: 100%; border-radius: 24px; overflow: hidden; background: #fff; position: relative; }
+.tablet img { position: absolute; left: 0; top: 0; width: 100%; }
+.auto { position: absolute; left: 1250px; top: 270px; width: 560px; display: flex; flex-direction: column; gap: 22px; }
+.auto div { background: #fff; border-radius: 22px; padding: 22px 28px; font-size: 32px; font-weight: 700; letter-spacing: -.5px; box-shadow: 0 10px 30px rgba(60, 10, 25, .08); display: flex; align-items: center; gap: 20px; }
+.auto b { width: 48px; height: 48px; border-radius: 50%; background: var(--g); color: #fff; display: grid; place-items: center; font-size: 26px; flex: none; }
+.auto p { font-size: 30px; line-height: 1.5; color: var(--mute); font-weight: 500; margin-top: 12px; }
+.auto strong { color: var(--gd); font-weight: 900; }
+
+/* 5. 보고서 · 그래프 */
+.chart { position: absolute; left: 640px; top: 250px; width: 1150px; height: 640px; background: #fff; border-radius: 32px; box-shadow: 0 20px 50px rgba(60, 10, 25, .1); padding: 40px 56px; }
+.chart h4 { font-size: 30px; letter-spacing: -.5px; }
+.chart h4 i { font-style: normal; color: var(--mute); font-weight: 500; font-size: 24px; margin-left: 8px; }
+.bars { position: absolute; left: 140px; right: 60px; bottom: 90px; top: 130px; border-left: 3px solid #E2D3CC; border-bottom: 3px solid #E2D3CC; display: flex; align-items: flex-end; justify-content: space-around; }
+.bar { width: 150px; position: relative; transform-origin: bottom; transform: scaleY(0); animation: grow 1.1s cubic-bezier(.2, .9, .2, 1) var(--d) forwards; border-radius: 12px 12px 0 0; }
+@keyframes grow { to { transform: scaleY(1); } }
+.bar b { position: absolute; top: -52px; left: 0; right: 0; text-align: center; font-size: 32px; }
+.bar span { position: absolute; bottom: -54px; left: -30px; right: -30px; text-align: center; font-size: 26px; font-weight: 700; color: var(--mute); }
+.gl { position: absolute; left: 140px; right: 60px; border-top: 2px dashed #F0E7E2; }
+.gy { position: absolute; left: 70px; font-size: 20px; color: var(--mute); width: 60px; text-align: right; }
+
+/* 6. 검색 */
+.search { position: absolute; left: 360px; right: 360px; top: 270px; height: 120px; background: #fff; border-radius: 70px; box-shadow: 0 20px 50px rgba(60, 10, 25, .12); display: flex; align-items: center; padding: 0 56px; font-size: 48px; font-weight: 700; gap: 26px; }
+.search svg { width: 56px; height: 56px; flex: none; }
+.typed { display: inline-block; white-space: nowrap; overflow: hidden; clip-path: inset(0 100% 0 0); animation: type 1.2s steps(5) var(--d) forwards; }
+@keyframes type { to { clip-path: inset(0 0 0 0); } }
+.caret { width: 4px; height: 56px; background: var(--g); animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.years { position: absolute; left: 200px; right: 200px; top: 500px; height: 120px; }
+.years .ax { position: absolute; left: 0; right: 0; top: 40px; height: 6px; background: #EADFD9; border-radius: 6px; }
+.years .y { position: absolute; top: 0; width: 120px; margin-left: -60px; text-align: center; font-size: 24px; font-weight: 700; color: var(--mute); }
+.years .y::before { content: ''; display: block; width: 26px; height: 26px; border-radius: 50%; background: #fff; border: 6px solid #D9C7C0; margin: 30px auto 14px; }
+.years .y.hit::before { animation: hit .5s ease var(--d) forwards; }
+@keyframes hit { to { background: var(--g); border-color: var(--g); transform: scale(1.35); } }
+.res { position: absolute; left: 300px; right: 300px; top: 680px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 26px; }
+.res div { background: #fff; border-radius: 22px; padding: 22px 30px; font-size: 27px; font-weight: 700; box-shadow: 0 10px 30px rgba(60, 10, 25, .08); letter-spacing: -.5px; }
+.res i { font-style: normal; display: block; font-size: 20px; font-weight: 500; color: var(--mute); margin-bottom: 4px; }
+mark { background: #FFF4B0; color: inherit; border-radius: 6px; padding: 0 4px; }
+
+/* 7. 안전 */
+.safe { position: absolute; left: 160px; right: 160px; top: 360px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 44px; }
+.safe div { background: #fff; border-radius: 34px; padding: 50px 40px; text-align: center; box-shadow: 0 20px 50px rgba(60, 10, 25, .1); }
+.safe svg { width: 120px; height: 120px; margin-bottom: 28px; }
+.safe b { display: block; font-size: 38px; letter-spacing: -1px; }
+.safe span { display: block; font-size: 25px; color: var(--mute); margin-top: 14px; line-height: 1.5; font-weight: 500; }
+
+/* 8. 마무리 */
+#s8 { background: radial-gradient(circle at 50% 38%, #A11F3E, #4A0616 72%); color: #fff; }
+#s8 svg { position: absolute; left: 760px; top: 90px; width: 400px; height: 400px; }
+#s8 .q { position: absolute; left: 0; right: 0; top: 540px; text-align: center; font-size: 62px; font-weight: 900; line-height: 1.4; letter-spacing: -1.5px; }
+#s8 .q span { color: var(--sprout); }
+#s8 .u { position: absolute; left: 0; right: 0; top: 860px; text-align: center; font-size: 44px; font-weight: 700; letter-spacing: 1px; }
+#s8 .by { position: absolute; left: 0; right: 0; top: 950px; text-align: center; font-size: 30px; opacity: .85; }
+
+#replay { position: fixed; right: 20px; bottom: 20px; z-index: 9; font: 700 16px 'Noto Sans KR'; padding: 10px 18px; border-radius: 99px; border: 0; background: #fff; cursor: pointer; }
+.rec #replay { display: none; }
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <!-- 1. 시작: 씨앗 → 가지 (0~7초) -->
+  <section class="scene" id="s1" style="--at:0s;--len:7.2s">
+    <svg viewBox="0 0 512 512">
+      <circle cx="164" cy="432" r="18" fill="#fff" class="pop" style="--d:.3s;transform-origin:164px 432px"/>
+      <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+        <path pathLength="1" class="draw" style="--d:.9s;--dur:1.6s" d="M164 432C190 356 228 304 284 254C326 216 356 176 368 128" stroke-width="42"/>
+        <path pathLength="1" class="draw" style="--d:1.9s;--dur:.9s" d="M232 318C196 292 164 262 140 222" stroke-width="30"/>
+        <path pathLength="1" class="draw" style="--d:2.3s;--dur:.9s" d="M298 240C334 246 368 262 400 288" stroke-width="28"/>
+      </g>
+      <g fill="#FFFFCC">
+        <g class="pop" style="--d:2.8s;transform-origin:138px 222px"><path d="M0 0C26-30 74-34 104-6C74 22 28 26 0 0Z" transform="translate(138 222) rotate(-132)"/></g>
+        <g class="pop" style="--d:3.1s;transform-origin:402px 290px"><path d="M0 0C26-30 74-34 104-6C74 22 28 26 0 0Z" transform="translate(402 290) rotate(28)"/></g>
+        <g class="pop" style="--d:3.3s;transform-origin:330px 182px"><path d="M0 0C22-26 62-28 88-6C62 18 24 22 0 0Z" transform="translate(330 182) rotate(-12)"/></g>
+      </g>
+      <g fill="#FFE27A" class="pop" style="--d:3.7s;transform-origin:368px 122px"><path d="M0 0C16-20 48-24 68-6C48 12 18 16 0 0Z" transform="translate(366 122) rotate(-128)"/><path d="M0 0C16-20 48-24 68-6C48 12 18 16 0 0Z" transform="translate(370 122) rotate(-58)"/></g>
+    </svg>
+    <div class="epec fade" style="--d:.2s">EPEC</div>
+    <div class="t up" style="--d:4.1s">가지</div>
+    <div class="s up" style="--d:4.6s">실험이 가지를 치며 자라는 곳</div>
+  </section>
+
+  <!-- 2. 흩어진 기록 (7~15초) -->
+  <section class="scene" id="s2" style="--at:7s;--len:8.2s">
+    <div class="cap top up" style="--d:7.4s">EPEC의 실험 기록, 지금 어디에 있나요?</div>
+    <div class="wrap" style="--r:-6deg;position:absolute;left:250px;top:330px"><div class="scrap pop" style="--d:8.2s"><div class="out" style="--d:12.2s;--rot:-14deg">
+      <svg viewBox="0 0 64 64"><rect x="10" y="6" width="44" height="52" rx="6" fill="#FFE7B8"/><path d="M20 20h24M20 30h24M20 40h16" stroke="#C26A00" stroke-width="4" stroke-linecap="round"/></svg>공책 세 권<i>누가 가져갔더라…</i></div></div></div>
+    <div class="wrap" style="--r:5deg;position:absolute;left:720px;top:430px"><div class="scrap pop" style="--d:8.7s"><div class="out" style="--d:12.5s;--rot:10deg">
+      <svg viewBox="0 0 64 64"><path d="M8 14a8 8 0 0 1 8-8h32a8 8 0 0 1 8 8v22a8 8 0 0 1-8 8H26l-12 12V44h2a8 8 0 0 1-8-8z" fill="#FDE68A"/><circle cx="22" cy="25" r="3.5" fill="#7A5B00"/><circle cx="32" cy="25" r="3.5" fill="#7A5B00"/><circle cx="42" cy="25" r="3.5" fill="#7A5B00"/></svg>단톡방 사진 214장<i>측정값은 어디쯤이었지?</i></div></div></div>
+    <div class="wrap" style="--r:-3deg;position:absolute;left:1170px;top:300px"><div class="scrap pop" style="--d:9.2s"><div class="out" style="--d:12.8s;--rot:-8deg">
+      <svg viewBox="0 0 64 64"><rect x="18" y="4" width="28" height="16" rx="3" fill="#CBD5E1"/><rect x="12" y="18" width="40" height="42" rx="8" fill="#64748B"/></svg>누군가의 USB<i>파일 이름: 최종_진짜최종.hwp</i></div></div></div>
+    <div class="wrap" style="--r:7deg;position:absolute;left:1380px;top:620px"><div class="scrap pop" style="--d:9.7s"><div class="out" style="--d:13.1s;--rot:16deg">
+      <svg viewBox="0 0 64 64"><path d="M6 16a6 6 0 0 1 6-6h14l6 7h20a6 6 0 0 1 6 6v25a6 6 0 0 1-6 6H12a6 6 0 0 1-6-6z" fill="#A7C4F2"/></svg>졸업한 선배의 폴더<i>열어 볼 방법이 없어요</i></div></div></div>
+    <div class="cap fade" style="--d:13.2s;top:860px;font-size:54px;color:var(--gd)">졸업하면, 기록도 함께 졸업합니다.</div>
+  </section>
+
+  <!-- 3. 살아 있는 가지 (15~33초) -->
+  <section class="scene" id="s3" style="--at:15s;--len:18.2s">
+    <div id="treeWrap"><svg id="tree" viewBox="0 0 1920 1080"></svg><div id="labels"></div></div>
+    <div class="swap">
+      <div class="cap" style="font-size:60px;animation:life 9.4s linear 15.3s both">하나의 질문이, 다음 실험을 낳습니다</div>
+      <div class="cap" style="font-size:60px;animation:lifeEnd 8.3s linear 24.8s both">선배의 실험에서, 후배의 실험이 자랍니다</div>
+    </div>
+  </section>
+
+  <!-- 4. 제대로 하는 과정 (33~45초) -->
+  <section class="scene" id="s4" style="--at:33s;--len:12.2s">
+    <div class="cap top up" style="--d:33.3s">계획 없이 시작하지 않고, 결과 없이 끝내지 않습니다</div>
+    <div class="steps"><div class="rail"><i></i></div></div>
+    <div class="rules">
+      <div class="rule up" style="--d:39.6s"><i>규칙 1</i>계획서가 없으면<br>검토를 요청할 수 없어요</div>
+      <div class="rule up" style="--d:40.3s"><i>규칙 2</i>팀 밖의 부원 2명이 검토하고<br>선생님이 최종 승인해요</div>
+      <div class="rule up" style="--d:41s"><i>규칙 3</i>결과 · 결론을 쓰지 않으면<br>완료가 되지 않아요</div>
+    </div>
+  </section>
+
+  <!-- 5. 보고서 · 그래프 (45~56초): 실제 가지 화면 (가로형 태블릿) -->
+  <section class="scene" id="s5" style="--at:45s;--len:11.2s">
+    <div class="cap top up" style="--d:45.3s;font-size:58px">측정값만 넣으면, 그래프와 보고서가 자동으로</div>
+    <div class="tablet up" style="--d:45.8s;left:110px;top:240px"><div class="scr">
+      <img src="shots/item.png" alt="">
+      <img src="shots/report.png" alt="" class="fade" style="--d:49.6s">
+      <img src="shots/report-chart.png" alt="" class="fade" style="--d:52.4s">
+    </div></div>
+    <div class="auto">
+      <div class="up" style="--d:47.2s"><b>1</b>계획서 · 가설 · 변인</div>
+      <div class="up" style="--d:48.1s"><b>2</b>준비물 · 실험 방법</div>
+      <div class="up" style="--d:49s"><b>3</b>진행 기록 · 사진</div>
+      <div class="up" style="--d:49.9s"><b>4</b>측정값 · 그래프</div>
+      <div class="up" style="--d:50.8s"><b>5</b>고찰 · 결론 · 다음 실험</div>
+      <p class="fade" style="--d:52s">한 실험의 모든 기록이<br><strong>보고서 한 편</strong>으로 이어져요</p>
+    </div>
+  </section>
+
+  <!-- 6. 10년 검색 (56~65초) -->
+  <section class="scene" id="s6" style="--at:56s;--len:9.2s">
+    <div class="cap top up" style="--d:56.3s">10년 뒤의 후배도, 검색 한 번으로</div>
+    <div class="search up" style="--d:56.8s"><svg viewBox="0 0 24 24" fill="none" stroke="#7D1029" stroke-width="2.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="typed" style="--d:57.6s">레몬 전지</span><span class="caret"></span></div>
+    <div class="years fade" style="--d:58.6s"><div class="ax"></div></div>
+    <div class="res">
+      <div class="up" style="--d:59.8s"><i>2025 · 김기장</i>동전 전지: 구리 동전과 알루미늄 호일</div>
+      <div class="up" style="--d:60.2s"><i>2026 · 정다온</i><mark>레몬 전지</mark>: 전극 금속에 따라 전압이 달라질까?</div>
+      <div class="up" style="--d:60.6s"><i>2026 · 이하늘</i><mark>레몬 전지</mark> 병렬 연결: LED가 더 밝아질까?</div>
+      <div class="up" style="--d:61s"><i>2036 · 10년 뒤의 후배</i>선배의 실험에서 이어서, 나의 첫 실험</div>
+    </div>
+  </section>
+
+  <!-- 7. 안전 (65~73초) -->
+  <section class="scene" id="s7" style="--at:65s;--len:8.2s">
+    <div class="cap top up" style="--d:65.3s">우리 기록은, 우리가 지킵니다</div>
+    <div class="safe">
+      <div class="pop" style="--d:66.2s"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="56" fill="#FBEFF1"/><path d="M30 52a10 10 0 0 1 10-10h14l7 8h19a10 10 0 0 1 10 10v24a10 10 0 0 1-10 10H40a10 10 0 0 1-10-10z" fill="#7D1029"/><path d="m50 70 8 8 14-16" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><b>우리 드라이브에만</b><span>동아리 구글 드라이브에 저장되고<br>밖으로 나가지 않아요</span></div>
+      <div class="pop" style="--d:66.8s"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="56" fill="#FBEFF1"/><path d="M84 52a26 26 0 1 0 2 18" stroke="#7D1029" stroke-width="9" fill="none" stroke-linecap="round"/><path d="M88 34v20H68" stroke="#7D1029" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><b>매주 자동 백업</b><span>실수로 지워도<br>백업에서 되살려요</span></div>
+      <div class="pop" style="--d:67.4s"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="56" fill="#FBEFF1"/><rect x="40" y="24" width="40" height="72" rx="9" fill="#7D1029"/><path d="m50 60 7 7 14-15" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><b>기기 승인</b><span>처음 쓰는 기기는<br>기장 · 선생님이 승인해요</span></div>
+    </div>
+  </section>
+
+  <!-- 8. 마무리 (73~84초) -->
+  <section class="scene last" id="s8" style="--at:73s;--len:11s">
+    <svg viewBox="0 0 512 512">
+      <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+        <path pathLength="1" class="draw" style="--d:73.4s;--dur:1.2s" d="M164 432C190 356 228 304 284 254C326 216 356 176 368 128" stroke-width="42"/>
+        <path pathLength="1" class="draw" style="--d:74.1s;--dur:.7s" d="M232 318C196 292 164 262 140 222" stroke-width="30"/>
+        <path pathLength="1" class="draw" style="--d:74.4s;--dur:.7s" d="M298 240C334 246 368 262 400 288" stroke-width="28"/>
+      </g>
+      <g fill="#FFFFCC">
+        <g class="pop" style="--d:74.8s;transform-origin:138px 222px"><path d="M0 0C26-30 74-34 104-6C74 22 28 26 0 0Z" transform="translate(138 222) rotate(-132)"/></g>
+        <g class="pop" style="--d:75s;transform-origin:402px 290px"><path d="M0 0C26-30 74-34 104-6C74 22 28 26 0 0Z" transform="translate(402 290) rotate(28)"/></g>
+        <g class="pop" style="--d:75.2s;transform-origin:330px 182px"><path d="M0 0C22-26 62-28 88-6C62 18 24 22 0 0Z" transform="translate(330 182) rotate(-12)"/></g>
+      </g>
+      <g fill="#FFE27A" class="pop" style="--d:75.5s;transform-origin:368px 122px"><g class="breathe" style="--d:76.5s"><path d="M0 0C16-20 48-24 68-6C48 12 18 16 0 0Z" transform="translate(366 122) rotate(-128)"/><path d="M0 0C16-20 48-24 68-6C48 12 18 16 0 0Z" transform="translate(370 122) rotate(-58)"/></g></g>
+    </svg>
+    <div class="epec up" style="--d:75.6s;top:470px">EPEC × 가지</div>
+    <div class="q up" style="--d:76s;top:560px">한 번 하고 끝나는 실험 말고,<br><span>가지를 치며 자라는 연구</span></div>
+    <div class="u up" style="--d:77.4s">gaji-lab.web.app</div>
+    <div class="by up" id="by" style="--d:78.2s"></div>
+  </section>
+</div>
+<button id="replay" type="button">↻ 처음부터</button>
+
+<script>
+(function () {
+  /* 3장: 동전 전지에서 시작해 자라는 전지 연구 가지 (체험 동아리의 실제 예시 데이터) */
+  var C = { done: '#7D1029', run: '#8A3D6E', idea: '#C26A00' };
+  var N = [
+    { id: 'p1', x: 130, y: 610, t: '동전 전지: 구리 동전과 알루미늄 호일', m: '2025 · 김기장', k: 'done', d: 15.8 },
+    { id: 'p2', x: 480, y: 870, t: '소금물 농도에 따라 전압이 달라질까?', m: '2025 · 정다온', k: 'done', d: 17.3, p: 'p1' },
+    { id: 'b1', x: 480, y: 470, t: '레몬 전지: 전극 금속에 따라 전압이 달라질까?', m: '2026 · 정다온', k: 'done', d: 17.9, p: 'p1' },
+    { id: 'b2', x: 830, y: 350, t: '레몬 전지 직렬 연결: 몇 개면 LED가 켜질까?', m: '2026 · 정다온', k: 'done', d: 19.5, p: 'b1' },
+    { id: 'g1', x: 830, y: 720, t: '과일 종류에 따라 전압이 다를까?', m: '2026 · 한결', k: 'done', d: 20.1, p: 'b1' },
+    { id: 'b5', x: 1180, y: 270, t: '레몬 전지 병렬 연결: LED가 더 밝아질까?', m: '2026 · 이하늘', k: 'run', tag: '검토 중', d: 21.7, p: 'b2' },
+    { id: 'g3', x: 1180, y: 520, t: '레몬 전지로 디지털 시계 돌리기', m: '아이디어', k: 'idea', d: 22.3, p: 'b2' },
+    { id: 'g2', x: 1180, y: 790, t: '삶은 감자 전지는 전류가 더 클까?', m: '2026 · 한결', k: 'run', tag: '준비 중', d: 22.8, p: 'g1' },
+    { id: 'g23', x: 1520, y: 190, t: '[과학전람회] 레몬 전지 내부 저항', m: '2026 · 이하늘', k: 'run', tag: '계획', d: 25.2, p: 'b5' },
+    { id: 'g22', x: 1520, y: 420, t: '왜 전류가 작을까?', m: '아이디어 · 새싹', k: 'idea', d: 25.8, p: 'b5' },
+    { id: 'n1', x: 1520, y: 680, t: '다음 실험은, 당신이', m: '2027 · ?', k: 'idea', d: 28.4, p: 'g2' }
+  ];
+  var by = {}; N.forEach(function (n) { by[n.id] = n; });
+  var svg = '', lab = '';
+  N.forEach(function (n) {
+    if (n.p) {
+      var a = by[n.p], mx = (a.x + n.x) / 2;
+      svg += '<path pathLength="1" class="draw" style="--d:' + (n.d - .9) + 's;--dur:.9s" d="M' + a.x + ' ' + a.y + 'C' + mx + ' ' + a.y + ' ' + mx + ' ' + n.y + ' ' + n.x + ' ' + n.y + '" fill="none" stroke="' + (n.k === 'idea' ? '#E4B676' : '#DDA9B4') + '" stroke-width="' + (n.k === 'idea' ? 6 : 10) + '" stroke-linecap="round"' + (n.k === 'idea' ? ' stroke-dasharray="1"' : '') + '/>';
+    }
+    var o = 'transform-origin:' + n.x + 'px ' + n.y + 'px';
+    if (n.k === 'idea') svg += '<g class="pop" style="--d:' + n.d + 's;' + o + '"><circle class="breathe" style="--d:' + (n.d + .7) + 's" cx="' + n.x + '" cy="' + n.y + '" r="26" fill="#FFF3E3" stroke="' + C.idea + '" stroke-width="6" stroke-dasharray="9 7"/></g>';
+    else svg += '<g class="pop" style="--d:' + n.d + 's;' + o + '"><circle cx="' + n.x + '" cy="' + n.y + '" r="30" fill="' + C[n.k] + '"/>' + (n.k === 'done' ? '<path d="m' + (n.x - 12) + ' ' + n.y + ' 8 8 16-17" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' : '<circle cx="' + n.x + '" cy="' + n.y + '" r="10" fill="#fff"/>') + '</g>';
+    lab += '<div class="nl up' + (n.k === 'idea' ? ' idea' : '') + '" style="--d:' + (n.d + .2) + 's;left:' + (n.x - 40) + 'px;top:' + (n.y + 42) + 'px"><i>' + n.m + (n.tag ? '<span class="tag" style="background:#F6E8F0;color:#8A3D6E">' + n.tag + '</span>' : '') + '</i>' + n.t + '</div>';
+  });
+  // 줄기에 붙는 새순(작은 잎)들
+  [[310, 560, 18], [680, 400, 19.8], [1020, 300, 21.5], [680, 790, 20.6], [1360, 240, 25.5]].forEach(function (l) {
+    svg += '<g class="pop" style="--d:' + l[2] + 's;transform-origin:' + l[0] + 'px ' + l[1] + 'px"><path d="M0 0C10-14 30-16 44-4C30 8 12 10 0 0Z" fill="#E9C46A" transform="translate(' + l[0] + ' ' + l[1] + ') rotate(-40)"/></g>';
+  });
+  document.getElementById('tree').innerHTML = svg; document.getElementById('labels').innerHTML = lab;
+
+  /* 4장: 단계 */
+  var S = [['계획서', '목적 · 가설 · 방법'], ['교차 검토', '팀 밖 부원 2명'], ['최종 승인', '지도 선생님', 1], ['준비', '준비물 점검'], ['실험', '진행 도우미'], ['결과 기록', '측정값 · 사진'], ['보고서', '자동 완성']];
+  var chk = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg>';
+  var h = '<div class="rail"><i></i></div>';
+  S.forEach(function (s, i) { var d = 34.4 + i * 1.2; h += '<div class="st up' + (s[2] ? ' key' : '') + '" style="--d:' + (33.6 + i * .12) + 's;left:' + (i / (S.length - 1) * 100) + '%"><div class="c" style="--d:' + d + 's">' + (i + 1) + chk.replace('<svg', '<svg style="--d:' + d + 's;position:absolute"') + '</div><b>' + s[0] + '</b><span>' + s[1] + '</span></div>'; });
+  document.querySelector('.steps').innerHTML = h;
+
+  /* 6장: 연도 */
+  var Y = '<div class="ax"></div>', hits = { 2025: 59.6, 2026: 59.9, 2036: 60.8 };
+  for (var y = 2025; y <= 2036; y++) Y += '<div class="y' + (hits[y] ? ' hit' : '') + '" style="--d:' + (hits[y] || 0) + 's;left:' + ((y - 2025) / 11 * 100) + '%">' + (y % 1 === 0 && (y - 2025) % (y === 2036 ? 1 : 1) === 0 ? y : '') + '</div>';
+  document.querySelector('.years').innerHTML = Y;
+
+  var q = new URLSearchParams(location.search);
+  if (q.get('by')) document.getElementById('by').textContent = q.get('by');
+
+  /* 화면 크기에 맞춤 */
+  function fit() { var s = Math.min(innerWidth / 1920, innerHeight / 1080), st = document.getElementById('stage'); st.style.transform = 'translate(' + (innerWidth - 1920 * s) / 2 + 'px,' + (innerHeight - 1080 * s) / 2 + 'px) scale(' + s + ')'; }
+  addEventListener('resize', fit); fit();
+
+  /* 녹화용: window.seek(초) 로 그 시각 화면으로 멈춤 */
+  window.LENGTH = 84;
+  window.seek = function (t) { document.getAnimations().forEach(function (a) { a.pause(); a.currentTime = t * 1000; }); };
+  if (q.has('record')) { document.documentElement.classList.add('rec'); window.seek(0); }
+  if (q.has('t')) window.seek(Number(q.get('t')));
+  document.getElementById('replay').onclick = function () { document.getAnimations().forEach(function (a) { a.currentTime = 0; a.play(); }); };
+})();
+</script>
+</body>
+</html>
