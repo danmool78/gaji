@@ -47,6 +47,7 @@ async function landing() {
   }
   portal(head() +
     '<section class="p-hero"><h1>실험이 가지를 치며<br>이어지는 곳</h1><p>계획서 · 준비 · 측정 · 결과, 그리고 다음 실험까지. 실패한 실험도 다음 실험의 씨앗으로 남는 고등학교 실험 동아리 연구 관리 도구입니다.</p></section>' +
+    '<div class="p-video"><video class="about-video" controls playsinline preload="metadata" poster="/intro/gaji-intro.jpg"><source src="/intro/gaji-intro.mp4" type="video/mp4"></video><span class="muted">가지 소개 영상 · 1분 24초 <a href="/intro/gaji-shorts.mp4" target="_blank" rel="noopener">세로 영상(쇼츠)</a></span></div>' +
     '<div class="p-actions"><a class="btn primary" href="/c/demo">체험해 보기</a><button type="button" class="btn" data-p="create">우리 동아리 만들기</button></div>' +
     mine +
     '<div class="card p-note"><b>데이터는 각 동아리 구글 드라이브에만</b><span>가지 서버에는 동아리 이름 · 로고와 마스터 한 명의 계정 ID, 사용 현황 숫자만 저장돼요. 제작자도 동아리 기록을 볼 수 없습니다.</span></div>' +

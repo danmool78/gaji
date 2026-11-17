@@ -589,3 +589,8 @@ mark { background: var(--warn-bg); color: var(--fg); border-radius: 3px; padding
 .hof-v { font-size: 22px; font-weight: 900; letter-spacing: -.5px; line-height: 1.2; font-family: var(--f-num); }
 .hof-t { font-size: 14px; font-weight: 700; line-height: 1.45; }
 .hof-card small { font-size: 12px; line-height: 1.5; }
+
+/* 첫 화면 소개 영상 */
+.p-video { display: flex; flex-direction: column; gap: 8px; }
+.p-video .about-video { border-radius: 16px; box-shadow: var(--shadow); }
+.p-video span { font-size: 13px; padding: 0 4px; } .p-video a { color: inherit; font-weight: 700; }
