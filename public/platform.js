@@ -36,7 +36,7 @@ function gajiColors() { window.GAJI_PORTAL = true; const R = document.documentEl
 function portal(html) { gajiColors(); $('.app').hidden = true; const p = $('#portal'); p.hidden = false; p.innerHTML = '<div class="portal">' + html + '</div>'; }
 function showApp() { window.GAJI_PORTAL = false; $('#portal').hidden = true; $('.app').hidden = false; }
 const head = (sub) => '<header class="p-head"><a class="p-brand" href="/"><span class="logo">' + LOGO + '</span><span><b>가지</b><small>' + esc(sub || '실험이 가지를 치며 이어지는 곳') + '</small></span></a>' +
-  (user ? '<button type="button" class="chipbtn" data-p="logout">로그아웃</button>' : '') + '</header>';
+  (user ? '<button type="button" class="chipbtn" data-p="logout">로그아웃</button>' : '<button type="button" class="chipbtn" data-p="login" title="동아리 마스터 · 시스템 관리용 구글 로그인 (부원은 동아리 주소에서 학번 · 코드로 들어가요)">마스터 로그인</button>') + '</header>';
 
 /* ---------- 첫 화면 ---------- */
 async function landing() {
