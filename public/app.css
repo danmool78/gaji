@@ -644,3 +644,5 @@ body { overscroll-behavior-y: none; }
 .nb-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
 .nb-head b { font-size: 15px; color: var(--brand); } .nb-head .chipbtn { margin-left: auto; }
 .notice-board p { margin: 0; font-size: 15.5px; line-height: 1.65; font-weight: 600; overflow-wrap: anywhere; }
+
+.hello-n { color: var(--brand); font-family: var(--f-num); }

@@ -711,7 +711,7 @@
       '<div class="home-grid">' +
       // 왼쪽 = 해야 할 일
       '<section class="zone zone-do"><h2 class="zone-h"><span class="zone-dot"></span>해야 할 일<small>나와 동아리가 지금 챙길 것</small></h2>' +
-      '<div class="hello"><span class="muted">' + (TODAY.getMonth() + 1) + '월 ' + TODAY.getDate() + '일 ' + WD[TODAY.getDay()] + '요일 · ' + esc(meName()) + '</span><b>내가 할 일 ' + t.length + '개</b></div>' +
+      '<div class="hello"><span class="muted">' + (TODAY.getMonth() + 1) + '월 ' + TODAY.getDate() + '일 ' + WD[TODAY.getDay()] + '요일 · ' + esc(meName()) + '</span><b>내가 할 일 <span class="hello-n">' + t.length + '</span>개</b></div>' +
       '<div class="todo">' + (t.length ? t.slice(0, 6).map((x) => '<button type="button" class="todo-item' + (x.req ? ' req' : '') + '" data-item="' + x.n.id + '">' + ico(x.n) + '<span class="tx"><b>' + fieldTag(x.n) + esc(x.n.title) + '</b><small>' + esc(x.why) + '</small></span>' + (x.req ? '<span class="badge t-warn">검토 요청</span>' : badge(x.n)) + '</button>').join('') +
         (t.length > 6 ? '<button type="button" class="fold" data-act="findMine">내 것 모두 보기 (' + t.length + ') →</button>' : '')
         : '<div class="card empty">지금 할 일이 없어요. 새 실험을 만들거나, 아이디어에 담당 지원해 보세요.</div>') + '</div>' +
