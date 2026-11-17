@@ -668,7 +668,7 @@ body { overscroll-behavior-y: none; }
 /* 넓은 화면 왼쪽 메뉴: 동아리 주도 색 바탕 + 밝은 색 글자 · 고른 칸은 밝은 색 바탕 */
 @media (min-width: 768px) {
   .tabs { background: var(--brand); border-right: 0; gap: 8px; }
-  .tabs button { color: color-mix(in srgb, var(--on-brand, #fff) 70%, transparent); border-radius: 18px; margin: 0 4px; transition: background .15s, color .15s; }
+  .tabs button { color: color-mix(in srgb, var(--on-brand, #fff) 70%, transparent); border-radius: 18px; margin: 0 4px; transition: background .15s; }
   .tabs button:hover { background: color-mix(in srgb, var(--on-brand, #fff) 12%, transparent); color: var(--on-brand, #fff); }
   .tabs button[aria-current="page"] { background: var(--on-brand, #fff); color: var(--brand); box-shadow: 0 6px 16px rgba(0, 0, 0, .18); }
 }
@@ -765,3 +765,9 @@ textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3p
 .zone-sub .cnt { min-width: 0; height: auto; padding: 0; margin-left: 2px; border-radius: 0; background: none; box-shadow: none; color: var(--brand); font-family: var(--f-num); font-size: 22px; font-weight: 800; letter-spacing: -.5px; line-height: 1; font-variant-numeric: tabular-nums; }
 :root[data-theme="dark"] .zone-sub .cnt { filter: brightness(1.35); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .zone-sub .cnt { filter: brightness(1.35); } }
+/* 보고서 글자 한 단계 작게 */
+.report { font-size: 14px; line-height: 1.75; }
+.rp-cover h2 { font-size: 24px; } .rp-h h3 { font-size: 16px; } .rp-cover .rp-meta { font-size: 12.5px; }
+.rp-club b { font-size: 15px; } .rp-sbox b { font-size: 13.5px; }
+@media (max-width: 700px) { .report { font-size: 13.5px; } .rp-cover h2 { font-size: 20px; } .rp-h h3 { font-size: 15px; } }
+@media print { .report { font-size: 10pt; line-height: 1.75; } .rp-cover h2 { font-size: 18pt; } .rp-h h3 { font-size: 12pt; } .rp-cover .rp-meta { font-size: 9pt; } }
