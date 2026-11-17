@@ -169,7 +169,7 @@
     setTimeout(() => rpc('tidy', null, null, { quiet: true }).then((r) => { if (r && r.moved) liveLoad(); }, () => {}), 4000);
   }
   function masterExtras() {   // 마스터: 연결기 판 확인 · 사용 현황 숫자 보내기 (뒤에서)
-    if (PF.isMaster && !PF.connVer) rpc('ping', null, null, { quiet: true }).then((pg) => { PF.connVer = pg.version; render(); }, () => {});
+    if (PF.isMaster && !PF.connVer) rpc('ping', null, null, { quiet: true }).then((pg) => { PF.connVer = pg.version; PF.connShell = pg.shell || ''; render(); }, () => {});
     if (PF.isMaster && PF.api && !PF.statsSent) { PF.statsSent = true; rpc('stats', null, null, { quiet: true }).then((st) => PF.api.saveStats(st)).catch(() => {}); }
   }
   function applyLoad(d) {
@@ -399,6 +399,7 @@
       '<span class="code muted" style="font-size:12px;word-break:break-all">' + esc(c.connector) + '</span>' +
       (PF.connAuth === 'core' ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기가 가지 본체를 받지 못해요 · 권한 허용이 필요해요</span><span style="font-weight:400;line-height:1.7">① Apps Script 화면 위쪽 <b>▷ 실행</b> 버튼 왼쪽의 함수 목록에서 <b>권한허용</b>(없으면 <b>doGet</b>) 고르기<br>② <b>▷ 실행</b> → <b>권한 검토</b> → 내 계정 → <b>고급 → 이동 → 허용</b><br>③ 여기서 <b>연결 시험</b> (다시 배포할 필요 없어요)</span></div>' : '') +
       (PF.connAuth === true ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기가 응답하지 않아요 · 권한 허용이 필요할 수 있어요</span><span style="font-weight:400;line-height:1.7">① <b>연결기 권한 확인</b>을 눌러 새 창 열기<br>② ‘권한 필요’ 또는 ‘액세스 승인’이 나오면 → <b>권한 검토</b> → 내 계정 → <b>고급 → 이동 → 허용</b><br>③ 새 창에 <b>"gaji":true</b> 글자가 보이면 성공 → 여기서 <b>연결 시험</b></span></div>' : '') +
+      (PF.connVer && !verOld(PF.connVer, LATEST_VER) && PF.connShell !== undefined && Number(PF.connShell || 0) < 4 ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>사진 올리기를 쓰려면 연결기를 한 번 더 배포해야 해요</span><span style="font-weight:400;line-height:1.7">① 아래 <b>연결기 코드 복사</b> → Apps Script에 덮어쓰고 저장<br>② 함수 목록에서 <b>권한허용</b> → ▷ 실행 → 허용<br>③ <b>배포 → 배포 관리</b> → 연필 모양 → 버전: <b>새 버전</b> → 배포 (주소는 그대로)<br>④ 여기서 <b>연결 시험</b></span></div>' : '') +
       (PF.connVer ? (verOld(PF.connVer)
         ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기 업데이트 필요 · 지금 ' + esc(PF.connVer) + ' → 새 판 ' + NEED_VER + '</span><span style="font-weight:400;line-height:1.7">① 아래 <b>연결기 코드 복사</b> → Apps Script에 덮어쓰고 저장<br>② <b>배포 → 배포 관리</b> → 연필 모양(수정) → 버전: <b>새 버전</b> → 배포<br>③ 여기서 <b>연결 시험</b> → ' + NEED_VER + ' 확인</span></div>'
         : verOld(PF.connVer, LATEST_VER)
@@ -1699,7 +1700,7 @@
       return render();
     }
     if (act === 'copyGs') return copyGs();
-    if (act === 'testConn') { rpc('ping').then((p) => { PF.connVer = p.version; PF.connAuth = false; render(); toast('연결 정상 · 연결기 ' + p.version + (verOld(p.version) ? ' · 업데이트 필요' : '')); }, (er) => { if (er.code === 'network') { PF.connAuth = true; } render(); toast(er.code === 'network' ? '연결기가 응답하지 않아요 · 아래 안내대로 권한을 허용해 주세요' : er.message); }); return; }
+    if (act === 'testConn') { rpc('ping').then((p) => { PF.connVer = p.version; PF.connShell = p.shell || ''; PF.connAuth = false; render(); toast('연결 정상 · 연결기 ' + p.version + (verOld(p.version) ? ' · 업데이트 필요' : '')); }, (er) => { if (er.code === 'network') { PF.connAuth = true; } render(); toast(er.code === 'network' ? '연결기가 응답하지 않아요 · 아래 안내대로 권한을 허용해 주세요' : er.message); }); return; }
     if (act === 'rewire') { PF.rewire = true; return render(); }
     if (act === 'rewireCancel') { PF.rewire = false; return render(); }
     if (act === 'reset') { db = freshSample(); save(); toast('예시 데이터로 되돌렸어요'); return render(); }

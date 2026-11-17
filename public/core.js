@@ -46,7 +46,7 @@ function GajiCore(store, util, drive) {
 
   /* ---------- 동작 ---------- */
   var A = {};
-  A.ping = function () { return { version: GAJI_CONNECTOR_VERSION, initialized: initialized(), slug: setting('slug', ''), keyed: setting('masterKeyHash', '') !== '' }; };
+  A.ping = function () { return { version: GAJI_CONNECTOR_VERSION, shell: typeof GAJI_SHELL_VERSION !== 'undefined' ? String(GAJI_SHELL_VERSION) : '', initialized: initialized(), slug: setting('slug', ''), keyed: setting('masterKeyHash', '') !== '' }; };
 
   A.init = function (q) {
     if (initialized()) err('already', '이미 준비된 연결기예요');
