@@ -12,7 +12,7 @@
  *       → 유형: 웹 앱 / 실행: 나 / 액세스: 모든 사용자 → 배포 → 권한 허용 → 웹 앱 URL을 가지에 붙여넣기
  * ------------------------------------------------------------
  */
-var GAJI_SHELL_VERSION = '5';
+var GAJI_SHELL_VERSION = '6';
 var GAJI_CORE_URL = 'https://gaji-lab.web.app/core.js';
 
 function gajiCore_() {
@@ -72,6 +72,10 @@ function 권한허용() {
    보고서를 구글 문서로 / 결과 공유회 발표 자료(구글 슬라이드) / 실험 일정(구글 캘린더) /
    주간 백업 메일 / 예약 실행(주간 백업) — 모두 이 계정 안에서만 쓰여요 */
 function 권한목록_() {
-  SpreadsheetApp.getActiveSpreadsheet(); UrlFetchApp.fetch; DriveApp.getRootFolder; DocumentApp.create;
-  SlidesApp.create; CalendarApp.getDefaultCalendar; MailApp.sendEmail; ScriptApp.newTrigger; Session.getEffectiveUser; LockService.getScriptLock;
+  // 읽기만 하는 함수만 적으면 구글이 '읽기 권한'만 줘요. 그래서 쓰기(만들기 · 고치기) 함수를 적어요.
+  SpreadsheetApp.create; SpreadsheetApp.openById; UrlFetchApp.fetch;
+  DriveApp.createFolder; DriveApp.createFile; DriveApp.getFileById; DriveApp.getFolderById;
+  DocumentApp.create; DocumentApp.openById; SlidesApp.create; SlidesApp.openById;
+  CalendarApp.createCalendar; CalendarApp.getDefaultCalendar;
+  MailApp.sendEmail; ScriptApp.newTrigger; ScriptApp.getProjectTriggers; Session.getEffectiveUser; LockService.getScriptLock;
 }

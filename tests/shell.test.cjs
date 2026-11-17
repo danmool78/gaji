@@ -28,7 +28,7 @@ const post = (q) => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify
 const get = () => JSON.parse(ctx.doGet().t);
 const clearCache = () => Object.keys(cache).forEach((k) => delete cache[k]);
 
-ok('doGet version', get().data.version === '2.6.2' && get().data.shell === '5', get());
+ok('doGet version', get().data.version === '2.6.2' && get().data.shell === '6', get());
 ok('core stored in chunks', Number(props.gaji_core_n) >= 3);
 const init = post({ action: 'init', slug: 't', name: '김', studentId: '1', label: 'PC', masterKey: 'K'.repeat(40) });
 ok('init via shell', init.ok, init);
