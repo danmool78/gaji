@@ -569,7 +569,7 @@
     return '<div class="menu">' +
       (PF.isMaster ? mi('club', 'var(--brand)', 'M8 15a4 4 0 1 0 0-.01zM11 12l8.5-8.5M16.5 6.5l3 3M14 9l2 2', '동아리 관리', '동아리 주소 · 학교 계정 · 마스터 넘기기') : '') +
       (isAdmin() ? mi('people', 'var(--done)', 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v1M17 11l2 2 4-4', '부원 · 기기', '부원 추가 · 개인 코드 · 기기 승인') : '') +
-      mi('settings', 'var(--club)', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z', '설정', '드라이브 연결 · 동아리 이름 · 로고 · 색 · 화면 밝기') +
+      mi('settings', 'var(--club)', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z', '설정', (PF.isMaster ? '드라이브 연결 · ' : '') + '동아리 이름 · 로고 · 색 · 화면 밝기') +
       mi('board', 'var(--exp)', 'M3 4h5v16H3zM10 4h5v11h-5zM17 4h4v7h-4z', '보드', '단계별로 실험 카드 보기 (관리자용)') +
       mi('map', 'var(--q)', 'M12 12m-2.5 0a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0 -5 0M5 5m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M19 6m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M6 19m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M10.2 10.2L6.4 6.4M13.8 11l3.6-3.6M10.3 13.8L7.4 17.4', '전체 지도', '동아리 연구 전체를 한 장으로 (발표용)') +
       mi('about', 'var(--idea)', 'M6 7v10M18 11c0 4-6 3-12 6', '가지 소개', '체험 모드 · 드라이브 연결 안내') +
@@ -613,8 +613,7 @@
     const box = (badge, body) => '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">드라이브 연결</b>' + badge + '</div>' + body + '</div>';
     if (!PF.club) return box('<span class="badge t-neutral">체험 모드</span>', '<span class="muted" style="font-size:13px;line-height:1.6">드라이브 연결은 동아리마다 따로 해요. 우리 동아리를 만들면 그 동아리의 설정에서 동아리 드라이브를 연결할 수 있어요. 지금 화면은 체험용이라 이 기기에만 저장돼요.</span><a class="btn primary" href="/new">우리 동아리 만들기</a>');
     if (PF.isMaster) { fetchGs(); return connectCard(); }
-    return box(PF.mode === 'live' ? '<span class="badge t-ok">● 연결됨</span>' : '<span class="badge t-warn">● 연결 전</span>', '<span class="muted" style="font-size:13px;line-height:1.6">' + (PF.mode === 'live' ? '이 동아리의 기록은 동아리 구글 드라이브에 저장돼요. 연결은 동아리 마스터가 관리해요.' : '동아리 마스터가 구글로 로그인해 연결할 수 있어요.') + '</span>' +
-      (PF.isMaster || !PF.api ? '' : '<button type="button" class="chipbtn" data-act="pfLogin" style="align-self:flex-start">동아리 마스터라면 구글로 로그인</button>'));
+    return '';   // 부원 · 관리자에게는 보이지 않음 (연결은 동아리 마스터만)
   }
   function viewClub() {
     if (!PF.isMaster) return '<div class="card empty">동아리 마스터만 볼 수 있어요.</div>';
