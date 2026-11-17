@@ -1190,7 +1190,7 @@
         const steps = (n.plan && n.plan.steps) || []; if (steps.length && Object.keys(n.run.done).length === steps.length) toast('모든 단계 끝! 측정값을 넣고 실험을 끝내요'); return true; }
       case 'noteDel': if (n.run) { n.run.notes = (n.run.notes || []).filter((x) => x.id !== a.dataset.nid); save(); render(); } return true;
       case 'runEnd': if (!confirm('실험을 끝내고 결과 기록으로 넘어갈까요?')) return true;
-        n.run = n.run || { done: {}, notes: [] }; n.run.ended = nowIso(); if (!n.run.started) n.run.started = n.run.ended; n.status = '실험 완료'; PF.myMoves[n.id] = Date.now(); save(); back(); recordForm(n); return true;
+        n.run = n.run || { done: {}, notes: [] }; n.run.ended = nowIso(); if (!n.run.started) n.run.started = n.run.ended; n.date = dstr(new Date(n.run.started)); n.status = '실험 완료'; PF.myMoves[n.id] = Date.now(); save(); back(); recordForm(n); return true;
       case 'itemMenu': itemMenu(n); return true;
       case 'editItem': editForm(n); return true;
       case 'moveItem': moveSheet(n); return true;
