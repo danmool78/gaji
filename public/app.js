@@ -153,7 +153,7 @@
     try {
       const d = await rpc('load');
       PF.me = d.me; PF.rev = d.rev; PF.newDevices = (d.newDevices || []).filter((x) => !(prefs.seenDev || []).includes(x.id));
-      db = { settings: db.settings, nodes: d.nodes.map(fixNode), links: d.links, lines: d.lines || {}, lastNo: d.lastNo || { exp: 0, q: 0, res: 0 } };
+      db = { settings: db.settings, nodes: d.nodes.map(fixNode), links: d.links, lines: d.lines || {}, lastNo: d.lastNo || { exp: 0, q: 0, res: 0 }, comments: d.comments || [] }; PF.members = d.members || [];
       PF.base = snapshot(); PF.mode = 'live'; PF.notice = ''; render(); pollRev();
       if (PF.isMaster && !PF.connVer) rpc('ping').then((pg) => { PF.connVer = pg.version; render(); }, () => {});
       if (PF.isMaster && PF.api && !PF.statsSent) { PF.statsSent = true; rpc('stats').then((st) => PF.api.saveStats(st)).catch(() => {}); }
@@ -163,21 +163,22 @@
   /* 바꾼 것만 연결기로 보냄 → 번호는 연결기가 매김 */
   function dirty() {
     const nodes = db.nodes.filter((n) => PF.base.nodes[n.id] !== JSON.stringify(n)), links = db.links.filter((l) => !PF.base.links.has(lkey(l)));
+    const now = new Set(db.links.map(lkey)), unlinks = [...PF.base.links].filter((k) => !now.has(k)).map((k) => { const [s, t, kk] = k.split('|'); return { s, t, k: kk, off: true }; });
     const lines = JSON.stringify(db.lines) !== PF.base.lines;
-    return nodes.length || links.length || lines ? { nodes, links, lines } : null;
+    return nodes.length || links.length || unlinks.length || lines ? { nodes, links, unlinks, lines } : null;
   }
   function scheduleSync() { clearTimeout(scheduleSync.t); scheduleSync.t = setTimeout(doSync, 300); }
   async function doSync() {
     if (PF.mode !== 'live') return; if (PF.busy) return scheduleSync();
     const d = dirty(); if (!d) return;
-    const sent = d.nodes.map((n) => JSON.parse(JSON.stringify(n))), links = d.links.map((l) => ({ s: l.s, t: l.t, k: l.k })), lines = Object.assign({}, db.lines);
+    const sent = d.nodes.map((n) => JSON.parse(JSON.stringify(n))), links = d.links.map((l) => ({ s: l.s, t: l.t, k: l.k })).concat(d.unlinks), lines = Object.assign({}, db.lines);
     PF.busy = true; applyBrand();
     try {
       const r = await rpc('sync', { nodes: sent, links, lines });
       PF.busy = false;
       if (r.rejected && r.rejected.length) { toast('결과 판정 · 취소 · 단계 되돌리기는 관리자만 할 수 있어요'); return liveLoad(); }
       sent.forEach((s) => { const no = r.assigned && r.assigned[s.id]; const n = byId(s.id); if (no) { s.no = no; if (n) n.no = no; } PF.base.nodes[s.id] = JSON.stringify(s); });
-      links.forEach((l) => PF.base.links.add(lkey(l))); PF.base.lines = JSON.stringify(lines);
+      links.forEach((l) => (l.off ? PF.base.links.delete(lkey(l)) : PF.base.links.add(lkey(l)))); PF.base.lines = JSON.stringify(lines);
       PF.rev = r.rev; render();
       if (dirty()) scheduleSync();
     } catch (e) { PF.busy = false; applyBrand(); if (!deviceLost(e)) { toast('저장하지 못했어요 · 잠시 뒤 다시 보낼게요'); clearTimeout(scheduleSync.t); scheduleSync.t = setTimeout(doSync, 8000); } }
@@ -456,8 +457,8 @@
     if (n.type === 'res') return ['t-neutral', n.status || '자료'];
     if (n.status === '취소') return ['t-neutral', '취소'];
     if (n.status === '기록 완료') return n.verdict === '가설 기각' ? ['t-bad', '가설 기각'] : ['t-ok', n.verdict || '기록 완료'];
-    if (n.status === '준비 중') { const s = n.signal || 0; return s >= 5 ? ['t-ok', '● GO'] : (days(n.date) <= 7 ? ['t-bad', '● 위험 ' + s + '/5'] : ['t-warn', '● 준비 ' + s + '/5']); }
-    if (n.status === '검토 중') return (n.review || 0) >= 2 ? ['t-ok', '검토 2/2'] : ['t-warn', '검토 ' + (n.review || 0) + '/2'];
+    if (n.status === '준비 중') { const s = signalOf(n); return s >= 5 ? ['t-ok', '● GO'] : (days(n.date) <= 7 ? ['t-bad', '● 위험 ' + s + '/5'] : ['t-warn', '● 준비 ' + s + '/5']); }
+    if (n.status === '검토 중') { const k = reviewCount(n); return k >= 2 ? ['t-ok', '검토 2/2'] : ['t-warn', '검토 ' + k + '/2']; }
     if (n.status === '실험 완료') return ['t-warn', '기록 대기'];
     return ['t-neutral', n.status];
   }
@@ -467,16 +468,16 @@
   const badge = (n) => { const t = tone(n); return '<span class="badge ' + t[0] + '">' + esc(t[1]) + '</span>'; };
 
   /* ---------- 계보 ---------- */
-  function parentOf(n) { const l = db.links.find((l) => l.t === n.id && (l.k === 'follow' || l.k === 'next')); const p = l && byId(l.s); return isExpLike(p) ? p : null; }
+  function parentOf(n) { const l = db.links.find((l) => l.t === n.id && (l.k === 'follow' || l.k === 'next')); const p = l && byId(l.s); return isExpLike(p) && !isDel(p) ? p : null; }
   function lineage(n) { const c = [n]; let cur = n, g = 0; while (g++ < 40) { const p = parentOf(cur); if (!p || c.includes(p)) break; c.unshift(p); cur = p; } return c; }
-  function childrenOf(n) { return db.links.filter((l) => l.s === n.id && (l.k === 'follow' || l.k === 'next')).map((l) => byId(l.t)).filter(isExpLike).sort((a, b) => a.date.localeCompare(b.date)); }
+  function childrenOf(n) { return db.links.filter((l) => l.s === n.id && (l.k === 'follow' || l.k === 'next')).map((l) => byId(l.t)).filter((x) => isExpLike(x) && !isDel(x)).sort((a, b) => a.date.localeCompare(b.date)); }
   function treeRows(roots) { const rows = [], seen = new Set(); (function walk(list, d, p) { list.forEach((x) => { if (seen.has(x.id)) return; seen.add(x.id); rows.push({ n: x, depth: d, parent: p }); walk(childrenOf(x), d + 1, x); }); })(roots, 0, null); return rows; }
   const familyRows = (n) => treeRows([lineage(n)[0]]);
   const after = (n) => treeRows([n]).length - 1;
 
   /* 줄기 = 같은 연구 주제(line)로 묶인 뿌리 실험들의 나무 */
   function computeLines() {
-    const roots = db.nodes.filter((n) => isExpLike(n) && !parentOf(n));
+    const roots = alive().filter((n) => isExpLike(n) && !parentOf(n));
     const groups = {};
     roots.forEach((r) => { const k = r.line || ('_' + r.id); (groups[k] = groups[k] || []).push(r); });
     return Object.entries(groups).map(([k, rs]) => {
@@ -565,7 +566,7 @@
   /* ---------- 홈 ---------- */
   function todos() {
     const out = [];
-    db.nodes.forEach((n) => {
+    alive().forEach((n) => {
       if (n.type === 'exp' && n.status === '준비 중' && (n.signal || 0) < 5 && days(n.date) <= 14) out.push({ n, why: '실험 ' + (days(n.date) >= 0 ? 'D-' + days(n.date) : '날짜 지남') + ' · 출발 신호 ' + (n.signal || 0) + '/5', w: days(n.date) });
       if (n.type === 'exp' && n.status === '검토 중' && (n.review || 0) < 2) out.push({ n, why: '검토가 ' + (2 - (n.review || 0)) + '명 더 필요해요', w: days(n.date) - 3 });
       if (n.type === 'exp' && n.status === '실험 완료') out.push({ n, why: '결과 기록을 남겨 주세요', w: 1 });
@@ -603,7 +604,7 @@
       h += '<div class="grid2 wide3">' + live.map(lineCard).join('') + '</div>' || '<div class="card empty">아직 가지가 없어요. 홈에서 새 실험이나 아이디어를 올려 보세요.</div>';
       if (done.length) h += '<button type="button" class="fold" data-fold>' + (prefs.showDone ? '▾' : '▸') + ' 끝난 줄기 ' + done.length + '개</button>' + (prefs.showDone ? '<div class="grid2 wide3">' + done.map(lineCard).join('') + '</div>' : '');
     } else {
-      const items = db.nodes.filter(isExpLike).filter((n) => n.status !== '취소').sort((a, b) => a.date.localeCompare(b.date));
+      const items = alive().filter(isExpLike).filter((n) => n.status !== '취소').sort((a, b) => a.date.localeCompare(b.date));
       let m = '', t = false; h += '<div class="day-list">';
       items.forEach((n) => { const d = new Date(n.date), mk = d.getFullYear() + '-' + d.getMonth();
         if (mk !== m) { m = mk; h += '<div class="month">' + (d.getFullYear() !== TODAY.getFullYear() ? d.getFullYear() + '년 ' : '') + (d.getMonth() + 1) + '월</div>'; }
@@ -627,14 +628,23 @@
   function cond(ok, label) { return '<div><span class="cdot" style="background:' + (ok ? 'var(--done)' : 'var(--edge)') + '"><svg viewBox="0 0 24 24"><path d="' + (ok ? ICON.check : ICON.minus) + '"/></svg></span>' + label + '</div>'; }
   function viewItem(id) {
     const n = byId(id); if (!n) return '<div class="card empty">항목을 찾지 못했어요.</div>';
-    let h = '<div class="detail-head"><div class="idrow">' + ico(n) + '<span class="idchip">' + esc(code(n)) + '</span><button type="button" class="chipbtn" data-act="copy">번호 복사</button><span class="muted" style="font-size:12px">' + TYPE[n.type].label + ' · ' + esc(n.field) + '</span></div>' +
-      '<h2>' + esc(n.title) + '</h2><div class="idrow">' + badge(n) + (n.type === 'exp' && tone(n)[1] !== n.status ? '<span class="badge t-info">' + esc(n.status) + '</span>' : '') + '</div></div>';
+    if (isDel(n)) return '<div class="card empty">휴지통에 있는 항목이에요. <button type="button" class="chipbtn" data-act="restore" data-id="' + esc(n.id) + '">되살리기</button></div>';
+    let h = '<div class="detail-head"><div class="idrow">' + ico(n) + '<span class="idchip">' + esc(code(n)) + '</span><button type="button" class="chipbtn" data-act="copy">번호 복사</button><span class="muted" style="font-size:12px">' + TYPE[n.type].label + ' · ' + esc(n.field) + (n.owner ? ' · ' + esc(n.owner) : '') + '</span><button type="button" class="chipbtn more-btn" data-act="itemMenu" aria-label="더 보기">⋯ 관리</button></div>' +
+      '<h2>' + esc(n.title) + '</h2><div class="idrow">' + badge(n) + (n.type === 'exp' && tone(n)[1] !== n.status ? '<span class="badge t-info">' + esc(n.status) + '</span>' : '') + (isFinal(n) ? '<span class="badge t-ok">보고서 확정</span>' : '') + '</div></div>';
+    h += nowCard(n);
     if (isExpLike(n)) { const rows = familyRows(n);
       h += '<div class="card"><div class="panel-title"><span>이 실험의 가지 · ' + lineage(n).length + '세대' + (after(n) ? ' · 후속 ' + after(n) + '개' : '') + '</span><span>' + esc(lineName(lineage(n)[0].line)) + '</span></div>' + branchSvg(rows, n.id) + '</div>'; }
     if (n.type === 'idea') { const r = ready(n); h += '<div class="card conds">' + cond(r[0], '같이 해요 3명 이상 (' + (n.fans || 0) + '명)') + cond(r[1], n.volunteer ? '담당 지원 · ' + esc(n.volunteer) : '담당 지원자 없음') + cond(r[2], '과학실 장비로 가능') + '</div>'; }
-    h += '<div class="btn-row">' + actions(n) + '</div>';
-    if (n.report) h += reportCard(n);
-    h += '<div class="card"><dl class="kv"><dt>고유번호</dt><dd><span class="code">' + esc(uid(n)) + '</span> <span class="muted" style="font-size:12px">바뀌지 않음</span></dd>' + (n.owner ? '<dt>담당</dt><dd>' + esc(n.owner) + '</dd>' : '') + '<dt>' + (n.type === 'exp' ? '실험일' : '날짜') + '</dt><dd>' + fmt(n.date) + (isExpLike(n) && days(n.date) >= 0 && n.status !== '기록 완료' ? ' · D-' + days(n.date) : '') + '</dd></dl>' + (n.desc ? '<p style="margin:12px 0 0;font-size:14px;line-height:1.7">' + esc(n.desc) + '</p>' : '') + '</div>';
+    const act = actions(n); if (act) h += '<div class="btn-row">' + act + '</div>';
+    if (n.desc) h += '<div class="card"><p style="margin:0;font-size:14px;line-height:1.7">' + para(n.desc) + '</p></div>';
+    const st = n.status, F = (key, label, html) => html ? fold(n, key, label, html) : '';
+    const rec = n.report ? reportCard(n) : '';
+    if (n.type !== 'exp' || st === '계획 작성' || st === '검토 중' || st === '취소') h += planCard(n) + prepCard(n) + runCard(n) + rec;
+    else if (st === '준비 중') h += prepCard(n) + runCard(n) + F('plan', planSum(n), planCard(n)) + rec;
+    else if (st === '실험 완료') h += runCard(n) + rec + F('prep', '준비 점검 ' + prepState(n).k + '/' + prepState(n).total, prepCard(n)) + F('plan', planSum(n), planCard(n));
+    else h += rec + F('run', runSum(n), runCard(n)) + F('prep', '준비 점검 ' + prepState(n).k + '/' + prepState(n).total, prepCard(n)) + F('plan', planSum(n), planCard(n));
+    h += commentsCard(n);
+    h += '<div class="card"><dl class="kv"><dt>고유번호</dt><dd><span class="code">' + esc(uid(n)) + '</span> <span class="muted" style="font-size:12px">바뀌지 않음</span></dd>' + (n.owner ? '<dt>담당</dt><dd>' + esc(n.owner) + '</dd>' : '') + (n.createdBy ? '<dt>만든 사람</dt><dd>' + esc(n.createdBy) + '</dd>' : '') + '<dt>' + (n.type === 'exp' ? '실험일' : '날짜') + '</dt><dd>' + fmt(n.date) + (isExpLike(n) && days(n.date) >= 0 && n.status !== '기록 완료' ? ' · D-' + days(n.date) : '') + '</dd></dl></div>';
     h += '<div class="card"><div class="panel-title"><span>관련된 것</span><span>누르면 이동</span></div>' + relationSvg(n) + '</div>';
     return h;
   }
@@ -648,12 +658,9 @@
     if (n.type === 'idea') { const ok = ready(n).every(Boolean);
       return '<button type="button" class="btn" data-act="fan">같이 해요 +1</button>' + (ok ? '<button type="button" class="btn primary" data-act="convert">계획서로 만들기</button>' : (!n.volunteer ? '<button type="button" class="btn" data-act="volunteer">담당 지원</button>' : '<button type="button" class="btn" data-act="equip">장비 확인</button>')); }
     if (n.type === 'exp' && n.status !== '취소') { const i = STAGES.indexOf(n.status);
-      return (n.status === '실험 완료' ? '<button type="button" class="btn primary" data-act="record">결과 기록하기' + (n.report ? ' (이어서)' : '') + '</button>'
-          : n.status === '기록 완료' ? '<button type="button" class="btn" data-act="record">기록 고치기</button>'
-          : i > 0 && i < STAGES.length - 1 ? '<button type="button" class="btn blue" data-act="advance">다음 단계: ' + STAGES[i + 1] + '</button>' : '') +
-        (canBack(n) ? '<button type="button" class="btn" data-act="stageBack">이전 단계로: ' + STAGES[i - 1] + '</button>' : '') +
+      return (canBack(n) ? '<button type="button" class="btn" data-act="stageBack">이전 단계로: ' + STAGES[i - 1] + '</button>' : '') +
         '<button type="button" class="btn" data-act="branch">이어서 가지 치기</button>'; }
-    if (n.type === 'q' && n.status !== '해결') return '<button type="button" class="btn primary" data-act="solve">해결됨으로 표시</button><button type="button" class="btn" data-act="toIdea">실험 아이디어로</button>';
+    if (n.type === 'q') return n.status === '해결' ? '<button type="button" class="btn" data-act="toIdea">실험 아이디어로</button>' : '<button type="button" class="btn primary" data-act="solve">해결됨으로 표시</button><button type="button" class="btn" data-act="toIdea">실험 아이디어로</button>';
     return '';
   }
 
@@ -704,6 +711,8 @@
         '<label id="unitBox" style="display:' + (kind === 'rep' ? 'flex' : 'none') + ';gap:6px;align-items:center;font-weight:400">값의 단위<input name="unit" maxlength="12" value="' + esc(r.unit || '') + '" placeholder="예: ℃" style="width:100px;min-height:36px"></label></div>' +
       '<label class="field">관찰한 것<textarea name="observe" maxlength="800" placeholder="예: 농도가 높을수록 끓는점이 올라갔어요.">' + esc(r.observe || '') + '</textarea></label>' +
       '<div class="field">결론 <span class="muted" style="font-weight:400">최종 판정은 관리자가 해요</span><div class="seg" style="grid-template-columns:repeat(3,1fr)">' + CLAIMS.map((c) => '<button type="button" data-claim="' + c + '" aria-pressed="' + (r.claim === c) + '">' + c + '</button>').join('') + '</div><input type="hidden" name="claim" value="' + esc(r.claim || '') + '"></div>' +
+      '<label class="field">고찰 <span class="muted" style="font-weight:400">결과가 왜 이렇게 나왔는지 · 오차 원인 · 고칠 점</span><textarea name="discuss" rows="4" maxlength="2000" placeholder="예: 구리-아연 조합이 가장 높았던 것은 두 금속의 반응성 차이가 가장 크기 때문이다. 3회째 값이 낮은 것은 레몬 즙이 줄었기 때문으로 보인다.">' + esc(r.discuss || '') + '</textarea></label>' +
+      '<label class="field">결론 (한두 문장)<textarea name="conclusion" rows="2" maxlength="600" placeholder="예: 전극 금속의 반응성 차이가 클수록 레몬 전지의 전압이 높았다.">' + esc(r.conclusion || '') + '</textarea></label>' +
       '<label class="field">다음에 해 볼 것<textarea name="next" maxlength="400" placeholder="예: 설탕으로도 같은 실험">' + esc(r.next || '') + '</textarea></label>' +
       '<div class="btn-row"><button type="submit" class="btn" name="mode" value="draft">임시 저장</button><button type="submit" class="btn primary" name="mode" value="done">' + (n.status === '기록 완료' ? '고친 기록 저장' : '기록 완료로 제출') + '</button></div></form>');
   }
@@ -726,9 +735,10 @@
   function saveRecord(fm, submitter) {
     const n = byId(fm.dataset.id); if (!n) return;
     const fd = new FormData(fm), table = readGrid(fm), done = submitter && submitter.value === 'done';
-    const rep = { summary: String(fd.get('summary') || '').trim(), kind: String(fd.get('kind') || 'rep'), unit: String(fd.get('unit') || '').trim(), table, observe: String(fd.get('observe') || '').trim(), claim: String(fd.get('claim') || ''), next: String(fd.get('next') || '').trim(), by: meName(), at: dstr(TODAY) };
+    const rep = { summary: String(fd.get('summary') || '').trim(), kind: String(fd.get('kind') || 'rep'), unit: String(fd.get('unit') || '').trim(), table, observe: String(fd.get('observe') || '').trim(), discuss: String(fd.get('discuss') || '').trim(), conclusion: String(fd.get('conclusion') || '').trim(), claim: String(fd.get('claim') || ''), next: String(fd.get('next') || '').trim(), by: meName(), at: dstr(TODAY) };
     if (done && !rep.summary && !table.rows.length && !rep.observe) return toast('요약 · 측정값 · 관찰 중 하나는 넣어 주세요');
     if (done && !rep.claim) return toast('결론을 골라 주세요');
+    if (n.report && n.report.final) rep.final = n.report.final;
     n.report = rep;
     if (done && n.status === '실험 완료') { n.status = '기록 완료'; if (PF.mode !== 'live' || isAdmin()) n.verdict = rep.claim; PF.myMoves[n.id] = Date.now(); }
     save(); closeSheet(); render();
@@ -750,6 +760,8 @@
       }
     }
     if (r.observe) h += '<div><small class="muted">관찰한 것</small><p>' + esc(r.observe) + '</p></div>';
+    if (r.discuss) h += '<div><small class="muted">고찰</small><p>' + para(r.discuss) + '</p></div>';
+    if (r.conclusion) h += '<div><small class="muted">결론</small><p><b>' + para(r.conclusion) + '</b></p></div>';
     h += '<div class="rec-claim"><span>결론 제안 <b>' + esc(r.claim || '-') + '</b></span><span>판정 ' + (n.verdict ? '<span class="badge ' + (n.verdict === '가설 기각' ? 't-bad' : n.verdict === '가설 지지' ? 't-ok' : 't-warn') + '">' + esc(n.verdict) + '</span>' : '<span class="badge t-neutral">판정 대기</span>') + '</span></div>';
     if (n.status === '기록 완료' && (PF.mode !== 'live' || isAdmin())) h += '<div class="seg" style="grid-template-columns:repeat(3,1fr)" aria-label="판정 (관리자)">' + CLAIMS.map((c) => '<button type="button" data-verdict="' + c + '" aria-pressed="' + (n.verdict === c) + '">' + c + '</button>').join('') + '</div>';
     if (r.next) h += '<div><small class="muted">다음에 해 볼 것</small><p>' + esc(r.next) + '</p><button type="button" class="chipbtn" data-act="nextIdea">이걸로 아이디어 만들기</button></div>';
@@ -763,9 +775,14 @@
 
   /* ---------- 그래프 ---------- */
   const CW = 320, CH = 180, CL = 42, CB = 144, CT = 14, CR = 10;
-  const axisY = (min, max, y) => [max, (max + min) / 2, min].map((v) => '<text x="' + (CL - 6) + '" y="' + (y(v) + 4) + '" font-size="10" text-anchor="end" fill="var(--muted)">' + r3(v) + '</text><line x1="' + CL + '" x2="' + (CW - CR) + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="var(--line)" stroke-dasharray="3 4"/>').join('');
+  const niceStep = (span) => { const raw = (span || 1) / 4, mag = Math.pow(10, Math.floor(Math.log10(raw))), k = raw / mag; return (k <= 1 ? 1 : k <= 2 ? 2 : k <= 2.5 ? 2.5 : k <= 5 ? 5 : 10) * mag; };
+  const axisY = (min, max, y) => { const st = niceStep(max - min), out = []; for (let v = Math.ceil(min / st - 1e-9) * st; v <= max + st * 1e-6; v += st) out.push(Math.abs(v) < st * 1e-6 ? 0 : v);
+    return out.map((v) => '<text x="' + (CL - 6) + '" y="' + (y(v) + 4) + '" font-size="10" text-anchor="end" fill="var(--muted)">' + r3(v) + '</text><line x1="' + CL + '" x2="' + (CW - CR) + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="var(--line)" stroke-dasharray="3 4"/>').join(''); };
   const svgWrap = (g, label, note) => '<svg viewBox="0 0 ' + CW + ' ' + CH + '" class="rec-chart" role="img" aria-label="' + esc(label) + '">' + g + '</svg>' + (note ? '<small class="muted" style="margin-top:-6px">' + note + '</small>' : '');
-  function range(vals, zero) { let lo = Math.min(...vals), hi = Math.max(...vals); if (zero) lo = Math.min(0, lo); if (hi === lo) { hi += 1; lo -= zero ? 0 : 1; } const pad = (hi - lo) * 0.08; return [zero && lo === 0 ? 0 : lo - pad, hi + pad]; }
+  function range(vals, zero) {
+    let lo = Math.min(...vals), hi = Math.max(...vals); if (zero) lo = Math.min(0, lo); if (hi === lo) { hi += Math.abs(hi) * 0.1 || 1; if (!zero) lo -= Math.abs(lo) * 0.1 || 1; }
+    const st = niceStep((hi - lo) * 1.1); return [zero && lo >= 0 ? 0 : Math.floor(lo / st) * st, Math.ceil(hi / st + 0.05) * st];
+  }
   // 조건별 반복: 막대 + 오차 막대(±표준편차)
   function barChart(st, unit) {
     const [min, max] = range(st.flatMap((x) => [x.s.m + x.s.sd, x.s.m - x.s.sd]), true);
@@ -815,6 +832,366 @@
     return svgWrap(g, '두 값의 관계 산점도', '점: 측정값 · 점선: 추세선 <span class="code">' + eq + '</span> · <b>R² = ' + r2.toFixed(3) + '</b>' + (r2 >= 0.9 ? ' (아주 강한 관계)' : r2 >= 0.6 ? ' (뚜렷한 관계)' : r2 >= 0.3 ? ' (약한 관계)' : ' (관계가 거의 없음)'));
   }
 
+  /* ================= 실험 과정: 계획서 · 검토 · 준비 · 진행 · 보고서 · 댓글 =================
+   * 노드에 더 붙는 값
+   *   plan = { purpose, hypo, ind, dep, ctrl, materials: [], steps: [], safety, roles, expect, refs, by, at }
+   *   prep = { done: { 항목: 시각 }, extra: [] }
+   *   run  = { started, ended, done: { 단계번호: 시각 }, notes: [{ id, at, by, kind, text }] }
+   *   report += { discuss, conclusion, final: { by, at } }
+   *   deleted = 'true' 이면 휴지통 */
+  const isDel = (n) => !!n && (n.deleted === true || n.deleted === 'true');
+  const alive = () => db.nodes.filter((n) => !isDel(n));
+  const allComments = () => db.comments || (db.comments = []);
+  const commentsOf = (id, sec) => allComments().filter((c) => c.node === id && (sec === undefined || c.sec === sec));
+  const approvals = (n) => commentsOf(n.id).filter((c) => c.kind === 'approve');
+  const reviewCount = (n) => Math.max(+n.review || 0, approvals(n).length);
+  const isMine = (n) => PF.mode !== 'live' || n.owner === meName() || n.createdBy === meName();
+  const isFinal = (n) => !!(n.report && n.report.final);
+  const canEdit = (n) => !isFinal(n) || PF.mode !== 'live' || isAdmin();
+  const canDelete = (n) => PF.mode !== 'live' || isAdmin() || isMine(n);
+  const nowIso = () => new Date().toISOString();
+  const hm = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+  const md = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : (d.getMonth() + 1) + '/' + d.getDate(); };
+  const lines = (t) => String(t || '').split('\n').map((x) => x.replace(/^\s*(\d+[.)]|[-*•·])\s*/, '').trim()).filter(Boolean);
+  const para = (t) => esc(t).replace(/\n/g, '<br>');
+  const newCid = () => 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+  const PLAN = [
+    ['purpose', '연구 동기와 목적', '왜 이 실험을 하나요? 무엇을 알고 싶나요?'],
+    ['hypo', '가설', '예: 두 전극 금속의 반응성 차이가 클수록 전압이 높을 것이다.'],
+    ['ind', '조작 변인 (바꾸는 것)', '예: 전극 금속 조합 (구리-아연, 구리-철, 구리-알루미늄)'],
+    ['dep', '종속 변인 (재는 것)', '예: 전압(V) · 멀티미터로 측정'],
+    ['ctrl', '통제 변인 (똑같이 둘 것)', '예: 레몬 크기, 전극 간격 2cm, 꽂는 깊이 3cm'],
+    ['materials', '준비물 (한 줄에 하나)', '멀티미터 1개\n구리판 3장\n아연판 3장'],
+    ['steps', '실험 방법 (한 줄에 한 단계)', '레몬을 굴려 즙이 잘 나오게 한다\n전극 두 개를 2cm 간격으로 꽂는다\n멀티미터로 전압을 잰다'],
+    ['safety', '안전 주의', '예: 금속판 모서리에 손 베지 않게 장갑'],
+    ['roles', '역할 분담', '예: 측정 - 김성수 · 기록 - 이하늘'],
+    ['expect', '예상 결과', '예: 구리-아연이 가장 높고 구리-철이 가장 낮을 것'],
+    ['refs', '참고 자료', '교과서 쪽수, 논문, 사이트 주소']
+  ];
+  const LISTS = { materials: 1, steps: 1 };
+  const planReady = (p) => !!(p && p.purpose && p.steps && p.steps.length);
+  const PREP_BASE = ['실험 장소 · 시간 정하기', '안전 장비 (보안경 · 장갑)', '결과 기록 표 미리 만들기', '역할 나누기', '선생님께 알리기'];
+  function prepItems(n) { const p = n.plan || {}, x = n.prep || {}; return (p.materials || []).map((m) => '준비물: ' + m).concat(PREP_BASE, x.extra || []); }
+  function prepState(n) { const items = prepItems(n), done = (n.prep && n.prep.done) || {}; const k = items.filter((i) => done[i]).length; return { items, done, k, total: items.length }; }
+  const signalOf = (n) => { if (!n.plan) return +n.signal || 0; const s = prepState(n); return s.total ? Math.round(5 * s.k / s.total) : 0; };
+
+  /* ---------- 단계 표시줄 + 지금 할 일 ---------- */
+  const FLOW = [['계획 작성', '계획'], ['검토 중', '검토'], ['준비 중', '준비'], ['실험 완료', '기록'], ['기록 완료', '보고서']];
+  function stepper(n) {
+    const i = FLOW.findIndex((f) => f[0] === n.status);
+    return '<ol class="stepper" aria-label="실험 단계">' + FLOW.map((f, k) => '<li class="' + (k < i ? 'done' : k === i ? 'now' : '') + '"><span>' + (k < i ? '✓' : k + 1) + '</span>' + f[1] + '</li>').join('') + '</ol>';
+  }
+  function nowCard(n) {
+    if (n.type !== 'exp' || n.status === '취소') return '';
+    const b = (act, label, cls) => '<button type="button" class="btn ' + (cls || '') + '" data-act="' + act + '">' + label + '</button>';
+    let title = '', body = '', btns = '';
+    const lock = !canEdit(n);
+    if (n.status === '계획 작성') {
+      if (!planReady(n.plan)) { title = '계획서를 써요'; body = '목적 · 가설 · 변인 · 준비물 · 방법을 정리하면 검토를 요청할 수 있어요.'; btns = b('plan', n.plan ? '계획서 이어 쓰기' : '계획서 쓰기', 'primary'); }
+      else { title = '검토를 요청해요'; body = '계획서를 다 썼어요. 다른 부원 2명이 읽고 승인하면 준비를 시작해요.'; btns = b('askReview', '검토 요청하기', 'primary') + b('plan', '계획서 고치기'); }
+    } else if (n.status === '검토 중') {
+      const ap = approvals(n), k = reviewCount(n), open = commentsOf(n.id).filter((c) => (c.kind === 'fix' || c.kind === 'change') && !c.resolved).length;
+      title = '검토 중 · 승인 ' + Math.min(k, 2) + '/2'; body = (ap.length ? '승인: ' + ap.map((c) => esc(c.by)).join(', ') + '. ' : '') + (open ? '고칠 곳 ' + open + '개가 남아 있어요.' : '계획서를 읽고 승인하거나 고칠 곳을 남겨 주세요.');
+      if (PF.mode !== 'live' || !isMine(n)) btns += b('approve', approvals(n).some((c) => c.by === meName()) ? '승인함 ✓' : '승인', 'primary') + b('fixNote', '고칠 곳 남기기');
+      if (isMine(n)) btns += b('plan', '계획서 고치기');
+      if (k >= 2) btns += b('advance', '준비 시작', 'blue'); else if (isAdmin() || PF.mode !== 'live') btns += b('advance', '검토 없이 준비 시작' + (PF.mode !== 'live' ? ' (체험)' : ''));
+    } else if (n.status === '준비 중') {
+      const s = prepState(n), go = s.total && s.k === s.total;
+      title = go ? '준비 끝 · 실험을 시작해요' : '준비물을 챙겨요 · ' + s.k + '/' + s.total; body = go ? '진행 도우미가 방법을 한 단계씩 보여 줘요.' : '아래 준비 점검을 하나씩 체크하세요. 덜 됐어도 시작할 수는 있어요.';
+      btns = b('runOpen', n.run && n.run.started ? '진행 도우미 이어서' : '실험 시작 · 진행 도우미', go ? 'primary' : '') ;
+    } else if (n.status === '실험 완료') {
+      title = '결과를 기록해요'; body = '측정값 · 관찰 · 고찰 · 결론을 남기면 보고서가 만들어져요.'; btns = b('record', n.report ? '결과 기록 이어 쓰기' : '결과 기록하기', 'primary') + (n.run ? b('runOpen', '진행 노트 보기') : '');
+    } else if (n.status === '기록 완료') {
+      title = isFinal(n) ? '보고서 확정됨' : '보고서를 다듬어요'; body = isFinal(n) ? esc(n.report.final.by) + ' · ' + md(n.report.final.at) + ' 확정. 고치려면 관리자가 확정을 풀어야 해요.' : '보고서를 보고 첨삭을 받아 고친 뒤 관리자가 확정해요.';
+      btns = b('report', '보고서 보기', 'primary') + (lock ? '' : b('record', '기록 고치기'));
+    }
+    return '<div class="card now-card">' + stepper(n) + '<b class="now-t">' + title + '</b><span class="muted now-b">' + body + '</span><div class="btn-row">' + btns + '</div></div>';
+  }
+
+  /* 지난 단계 칸 접기 (펼친 상태는 기억) */
+  function fold(n, key, label, html) { const k = n.id + ':' + key; return '<details class="fold" data-fk="' + esc(k) + '"' + (PF.unfold && PF.unfold[k] ? ' open' : '') + '><summary><span>' + esc(label) + '</span><small>펼치기</small></summary>' + html + '</details>'; }
+  const planSum = (n) => '계획서' + (n.plan && n.plan.purpose ? ' · ' + n.plan.purpose.slice(0, 26) + (n.plan.purpose.length > 26 ? '…' : '') : '');
+  const runSum = (n) => '진행 노트 · 단계 ' + Object.keys((n.run && n.run.done) || {}).length + '/' + ((n.plan && n.plan.steps) || []).length + ' · 메모 ' + ((n.run && n.run.notes) || []).length;
+  document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.matches && d.matches('details[data-fk]')) { PF.unfold = PF.unfold || {}; PF.unfold[d.dataset.fk] = d.open; } }, true);
+
+  /* ---------- 계획서 ---------- */
+  function secChip(n, sec) {
+    const all = commentsOf(n.id, sec), open = all.filter((c) => !c.resolved && c.kind !== 'approve').length;
+    return '<button type="button" class="chipbtn sec-chip' + (open ? ' has' : '') + '" data-act="secNotes" data-sec="' + sec + '">' + (all.length ? '첨삭 ' + (open ? open : '✓') : '첨삭') + '</button>';
+  }
+  function planCard(n) {
+    const p = n.plan;
+    if (!p) return n.type === 'exp' && n.status !== '취소' ? '<div class="card sec-card"><div class="sec-head"><b>계획서</b></div><span class="muted">아직 계획서가 없어요.</span>' + (canEdit(n) ? '<div class="btn-row"><button type="button" class="btn" data-act="plan">계획서 쓰기</button></div>' : '') + '</div>' : '';
+    let h = '<div class="card sec-card"><div class="sec-head"><b>계획서</b><span class="muted">' + esc(p.by || '') + (p.at ? ' · ' + md(p.at) : '') + '</span>' + (canEdit(n) ? '<button type="button" class="chipbtn" data-act="plan">고치기</button>' : '') + '</div>';
+    PLAN.forEach(([k, label]) => {
+      const v = p[k]; if (!v || (Array.isArray(v) && !v.length)) return;
+      h += '<div class="pl"><div class="pl-h"><small>' + label.replace(/ \(.*\)$/, '') + '</small>' + secChip(n, 'plan.' + k) + '</div>' +
+        (LISTS[k] ? (k === 'steps' ? '<ol>' : '<ul>') + v.map((x) => '<li>' + esc(x) + '</li>').join('') + (k === 'steps' ? '</ol>' : '</ul>') : '<p>' + para(v) + '</p>') + '</div>';
+    });
+    return h + '</div>';
+  }
+  function planForm(n) {
+    const p = n.plan || {};
+    openSheet('<h3>계획서 · ' + esc(code(n)) + '</h3><form id="planForm" data-id="' + esc(n.id) + '" style="display:flex;flex-direction:column;gap:12px">' +
+      PLAN.map(([k, label, ph]) => '<label class="field">' + label + '<textarea name="' + k + '" rows="' + (LISTS[k] ? 5 : 3) + '" maxlength="1500" placeholder="' + esc(ph) + '">' + esc(LISTS[k] ? (p[k] || []).join('\n') : p[k] || '') + '</textarea></label>').join('') +
+      '<div class="btn-row"><button type="button" class="btn" data-act="closeSheet">닫기</button><button type="submit" class="btn primary">저장</button></div></form>');
+  }
+  function savePlan(fm) {
+    const n = byId(fm.dataset.id); if (!n) return; const fd = new FormData(fm), p = {};
+    PLAN.forEach(([k]) => { const v = String(fd.get(k) || '').trim(); p[k] = LISTS[k] ? lines(v) : v; });
+    p.by = meName(); p.at = nowIso(); n.plan = p; save(); closeSheet(); render();
+    toast(planReady(p) ? (n.status === '계획 작성' ? '저장했어요 · 이제 검토를 요청할 수 있어요' : '계획서를 고쳤어요') : '저장했어요 · 목적과 방법을 채우면 검토를 요청할 수 있어요');
+  }
+
+  /* ---------- 준비 점검 ---------- */
+  function prepCard(n) {
+    if (n.type !== 'exp' || !['준비 중', '실험 완료', '기록 완료'].includes(n.status)) return '';
+    const s = prepState(n), edit = n.status === '준비 중' && canEdit(n);
+    return '<div class="card sec-card"><div class="sec-head"><b>준비 점검</b><span class="muted">' + s.k + '/' + s.total + ' · 출발 신호 ' + signalOf(n) + '/5</span></div>' +
+      '<div class="meter"><i style="width:' + (s.total ? Math.round(100 * s.k / s.total) : 0) + '%"></i></div>' +
+      '<div class="checks">' + s.items.map((it) => '<button type="button" class="ck' + (s.done[it] ? ' on' : '') + '" data-act="prepToggle" data-pi="' + esc(it) + '"' + (edit ? '' : ' disabled') + '><span class="box">' + (s.done[it] ? '✓' : '') + '</span><span>' + esc(it) + '</span>' + (s.done[it] && s.done[it] !== true ? '<small>' + md(s.done[it]) + '</small>' : '') + '</button>').join('') + '</div>' +
+      (edit ? '<form id="prepAdd" class="inline-add"><input name="t" maxlength="60" placeholder="챙길 것 추가 (예: 여분 전선)"><button type="submit" class="chipbtn">추가</button></form>' : '') + '</div>';
+  }
+  function prepToggle(n, item) {
+    if (!canEdit(n) || n.status !== '준비 중') return;
+    n.prep = n.prep || { done: {}, extra: [] }; n.prep.done = n.prep.done || {};
+    if (n.prep.done[item]) delete n.prep.done[item]; else n.prep.done[item] = nowIso();
+    n.signal = signalOf(n); save(); render();
+    const s = prepState(n); if (s.k === s.total) toast('준비 끝! 실험을 시작할 수 있어요');
+  }
+
+  /* ---------- 진행 도우미 (실험 당일) ---------- */
+  const NOTE_KIND = { obs: '관찰', change: '바꾼 점', problem: '문제' };
+  function viewRun(id) {
+    const n = byId(id); if (!n) return '<div class="card empty">항목을 찾지 못했어요.</div>';
+    const steps = (n.plan && n.plan.steps) || [], r = n.run || {}, done = r.done || {}, curI = steps.findIndex((_, i) => !done[i]), ended = !!r.ended;
+    let h = '<div class="run-head"><span class="idchip">' + esc(code(n)) + '</span><b>' + esc(n.title) + '</b><span class="muted">' + (r.started ? '시작 ' + md(r.started) + ' ' + hm(r.started) : '아직 시작 전') + (ended ? ' · 끝 ' + hm(r.ended) : '') + '</span></div>';
+    if (!steps.length) h += '<div class="card muted">계획서에 실험 방법이 없어요. 계획서에 단계를 적으면 여기서 하나씩 체크할 수 있어요. <button type="button" class="chipbtn" data-act="plan">계획서 고치기</button></div>';
+    else h += '<div class="card run-steps">' + steps.map((s, i) => '<button type="button" class="rs' + (done[i] ? ' on' : '') + (i === curI && !ended ? ' cur' : '') + '" data-act="stepToggle" data-i="' + i + '"' + (ended && !isAdmin() && PF.mode === 'live' ? ' disabled' : '') + '><span class="rs-n">' + (done[i] ? '✓' : i + 1) + '</span><span class="rs-t">' + esc(s) + '</span>' + (done[i] ? '<small>' + hm(done[i]) + '</small>' : '') + '</button>').join('') + '</div>';
+    h += '<form id="noteForm" class="card note-form"><b>메모 남기기</b><div class="seg" style="grid-template-columns:repeat(3,1fr)">' + Object.entries(NOTE_KIND).map(([k, l], i) => '<button type="button" data-nk="' + k + '" aria-pressed="' + (i === 0) + '">' + l + '</button>').join('') + '</div><input type="hidden" name="kind" value="obs">' +
+      '<textarea name="text" rows="2" maxlength="500" placeholder="예: 3번째 레몬은 즙이 적어 전압이 낮게 나옴"></textarea><div class="btn-row"><button type="submit" class="btn">메모 남기기</button><button type="button" class="btn" data-act="record">측정값 넣기</button></div></form>';
+    const notes = (r.notes || []).slice().reverse();
+    if (notes.length) h += '<div class="card sec-card"><div class="sec-head"><b>진행 노트</b><span class="muted">' + notes.length + '개</span></div>' + notes.map((x) => '<div class="nt"><span class="badge ' + (x.kind === 'problem' ? 't-bad' : x.kind === 'change' ? 't-warn' : 't-info') + '">' + (NOTE_KIND[x.kind] || '메모') + '</span><span class="nt-t">' + para(x.text) + '<small class="muted">' + esc(x.by || '') + ' · ' + hm(x.at) + '</small></span>' + (x.by === meName() || isAdmin() || PF.mode !== 'live' ? '<button type="button" class="chipbtn" data-act="noteDel" data-nid="' + esc(x.id) + '">지우기</button>' : '') + '</div>').join('') + '</div>';
+    if (n.status === '준비 중') h += '<div class="btn-row"><button type="button" class="btn primary" data-act="runEnd">실험 끝내기 · 결과 기록으로</button></div>';
+    return h;
+  }
+  function runStart(n) { if (n.run && n.run.started) return; n.run = Object.assign({ done: {}, notes: [] }, n.run || {}, { started: nowIso() }); save(); }
+  function runCard(n) {
+    const r = n.run; if (!r || (!r.started && !(r.notes || []).length)) return '';
+    const steps = (n.plan && n.plan.steps) || [], k = Object.keys(r.done || {}).length;
+    return '<div class="card sec-card"><div class="sec-head"><b>진행 노트</b><span class="muted">' + (r.started ? md(r.started) + ' ' + hm(r.started) : '') + (r.ended ? '~' + hm(r.ended) : '') + ' · 단계 ' + k + '/' + steps.length + ' · 메모 ' + (r.notes || []).length + '</span><button type="button" class="chipbtn" data-act="runOpen">열기</button></div>' +
+      (r.notes || []).slice(-3).map((x) => '<div class="nt"><span class="badge ' + (x.kind === 'problem' ? 't-bad' : x.kind === 'change' ? 't-warn' : 't-info') + '">' + (NOTE_KIND[x.kind] || '메모') + '</span><span class="nt-t">' + para(x.text) + '<small class="muted">' + hm(x.at) + '</small></span></div>').join('') + '</div>';
+  }
+
+  /* ---------- 댓글 · 첨삭 ---------- */
+  const CKIND = { note: ['댓글', 't-neutral'], fix: ['첨삭', 't-warn'], approve: ['승인', 't-ok'], change: ['수정 요청', 't-bad'], answer: ['답변', 't-info'] };
+  function secLabel(sec) {
+    if (!sec) return '';
+    const [a, b] = sec.split('.'); if (a === 'plan') { const f = PLAN.find((x) => x[0] === b); return '계획서 · ' + (f ? f[1].replace(/ \(.*\)$/, '') : b); }
+    if (a === 'report') { const f = REPORT_SECS.find((x) => x[0] === b); return '보고서 · ' + (f ? f[1] : b); }
+    return sec;
+  }
+  function commentHTML(c) {
+    const mine = c.by === meName() || PF.mode !== 'live', k = CKIND[c.kind] || CKIND.note;
+    return '<div class="cm' + (c.resolved ? ' done' : '') + '"><div class="cm-h"><span class="badge ' + k[1] + '">' + k[0] + '</span><b>' + esc(c.by) + '</b>' + (c.role && c.role !== '부원' ? '<small class="muted">' + esc(c.role) + '</small>' : '') + '<small class="muted">' + md(c.at) + ' ' + hm(c.at) + (c.editedAt ? ' · 고침' : '') + '</small>' + (c.sec ? '<small class="cm-sec">' + esc(secLabel(c.sec)) + '</small>' : '') + '</div>' +
+      (c.text ? '<p>' + para(c.text) + '</p>' : '') + '<div class="cm-a">' +
+      (c.kind !== 'approve' && c.kind !== 'note' && c.kind !== 'answer' ? '<button type="button" class="chipbtn" data-act="cmResolve" data-cid="' + esc(c.id) + '">' + (c.resolved ? '다시 열기' : '고쳤어요') + '</button>' : '') +
+      (mine && c.kind !== 'approve' ? '<button type="button" class="chipbtn" data-act="cmEdit" data-cid="' + esc(c.id) + '">고치기</button>' : '') +
+      (mine || isAdmin() ? '<button type="button" class="chipbtn" data-act="cmDel" data-cid="' + esc(c.id) + '">지우기</button>' : '') + '</div></div>';
+  }
+  function commentsCard(n) {
+    const list = commentsOf(n.id).slice().sort((a, b) => String(a.at).localeCompare(String(b.at)));
+    const q = n.type === 'q';
+    return '<div class="card sec-card" id="comments"><div class="sec-head"><b>' + (q ? '답변 · 댓글' : '댓글 · 첨삭') + '</b><span class="muted">' + list.length + '개</span></div>' + list.map(commentHTML).join('') +
+      '<form class="cm-add" data-node="' + esc(n.id) + '"><textarea name="text" rows="2" maxlength="1000" placeholder="' + (q ? '아는 만큼 답해 주세요' : '의견 · 질문 · 고칠 곳을 남겨요') + '"></textarea><input type="hidden" name="sec" value=""><div class="btn-row">' +
+      (q ? '<button type="submit" class="btn primary" name="kind" value="answer">답변 남기기</button><button type="submit" class="btn" name="kind" value="note">댓글</button>'
+        : '<button type="submit" class="btn" name="kind" value="note">댓글 남기기</button>' + (n.type === 'exp' ? '<button type="submit" class="btn" name="kind" value="fix">첨삭으로 남기기</button>' : '')) + '</div></form></div>';
+  }
+  function secSheet(n, sec) {
+    const list = commentsOf(n.id, sec);
+    openSheet('<h3>첨삭 · ' + esc(secLabel(sec)) + '</h3>' + (list.length ? list.map(commentHTML).join('') : '<p class="muted">아직 첨삭이 없어요.</p>') +
+      '<form class="cm-add" data-node="' + esc(n.id) + '"><textarea name="text" rows="3" maxlength="1000" placeholder="이 부분에서 고칠 점 · 좋은 점"></textarea><input type="hidden" name="sec" value="' + esc(sec) + '"><div class="btn-row"><button type="button" class="btn" data-act="closeSheet">닫기</button><button type="submit" class="btn primary" name="kind" value="fix">첨삭 남기기</button></div></form>');
+  }
+  function fixSheet(n) {
+    const opts = PLAN.filter(([k]) => n.plan && n.plan[k] && (!Array.isArray(n.plan[k]) || n.plan[k].length)).map(([k, l]) => '<option value="plan.' + k + '">계획서 · ' + l.replace(/ \(.*\)$/, '') + '</option>').join('');
+    openSheet('<h3>고칠 곳 남기기</h3><form class="cm-add" data-node="' + esc(n.id) + '"><label class="field">어느 부분<select name="sec"><option value="">전체</option>' + opts + '</select></label><textarea name="text" rows="4" maxlength="1000" placeholder="예: 통제 변인에 전극 간격도 넣어 주세요"></textarea><div class="btn-row"><button type="button" class="btn" data-act="closeSheet">닫기</button><button type="submit" class="btn primary" name="kind" value="change">수정 요청 남기기</button></div></form>');
+  }
+  async function addComment(nodeId, kind, sec, text) {
+    text = String(text || '').trim(); if (!text && kind !== 'approve') { toast('내용을 써 주세요'); return false; }
+    if (PF.mode === 'live') {
+      try { const r = await rpc('comment', { node: nodeId, kind, sec, text }); if (kind === 'approve') db.comments = allComments().filter((c) => !(c.node === nodeId && c.kind === 'approve' && c.by === meName())); allComments().push(r.comment); }
+      catch (e) { if (!deviceLost(e)) toast(e.message); return false; }
+    } else {
+      if (kind === 'approve') db.comments = allComments().filter((c) => !(c.node === nodeId && c.kind === 'approve' && c.by === meName()));
+      allComments().push({ id: newCid(), node: nodeId, sec: sec || '', kind, text, by: meName(), role: '', at: nowIso(), resolved: false }); save();
+    }
+    render(); return true;
+  }
+  async function commentOp(op, cid, text) {
+    const c = allComments().find((x) => x.id === cid); if (!c) return;
+    if (PF.mode === 'live') { try { await rpc('comment', { op, id: cid, text }); } catch (e) { if (!deviceLost(e)) toast(e.message); return; } }
+    if (op === 'delete') db.comments = allComments().filter((x) => x.id !== cid);
+    if (op === 'edit') { c.text = text; c.editedAt = nowIso(); }
+    if (op === 'resolve' || op === 'reopen') c.resolved = op === 'resolve';
+    if (PF.mode !== 'live') save();
+    render();
+  }
+
+  /* ---------- 고치기 · 가지 옮기기 · 휴지통 ---------- */
+  function itemMenu(n) {
+    const b = (act, label, cls) => '<button type="button" class="btn ' + (cls || '') + '" data-act="' + act + '">' + label + '</button>';
+    openSheet('<h3>' + esc(n.title) + '</h3><div style="display:flex;flex-direction:column;gap:10px">' +
+      (canEdit(n) ? b('editItem', '제목 · 날짜 · 담당 고치기') : '') + (isExpLike(n) ? b('moveItem', '가지 옮기기') : '') +
+      (n.type === 'exp' && n.status !== '취소' && (isAdmin() || PF.mode !== 'live') ? b('cancelExp', '실험 취소 (기록은 남김)') : '') +
+      (canDelete(n) ? b('trashItem', '휴지통으로', 'danger') : '') + b('closeSheet', '닫기') + '</div>');
+  }
+  function editForm(n) {
+    const mem = (PF.members || []).map((m) => m.name), owners = mem.length ? mem : [];
+    openSheet('<h3>고치기 · ' + esc(code(n)) + '</h3><form id="editForm" data-id="' + esc(n.id) + '" style="display:flex;flex-direction:column;gap:12px">' +
+      '<label class="field">제목<input name="title" maxlength="60" required value="' + esc(n.title) + '"></label>' +
+      '<label class="field">분야<select name="field">' + Object.keys(FCODE).map((f) => '<option' + (n.field === f ? ' selected' : '') + '>' + f + '</option>').join('') + '</select></label>' +
+      '<label class="field">' + (n.type === 'exp' ? '실험 예정일' : '날짜') + '<input type="date" name="date" value="' + esc(n.date || '') + '"></label>' +
+      (n.type !== 'q' ? '<label class="field">담당' + (owners.length ? '<select name="owner"><option value="">없음</option>' + owners.map((o) => '<option' + (n.owner === o ? ' selected' : '') + '>' + esc(o) + '</option>').join('') + '</select>' : '<input name="owner" maxlength="20" value="' + esc(n.owner || '') + '">') + '</label>' : '') +
+      (isExpLike(n) && !parentOf(n) ? '<label class="field">연구 줄기 이름<input name="lineName" maxlength="20" value="' + esc(lineName(n.line)) + '"></label>' : '') +
+      '<label class="field">설명<textarea name="desc" rows="3" maxlength="600">' + esc(n.desc || '') + '</textarea></label>' +
+      '<div class="btn-row"><button type="button" class="btn" data-act="closeSheet">취소</button><button type="submit" class="btn primary">저장</button></div></form>');
+  }
+  function saveEdit(fm) {
+    const n = byId(fm.dataset.id); if (!n) return; const fd = new FormData(fm);
+    n.title = String(fd.get('title')).trim().slice(0, 60) || n.title; n.field = String(fd.get('field') || n.field); if (fd.get('date')) n.date = String(fd.get('date'));
+    if (fd.has('owner')) n.owner = String(fd.get('owner') || '').trim(); n.desc = String(fd.get('desc') || '').trim();
+    if (fd.has('lineName') && n.line) { const ln = String(fd.get('lineName')).trim().slice(0, 20); if (ln) db.lines[n.line] = ln; }
+    save(); closeSheet(); render(); toast('고쳤어요');
+  }
+  function descendants(n) { return treeRows([n]).map((r) => r.n.id); }
+  function moveSheet(n) {
+    const bad = new Set(descendants(n)), cur = parentOf(n);
+    const cands = alive().filter((x) => isExpLike(x) && !bad.has(x.id) && x.status !== '취소').sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    openSheet('<h3>가지 옮기기</h3><p class="muted" style="margin:0 0 8px">' + esc(n.title) + '을(를) 어느 실험에서 이어지게 할까요? 이 실험 뒤에 이어진 실험도 함께 옮겨져요.</p><div class="move-list">' +
+      '<button type="button" class="srow" data-act="moveTo" data-id=""><span class="tx"><b>뿌리로 (새 줄기의 시작)</b><small>어느 실험에도 이어지지 않음</small></span>' + (!cur ? '<span class="badge t-info">지금</span>' : '') + '</button>' +
+      cands.map((x) => '<button type="button" class="srow" data-act="moveTo" data-id="' + esc(x.id) + '">' + ico(x) + '<span class="tx"><small class="code">' + esc(code(x)) + ' · ' + esc(lineName(lineage(x)[0].line)) + '</small><b>' + esc(x.title) + '</b></span>' + (cur && cur.id === x.id ? '<span class="badge t-info">지금</span>' : '') + '</button>').join('') +
+      '</div><div class="btn-row"><button type="button" class="btn" data-act="closeSheet">닫기</button></div>');
+    PF.moving = n.id;
+  }
+  function moveTo(targetId) {
+    const n = byId(PF.moving); if (!n) return; const cur = parentOf(n);
+    if ((cur ? cur.id : '') === targetId) { closeSheet(); return; }
+    db.links = db.links.filter((l) => !(l.t === n.id && (l.k === 'follow' || l.k === 'next')));
+    if (targetId) { db.links.push({ s: targetId, t: n.id, k: 'next' }); const t = byId(targetId); descendants(n).forEach((id) => { const x = byId(id); if (x) x.line = lineage(t)[0].line; }); }
+    else if (!n.line || alive().some((x) => x.id !== n.id && x.line === n.line && !parentOf(x))) { const ln = 'L' + Date.now().toString(36); db.lines[ln] = n.title.slice(0, 12); descendants(n).forEach((id) => { const x = byId(id); if (x) x.line = ln; }); }
+    save(); closeSheet(); render(); toast(targetId ? byId(targetId).title + ' 뒤로 옮겼어요' : '새 줄기의 뿌리로 옮겼어요');
+  }
+  function trashItem(n) {
+    const kids = childrenOf(n).length;
+    if (!confirm('휴지통으로 옮길까요?' + (kids ? ' 이어진 실험 ' + kids + '개는 그대로 남아요.' : '') + ' 휴지통에서 되살릴 수 있어요.')) return;
+    n.deleted = 'true'; save(); closeSheet(); back(); toast('휴지통으로 옮겼어요', { label: '되돌리기', fn: () => { const x = byId(n.id); if (x) { x.deleted = ''; save(); render(); toast('되살렸어요'); } } });
+  }
+  function viewTrash() {
+    const list = db.nodes.filter(isDel);
+    return '<p class="muted" style="margin:0 2px;font-size:13px">지운 항목은 여기에 남아요. 만든 사람이나 관리자가 되살릴 수 있어요.</p>' +
+      (list.length ? list.map((n) => '<div class="srow">' + ico(n) + '<span class="tx"><small class="code">' + esc(code(n)) + '</small><b>' + esc(n.title) + '</b></span>' + (canDelete(n) ? '<button type="button" class="chipbtn" data-act="restore" data-id="' + esc(n.id) + '">되살리기</button>' : '') + '</div>').join('') : '<div class="card empty">휴지통이 비어 있어요.</div>');
+  }
+
+  /* ---------- 보고서 ---------- */
+  const REPORT_SECS = [['purpose', '연구 동기와 목적'], ['hypo', '가설'], ['vars', '변인'], ['materials', '준비물'], ['steps', '실험 방법'], ['process', '실험 과정'], ['result', '실험 결과'], ['discuss', '고찰'], ['conclusion', '결론'], ['next', '더 해 볼 것'], ['refs', '참고 자료']];
+  function viewReport(id) {
+    const n = byId(id); if (!n) return '<div class="card empty">항목을 찾지 못했어요.</div>';
+    const p = n.plan || {}, r = n.report || {}, run = n.run || {}, miss = (t) => '<p class="miss">(아직 안 씀)</p>';
+    const sec = (key, i, inner) => '<section class="rp-sec"><div class="rp-h"><h3>' + (i + 1) + '. ' + REPORT_SECS[i][1] + '</h3><span class="no-print">' + secChip(n, 'report.' + key) + '</span></div>' + inner + '</section>';
+    const L = (arr, ol) => arr && arr.length ? (ol ? '<ol>' : '<ul>') + arr.map((x) => '<li>' + esc(x) + '</li>').join('') + (ol ? '</ol>' : '</ul>') : miss();
+    const T = (v) => v ? '<p>' + para(v) + '</p>' : miss();
+    const lin = lineage(n), kids = childrenOf(n);
+    let body = '';
+    body += sec('purpose', 0, T(p.purpose));
+    body += sec('hypo', 1, T(p.hypo));
+    body += sec('vars', 2, p.ind || p.dep || p.ctrl ? '<table class="rp-t"><tr><th>조작 변인</th><td>' + para(p.ind || '-') + '</td></tr><tr><th>종속 변인</th><td>' + para(p.dep || '-') + '</td></tr><tr><th>통제 변인</th><td>' + para(p.ctrl || '-') + '</td></tr></table>' : miss());
+    body += sec('materials', 3, L(p.materials) + (p.safety ? '<p class="rp-note"><b>안전</b> ' + para(p.safety) + '</p>' : ''));
+    body += sec('steps', 4, L(p.steps, true) + (p.roles ? '<p class="rp-note"><b>역할</b> ' + para(p.roles) + '</p>' : ''));
+    const notes = run.notes || [];
+    body += sec('process', 5, run.started || notes.length ? '<p>' + (run.started ? md(run.started) + ' ' + hm(run.started) + ' 시작' : '') + (run.ended ? ' · ' + hm(run.ended) + ' 끝' : '') + (p.steps && p.steps.length ? ' · 방법 ' + Object.keys(run.done || {}).length + '/' + p.steps.length + '단계 진행' : '') + '</p>' +
+      (notes.length ? '<ul class="rp-notes">' + notes.map((x) => '<li><b>[' + (NOTE_KIND[x.kind] || '메모') + ' ' + hm(x.at) + ']</b> ' + esc(x.text) + '</li>').join('') + '</ul>' : '') : miss());
+    body += sec('result', 6, n.report ? (r.summary ? '<p>' + para(r.summary) + '</p>' : '') + resultBlock(n) + (r.observe ? '<p><b>관찰</b> ' + para(r.observe) + '</p>' : '') : miss());
+    body += sec('discuss', 7, T(r.discuss));
+    body += sec('conclusion', 8, (r.conclusion ? '<p>' + para(r.conclusion) + '</p>' : '') + (r.claim || n.verdict ? '<p class="rp-note">결론 제안 <b>' + esc(r.claim || '-') + '</b> · 판정 <b>' + esc(n.verdict || '대기') + '</b></p>' : '') + (!r.conclusion && !r.claim ? miss() : ''));
+    body += sec('next', 9, (r.next ? '<p>' + para(r.next) + '</p>' : '') + (kids.length ? '<p class="rp-note">이어진 실험: ' + kids.map((k) => esc(code(k) + ' ' + k.title)).join(', ') + '</p>' : '') + (!r.next && !kids.length ? miss() : ''));
+    body += sec('refs', 10, T(p.refs));
+    const people = [...new Set([n.owner, p.by, r.by].concat(notes.map((x) => x.by)).filter(Boolean))];
+    const missing = REPORT_SECS.length - (body.match(/class="rp-sec"/g) || []).length + (body.match(/class="miss"/g) || []).length;
+    return '<div class="rp-bar no-print"><button type="button" class="btn" data-act="printReport">인쇄 · PDF 저장</button>' + (canEdit(n) ? '<button type="button" class="btn" data-act="record">결과 · 고찰 고치기</button><button type="button" class="btn" data-act="plan">계획서 고치기</button>' : '') +
+      ((isAdmin() || PF.mode !== 'live') && n.status === '기록 완료' ? (isFinal(n) ? '<button type="button" class="btn" data-act="unfinal">확정 풀기</button>' : '<button type="button" class="btn primary" data-act="final">보고서 확정</button>') : '') + '</div>' +
+      (missing ? '<div class="card gate-note no-print" style="font-weight:400">아직 안 쓴 칸이 ' + missing + '개 있어요. ‘(아직 안 씀)’ 부분을 채우면 보고서가 완성돼요.</div>' : '') +
+      '<article class="report"><header class="rp-cover"><small>' + esc(brand().clubName) + ' 실험 보고서' + (isFinal(n) ? ' · 확정' : ' · 초안') + '</small><h2>' + esc(n.title) + '</h2>' +
+      '<dl><dt>실험 번호</dt><dd class="code">' + esc(code(n)) + ' (' + esc(uid(n)) + ')</dd><dt>분야</dt><dd>' + esc(n.field || '') + '</dd><dt>연구 줄기</dt><dd>' + esc(lineName(lin[0].line)) + (lin.length > 1 ? ' · ' + lin.length + '세대 (' + esc(code(lin[lin.length - 2])) + '에서 이어짐)' : '') + '</dd><dt>참여</dt><dd>' + esc(people.join(', ') || '-') + '</dd><dt>기간</dt><dd>' + esc(String(n.created || '')) + ' ~ ' + esc(String(n.date || '')) + '</dd></dl></header>' + body +
+      '<footer class="rp-foot">가지 · ' + esc(brand().clubName) + ' · ' + esc(code(n)) + (isFinal(n) ? ' · ' + esc(n.report.final.by) + ' 확정 ' + esc(String(n.report.final.at).slice(0, 10)) : '') + '</footer></article>' +
+      '<div class="no-print">' + commentsCard(n) + '</div>';
+  }
+  // 보고서용 결과(표 + 그래프): reportCard의 표 · 그래프 부분만
+  function resultBlock(n) {
+    const r = n.report, kind = kindOf(r), t = tableOf(r); if (!t.rows.length) return '';
+    if (kind === 'rep') { const st = t.rows.map((row) => ({ cond: row[0], v: row.slice(1).filter((x) => x !== ''), s: stats(row.slice(1)) }));
+      return (st.some((x) => x.s) ? barChart(st.filter((x) => x.s), r.unit) : '') + tableHTML(t.cols.concat(['평균', '표준편차']), t.rows.map((row, i) => row.concat([st[i].s ? '<b>' + r3(st[i].s.m) + '</b>' + (r.unit ? ' ' + esc(r.unit) : '') : '-', st[i].s && st[i].s.n > 1 ? '±' + r3(st[i].s.sd) : '-'])), 2); }
+    return (kind === 'line' ? lineChart(t) : kind === 'xy' ? xyChart(t) : '') + tableHTML(t.cols, t.rows, 0);
+  }
+
+
+  /* 과정 버튼 · 제출 처리 (화면 · 아래 창 공통) */
+  function flowAct(act, a, n) {
+    const id = a.dataset.id;
+    if (act === 'restore') { const x = byId(id); if (x) { x.deleted = ''; save(); render(); toast('되살렸어요'); } return true; }
+    if (act === 'moveTo') { moveTo(id); return true; }
+    if (act === 'cmResolve' || act === 'cmEdit' || act === 'cmDel') {
+      const c = allComments().find((x) => x.id === a.dataset.cid); if (!c) return true;
+      if (act === 'cmResolve') commentOp(c.resolved ? 'reopen' : 'resolve', c.id);
+      if (act === 'cmDel' && confirm('이 댓글을 지울까요?')) { if (!$('#sheet').hidden) closeSheet(); commentOp('delete', c.id); }
+      if (act === 'cmEdit') openSheet('<h3>댓글 고치기</h3><form id="cmEditForm" data-cid="' + esc(c.id) + '" style="display:flex;flex-direction:column;gap:12px"><textarea name="text" rows="4" maxlength="1000">' + esc(c.text) + '</textarea><div class="btn-row"><button type="button" class="btn" data-act="closeSheet">취소</button><button type="submit" class="btn primary">저장</button></div></form>');
+      return true;
+    }
+    if (!n) return false;
+    switch (act) {
+      case 'plan': if (!canEdit(n)) toast('확정된 보고서예요 · 관리자가 확정을 풀어야 고칠 수 있어요'); else planForm(n); return true;
+      case 'approve': addComment(n.id, 'approve', '', '').then((ok) => { if (ok) toast(reviewCount(n) >= 2 ? '승인했어요 · 이제 준비를 시작할 수 있어요' : '승인했어요'); }); return true;
+      case 'fixNote': fixSheet(n); return true;
+      case 'secNotes': secSheet(n, a.dataset.sec); return true;
+      case 'prepToggle': prepToggle(n, a.dataset.pi); return true;
+      case 'runOpen': if (n.status === '준비 중') runStart(n); go('run', n.id, 'main'); return true;
+      case 'stepToggle': { const i = a.dataset.i; n.run = n.run || { done: {}, notes: [] }; n.run.done = n.run.done || {}; if (!n.run.started) n.run.started = nowIso();
+        if (n.run.done[i]) delete n.run.done[i]; else n.run.done[i] = nowIso(); save(); render();
+        const steps = (n.plan && n.plan.steps) || []; if (steps.length && Object.keys(n.run.done).length === steps.length) toast('모든 단계 끝! 측정값을 넣고 실험을 끝내요'); return true; }
+      case 'noteDel': if (n.run) { n.run.notes = (n.run.notes || []).filter((x) => x.id !== a.dataset.nid); save(); render(); } return true;
+      case 'runEnd': if (!confirm('실험을 끝내고 결과 기록으로 넘어갈까요?')) return true;
+        n.run = n.run || { done: {}, notes: [] }; n.run.ended = nowIso(); if (!n.run.started) n.run.started = n.run.ended; n.status = '실험 완료'; PF.myMoves[n.id] = Date.now(); save(); back(); recordForm(n); return true;
+      case 'itemMenu': itemMenu(n); return true;
+      case 'editItem': editForm(n); return true;
+      case 'moveItem': moveSheet(n); return true;
+      case 'trashItem': trashItem(n); return true;
+      case 'cancelExp': if (confirm('이 실험을 취소할까요? 기록은 남아요.')) { n.status = '취소'; save(); closeSheet(); render(); toast('취소했어요'); } return true;
+      case 'report': go('report', n.id, 'main'); return true;
+      case 'printReport': window.print(); return true;
+      case 'final': n.report = Object.assign({}, n.report, { final: { by: meName(), at: nowIso() } }); save(); render(); toast('보고서를 확정했어요'); return true;
+      case 'unfinal': if (n.report) { const r = Object.assign({}, n.report); delete r.final; n.report = r; } save(); render(); toast('확정을 풀었어요'); return true;
+    }
+    return false;
+  }
+  function flowSubmit(e) {
+    const f = e.target, n = ['item', 'run', 'report'].includes(cur().s) ? byId(cur().arg) : null;
+    if (f.id === 'planForm') { e.preventDefault(); savePlan(f); return true; }
+    if (f.id === 'editForm') { e.preventDefault(); saveEdit(f); return true; }
+    if (f.id === 'cmEditForm') { e.preventDefault(); const t = String(new FormData(f).get('text') || '').trim(); if (!t) return true; closeSheet(); commentOp('edit', f.dataset.cid, t); return true; }
+    if (f.classList && f.classList.contains('cm-add')) {
+      e.preventDefault(); const fd = new FormData(f), kind = (e.submitter && e.submitter.value) || 'note', sec = String(fd.get('sec') || ''), inSheet = !!f.closest('#sheet'), node = f.dataset.node;
+      const txt = String(fd.get('text') || ''); f.reset();
+      addComment(node, kind, sec, txt).then((ok) => { if (!ok) { const ta = document.querySelector('.cm-add[data-node="' + node + '"] [name=text]'); if (ta) ta.value = txt; return; }
+        if (inSheet) { if (sec && kind === 'fix') secSheet(byId(node), sec); else closeSheet(); }
+        toast({ fix: '첨삭을 남겼어요', change: '수정 요청을 남겼어요', answer: '답변을 남겼어요' }[kind] || '댓글을 남겼어요'); });
+      return true;
+    }
+    if (f.id === 'prepAdd' && n) { e.preventDefault(); const t = String(new FormData(f).get('t') || '').trim().slice(0, 60); if (!t) return true; f.reset(); n.prep = n.prep || { done: {}, extra: [] }; n.prep.extra = (n.prep.extra || []).concat(t); n.signal = signalOf(n); save(); render(); return true; }
+    if (f.id === 'noteForm' && n) { e.preventDefault(); const fd = new FormData(f), t = String(fd.get('text') || '').trim(); if (!t) return true; f.querySelector('[name=text]').value = '';
+      n.run = n.run || { done: {}, notes: [] }; if (!n.run.started) n.run.started = nowIso();
+      n.run.notes = (n.run.notes || []).concat({ id: newCid(), at: nowIso(), by: meName(), kind: String(fd.get('kind') || 'obs'), text: t.slice(0, 500) }); save(); render(); toast('메모를 남겼어요'); return true; }
+    return false;
+  }
   /* ---------- 찾기 ---------- */
   function viewFind() {
     const q = (prefs.q || '').trim().toLowerCase(), ty = prefs.ty || 'all';
@@ -835,16 +1212,17 @@
       mi('settings', 'var(--club)', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z', '설정', (PF.isMaster ? '드라이브 연결 · ' : '') + '동아리 이름 · 로고 · 색 · 화면 밝기') +
       mi('board', 'var(--exp)', 'M3 4h5v16H3zM10 4h5v11h-5zM17 4h4v7h-4z', '보드', '단계별로 실험 카드 보기 (관리자용)') +
       mi('map', 'var(--q)', 'M12 12m-2.5 0a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0 -5 0M5 5m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M19 6m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M6 19m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M10.2 10.2L6.4 6.4M13.8 11l3.6-3.6M10.3 13.8L7.4 17.4', '전체 지도', '동아리 연구 전체를 한 장으로 (발표용)') +
+      (db.nodes.some(isDel) ? mi('trash', 'var(--muted)', 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13', '휴지통', '지운 항목 ' + db.nodes.filter(isDel).length + '개 · 되살리기') : '') +
       mi('about', 'var(--idea)', 'M6 7v10M18 11c0 4-6 3-12 6', '가지 소개', '체험 모드 · 드라이브 연결 안내') +
       '</div>';
   }
   function viewBoard() {
-    const items = db.nodes.filter(isExpLike);
+    const items = alive().filter(isExpLike);
     return '<p class="muted" style="margin:0 2px;font-size:13px">카드를 누르면 상세로 들어가요. 단계는 상세의 버튼으로 바꿉니다.</p><div class="board">' + STAGES.map((st) => { const l = items.filter((n) => n.status === st);
       return '<div class="col"><h3>' + st + '<span class="badge t-neutral">' + l.length + '</span></h3>' + l.map((n) => '<button type="button" class="bcard' + (n.type === 'idea' ? ' idea' : '') + '" data-item="' + n.id + '"><span class="code">' + esc(code(n)) + '</span><b>' + esc(n.title) + '</b>' + badge(n) + '</button>').join('') + '</div>'; }).join('') + '</div>';
   }
   function viewMap() {
-    const W = 760, H = 520, ns = db.nodes.filter((n) => n.status !== '취소');
+    const W = 760, H = 520, ns = alive().filter((n) => n.status !== '취소');
     const CEN = { '생명': [200, 260], '화학': [500, 200], '물리': [540, 400], '공통': [360, 300], '지구': [180, 430], '융합': [360, 110] };
     const P = {}; ns.forEach((n, i) => { const c = CEN[n.field] || [W / 2, H / 2], a = i * 2.4; P[n.id] = { x: c[0] + Math.cos(a) * 50, y: c[1] + Math.sin(a) * 50 }; });
     for (let it = 0; it < 260; it++) {
@@ -901,7 +1279,7 @@
   function openSheet(html) { $('#sheet').innerHTML = html; $('#sheet').hidden = false; $('#sheetBg').hidden = false; const f = $('#sheet input,#sheet select'); if (f) f.focus(); }
   function closeSheet() { $('#sheet').hidden = true; $('#sheetBg').hidden = true; }
   function newForm(type, parent) {
-    const lines = [...new Set(db.nodes.map((n) => n.line).filter(Boolean))];
+    const lines = [...new Set(alive().map((n) => n.line).filter(Boolean))];
     const d = new Date(TODAY); d.setDate(d.getDate() + 14);
     const label = { exp: '새 실험', idea: '새 아이디어', q: '새 질문' }[type];
     openSheet('<h3>' + label + (parent ? ' · ' + esc(code(parent)) + '에서 이어서' : '') + '</h3><form id="newForm" data-type="' + type + '" data-parent="' + (parent ? parent.id : '') + '" style="display:flex;flex-direction:column;gap:12px">' +
@@ -921,7 +1299,7 @@
   }
 
   /* ---------- 그리기 ---------- */
-  const TITLES = { line: '', item: '', board: '보드', map: '전체 지도', settings: '설정', about: '가지 소개', club: '동아리 관리', people: '부원 · 기기' };
+  const TITLES = { line: '', item: '', board: '보드', map: '전체 지도', settings: '설정', about: '가지 소개', club: '동아리 관리', people: '부원 · 기기', run: '진행 도우미', report: '보고서', trash: '휴지통' };
   function logoInner() { const st = brand(); return st.logo ? '<img src="' + esc(st.logo) + '" alt="">' : '<svg viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="9" r="2"/><path d="' + ICON.branch + '"/></svg>'; }
   function applyBrand() {
     const st = brand();
@@ -934,7 +1312,7 @@
     const th = prefs.theme || 'system'; if (th === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', th);
   }
   const titleOf = (e) => e.s === 'line' ? lineName(e.arg) : e.s === 'item' ? (byId(e.arg) ? TYPE[byId(e.arg).type].label + ' 상세' : '') : TITLES[e.s] || '';
-  function viewFor(e) { return ({ home: viewHome, tree: viewTree, find: viewFind, more: viewMore, line: () => viewLine(e.arg), item: () => viewItem(e.arg), board: viewBoard, map: viewMap, settings: viewSettings, about: viewAbout, club: viewClub, people: viewPeople }[e.s] || (() => ''))(); }
+  function viewFor(e) { return ({ home: viewHome, tree: viewTree, find: viewFind, more: viewMore, line: () => viewLine(e.arg), item: () => viewItem(e.arg), board: viewBoard, map: viewMap, settings: viewSettings, about: viewAbout, club: viewClub, people: viewPeople, run: () => viewRun(e.arg), report: () => viewReport(e.arg), trash: viewTrash }[e.s] || (() => ''))(); }
   /* 내용이 같으면 화면을 건드리지 않음 (입력 칸 · 버튼이 바뀌지 않게).
      내용이 바뀌어도 입력 중이던 칸의 글자와 커서는 그대로 살림. */
   const lastHTML = {};
@@ -1001,9 +1379,10 @@
     const vd = t.closest('[data-verdict]'); if (vd) { const it2 = cur().s === 'item' ? byId(cur().arg) : null; if (it2) { it2.verdict = vd.dataset.verdict; save(); render(); toast('판정: ' + it2.verdict); } return; }
     const ty = t.closest('[data-ty]'); if (ty) { prefs.ty = ty.dataset.ty; savePrefs(); return render(); }
     const col = t.closest('[data-color]'); if (col) return saveBrand({ color: col.dataset.color });
+    const nkb = t.closest('[data-nk]'); if (nkb) { const fm = nkb.closest('form'); fm.querySelector('[name=kind]').value = nkb.dataset.nk; fm.querySelectorAll('[data-nk]').forEach((x) => x.setAttribute('aria-pressed', String(x === nkb))); return; }
     const th = t.closest('button[data-theme]'); if (th) { prefs.theme = th.dataset.theme; savePrefs(); return render(); }
     const a = t.closest('[data-act]'); if (!a) return;
-    const n = cur().s === 'item' ? byId(cur().arg) : null, act = a.dataset.act;
+    const n = ['item', 'run', 'report'].includes(cur().s) ? byId(cur().arg) : null, act = a.dataset.act;
     const did = a.dataset.id;
     const copyText = (txt, done) => (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast(done), () => toast('길게 눌러 복사해 주세요'));
     if (act === 'retry') return startClub();
@@ -1035,18 +1414,20 @@
     if (act === 'handover') { PF.api.createHandover().then((h) => { PF.handover = h; render(); }).catch(() => toast('링크를 만들지 못했어요')); return; }
     if (act === 'copyHandover') return copyText(PF.handover.link, '넘기기 링크를 복사했어요');
     if (act === 'shareHandover') return shareText('가지 마스터 넘기기', brand().clubName + ' 가지 마스터를 넘겨요. 24시간 안에 열어 구글로 로그인해 주세요.', PF.handover.link);
+    if (['restore', 'moveTo', 'cmResolve', 'cmEdit', 'cmDel'].includes(act) && flowAct(act, a, n)) return;
     if (!n) return;
     if (act === 'copy') { const c = code(n); (navigator.clipboard ? navigator.clipboard.writeText(c) : Promise.reject()).then(() => toast(c + ' 복사했어요'), () => toast('번호: ' + c)); return; }
     if (act === 'fan') { n.fans = (n.fans || 0) + 1; toast('같이 해요 ' + n.fans + '명'); }
     if (act === 'volunteer') { n.volunteer = meName(); toast('담당으로 지원했어요'); }
     if (act === 'equip') { n.equip = true; toast('장비 확인 완료'); }
-    if (act === 'convert') { n.type = 'exp'; n.status = '계획 작성'; n.owner = n.volunteer; n.signal = 0; n.review = 0; toast('계획서가 됐어요 · 번호 ' + code(n) + ' 그대로'); }
-    if (act === 'advance') {
+    if (act === 'convert') { n.type = 'exp'; n.status = '계획 작성'; n.owner = n.volunteer; n.signal = 0; n.review = 0; save(); render(); toast('실험이 됐어요 · 번호 ' + code(n) + ' 그대로'); return planForm(n); }
+    if (act === 'advance' || act === 'askReview') {
       const i = STAGES.indexOf(n.status), prev = { status: n.status, signal: n.signal }, id = n.id;
       n.status = STAGES[i + 1]; if (n.status === '준비 중') n.signal = n.signal || 2; PF.myMoves[id] = Date.now();
       toast(n.status + ' 단계로 옮겼어요', { label: '되돌리기', fn: () => { const x = byId(id); if (!x) return; Object.assign(x, prev); save(); render(); toast(prev.status + ' 단계로 되돌렸어요'); } });
     }
     if (act === 'record') return recordForm(n);
+    if (flowAct(act, a, n)) return;
     if (act === 'nextIdea') { const t = (n.report && n.report.next) || ''; newForm('idea', n); const ti = $('#newForm [name=title]'); if (ti) ti.value = t.slice(0, 60); return; }
     if (act === 'stageBack') { const i = STAGES.indexOf(n.status); if (i >= 2) { n.status = STAGES[i - 1]; if (!isAdmin()) delete PF.myMoves[n.id]; toast(n.status + ' 단계로 되돌렸어요'); } }
     if (act === 'solve') { n.status = '해결'; toast('해결됨으로 표시했어요'); }
@@ -1068,6 +1449,7 @@
   window.addEventListener('error', (e) => { if (e.message) toast('화면 오류: ' + e.message); });
   window.addEventListener('unhandledrejection', (e) => { const m = e.reason && e.reason.message; if (m) console.warn(m); });
   $('#paneBody').addEventListener('click', (e) => onClick(e, 'pane'));
+  $('#paneBody').addEventListener('submit', (e) => { flowSubmit(e); });
   const onKey = (src) => (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('g[data-go]')) { e.preventDefault(); go('item', e.target.closest('g[data-go]').dataset.go, src); } };
   $('#screen').addEventListener('keydown', onKey('main'));
   $('#paneBody').addEventListener('keydown', onKey('pane'));
@@ -1093,13 +1475,15 @@
     if (['gRow', 'gCol', 'gDelRow', 'gDelCol'].includes(act)) return gridAct(act);
     if (act === 'approveDev' || act === 'denyDev') return devAction(act, a.dataset.id);
     if (['resetCode', 'setRole', 'setStatus'].includes(act)) return peopleAction(a);
+    if (flowAct(act, a, ['item', 'run', 'report'].includes(cur().s) ? byId(cur().arg) : null)) return;
     if (act === 'shareCode') { const t = a.dataset.text; if (navigator.share) navigator.share({ text: t }).catch(() => {}); else (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('복사했어요'), () => {}); }
   });
-  $('#screen').addEventListener('submit', (e) => {
+  $('#screen').addEventListener('submit', (e) => { if (flowSubmit(e)) return;
     const id = e.target.id; if (!['joinForm', 'masterJoinForm', 'connectForm'].includes(id)) return;
     e.preventDefault(); if (id === 'joinForm') submitJoin(e.target); else if (id === 'masterJoinForm') submitMasterJoin(e.target); else submitConnect(e.target);
   });
   $('#sheet').addEventListener('submit', (e) => {
+    if (flowSubmit(e)) return;
     if (e.target.id === 'recordForm') { e.preventDefault(); return saveRecord(e.target, e.submitter); }
     if (e.target.id === 'addMemberForm') {
       e.preventDefault(); const fd = new FormData(e.target), name = String(fd.get('name')).trim(), btn = e.target.querySelector('[type=submit]'); btn.disabled = true;
@@ -1113,7 +1497,7 @@
     if (type === 'exp') Object.assign(f, { status: '계획 작성', owner: meName(), signal: 0, review: 0 });
     if (type === 'idea') Object.assign(f, { status: '아이디어', fans: 1, volunteer: '', equip: false });
     if (type === 'q') f.status = '미해결';
-    const n = create(f, parent); closeSheet(); toast(TYPE[type].label + '를 만들었어요 · ' + code(n)); go('item', n.id, 'main');
+    const n = create(f, parent); closeSheet(); toast(TYPE[type].label + '를 만들었어요 · ' + code(n)); go('item', n.id, 'main'); if (type === 'exp') planForm(n);
   });
 
   render();

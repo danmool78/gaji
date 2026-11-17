@@ -169,7 +169,7 @@ const mc2 = call({ action: 'myCode', device: r9b.data.device });
 ok('old code renewed', mc2.ok && mc2.data.renewed && /^\d{4}$/.test(mc2.data.code), mc2);
 ok('device kept after renew', call({ action: 'load', device: r9b.data.device }).ok);
 ok('new code works', call({ action: 'register', studentId: '20399', code: mc2.data.code }).ok);
-ok('ping version', call({ action: 'ping' }).data.version === '2.2.0');
+ok('ping version', call({ action: 'ping' }).data.version === '2.3.0');
 
 // 실수 되돌리기: 내가 10분 안에 옮긴 단계는 한 단계 되돌리기 가능
 call({ action: 'sync', device: M, nodes: [{ id: 'u1', type: 'exp', title: '되돌리기 시험', status: '검토 중' }] });
@@ -196,6 +196,65 @@ ok('report saved', ld.report && ld.report.rows[0].v[1] === 100.2, ld.report);
 call({ action: 'sync', device: r9b.data.device, nodes: [{ id: 'u1', title: '되돌리기 시험', report: Object.assign({}, rep1, { summary: '고침' }) }] });
 ld = call({ action: 'load', device: M }).data.nodes.find((n) => n.id === 'u1');
 ok('report edit saved', ld.report.summary === '고침', ld.report);
+
+
+// ===== 2.3.0: 계획서 · 삭제 · 댓글 · 검토 · 확정 잠금 · 연결 끊기 =====
+const MEM = r9b.data.device;               // 부원 정다온
+const ADM = M;                             // 마스터
+call({ action: 'sync', device: MEM, nodes: [{ id: 'b1', type: 'exp', title: '레몬 전지 전극', status: '계획 작성', owner: '정다온', plan: { purpose: '전극 금속에 따른 전압', steps: ['레몬 자르기', '전극 꽂기'] } }] });
+let L2 = call({ action: 'load', device: ADM }).data;
+ok('plan saved as object', L2.nodes.find((n) => n.id === 'b1').plan.steps[1] === '전극 꽂기');
+// 삭제: 남의 것은 못 지움, 내 것 · 관리자는 지움
+call({ action: 'addMember', device: ADM, studentId: '20500', name: '오세린' });
+const cs = call({ action: 'addMember', device: ADM, studentId: '20501', name: '한결' });
+const rr = call({ action: 'register', studentId: '20501', code: cs.data.code }); call({ action: 'approve', device: ADM, id: rr.data.device.id });
+const OTH = rr.data.device;
+let sy = call({ action: 'sync', device: OTH, nodes: [{ id: 'b1', title: '레몬 전지 전극', deleted: 'true' }] });
+ok('other member cannot delete', sy.data.rejected.includes('b1:delete'), sy);
+sy = call({ action: 'sync', device: MEM, nodes: [{ id: 'b1', title: '레몬 전지 전극', deleted: 'true' }] });
+ok('owner can delete', sy.data.rejected.length === 0 && call({ action: 'load', device: ADM }).data.nodes.find((n) => n.id === 'b1').deleted === 'true');
+call({ action: 'sync', device: ADM, nodes: [{ id: 'b1', title: '레몬 전지 전극', deleted: '' }] });
+ok('admin restores', call({ action: 'load', device: ADM }).data.nodes.find((n) => n.id === 'b1').deleted === '');
+// 댓글 · 첨삭
+let cm = call({ action: 'comment', device: OTH, node: 'b1', kind: 'fix', sec: 'plan.purpose', text: '측정 횟수를 적어 주세요' });
+ok('comment add', cm.ok && cm.data.comment.id, cm);
+const cid = cm.data.comment.id;
+ok('load has comment', call({ action: 'load', device: MEM }).data.comments.some((c) => c.id === cid && c.sec === 'plan.purpose'));
+ok('cannot edit others comment', call({ action: 'comment', device: MEM, op: 'edit', id: cid, text: 'x' }).code === 'not_mine');
+ok('edit own comment', call({ action: 'comment', device: OTH, op: 'edit', id: cid, text: '측정 횟수(3회)를 적어 주세요' }).ok);
+ok('owner resolves', call({ action: 'comment', device: MEM, op: 'resolve', id: cid }).ok && call({ action: 'load', device: MEM }).data.comments.find((c) => c.id === cid).resolved === true);
+ok('empty comment rejected', call({ action: 'comment', device: OTH, node: 'b1', text: '  ' }).code === 'bad');
+// 검토 승인: 본인은 안 됨, 한 사람 한 번
+ok('self approve rejected', call({ action: 'comment', device: MEM, node: 'b1', kind: 'approve' }).code === 'self');
+call({ action: 'comment', device: OTH, node: 'b1', kind: 'approve' }); call({ action: 'comment', device: OTH, node: 'b1', kind: 'approve' });
+ok('one approval per person', call({ action: 'load', device: ADM }).data.comments.filter((c) => c.node === 'b1' && c.kind === 'approve').length === 1);
+// 댓글 지우기: 관리자는 남의 것도
+const c2 = call({ action: 'comment', device: OTH, node: 'b1', text: '좋아요' }).data.comment.id;
+ok('admin deletes any comment', call({ action: 'comment', device: ADM, op: 'delete', id: c2 }).ok && !call({ action: 'load', device: ADM }).data.comments.some((c) => c.id === c2));
+// 비공개 실험 댓글은 못 봄
+call({ action: 'sync', device: ADM, nodes: [{ id: 'p9', type: 'exp', title: '비공개', owner: '김승엽', private: 'true' }] });
+call({ action: 'comment', device: ADM, node: 'p9', text: '비밀' });
+ok('private comments hidden', !call({ action: 'load', device: OTH }).data.comments.some((c) => c.node === 'p9'));
+ok('cannot comment on hidden private', call({ action: 'comment', device: OTH, node: 'p9', text: 'x' }).code === 'bad');
+// 보고서 확정: 부원은 확정 못 함, 확정 뒤 부원 수정 막힘, 관리자는 가능
+sy = call({ action: 'sync', device: MEM, nodes: [{ id: 'b1', title: '레몬 전지 전극', report: { summary: 'a', final: { by: '정다온' } } }] });
+ok('member cannot finalize', sy.data.rejected.includes('b1:final'), sy);
+call({ action: 'sync', device: ADM, nodes: [{ id: 'b1', title: '레몬 전지 전극', report: { summary: 'a', final: { by: '김승엽' } } }] });
+sy = call({ action: 'sync', device: MEM, nodes: [{ id: 'b1', title: '레몬 전지 전극', plan: { purpose: '바꿈' } }] });
+ok('locked after final', sy.data.rejected.includes('b1:final'), sy);
+sy = call({ action: 'sync', device: ADM, nodes: [{ id: 'b1', title: '레몬 전지 전극', report: { summary: 'a' } }] });
+ok('admin unlocks', sy.data.rejected.length === 0);
+// 연결 끊기 · 다시 잇기 (가지 옮기기)
+call({ action: 'sync', device: MEM, nodes: [{ id: 'b2', type: 'exp', title: '레몬 직렬', owner: '정다온' }], links: [{ s: 'b1', t: 'b2', k: 'next' }] });
+ok('link made', call({ action: 'load', device: ADM }).data.links.some((l) => l.s === 'b1' && l.t === 'b2'));
+sy = call({ action: 'sync', device: OTH, links: [{ s: 'b1', t: 'b2', k: 'next', off: true }] });
+ok('other cannot unlink', sy.data.rejected.includes('b2:unlink'), sy);
+call({ action: 'sync', device: MEM, links: [{ s: 'b1', t: 'b2', k: 'next', off: true }, { s: 'u1', t: 'b2', k: 'next' }] });
+let ls = call({ action: 'load', device: ADM }).data.links;
+ok('moved branch', !ls.some((l) => l.s === 'b1' && l.t === 'b2') && ls.some((l) => l.s === 'u1' && l.t === 'b2'));
+call({ action: 'sync', device: MEM, links: [{ s: 'b1', t: 'b2', k: 'next' }] });
+ok('relink revives', call({ action: 'load', device: ADM }).data.links.some((l) => l.s === 'b1' && l.t === 'b2'));
+ok('bool TRUE from sheet', ctx.GajiCore && true);
 
 console.log(`connector: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

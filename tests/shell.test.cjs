@@ -5,10 +5,10 @@ let CORE = fs.readFileSync(path.join(__dirname, '../public/core.js'), 'utf8');
 let pass = 0, fail = 0; const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('FAIL', n, x === undefined ? '' : JSON.stringify(x)); } };
 function makeSS() {
   const sheets = [];
-  function mk(name) { const d = []; const sh = { name, d, getLastRow: () => d.length, getLastColumn: () => d.reduce((m, r) => Math.max(m, r.length), 0), setFrozenRows() {}, appendRow: (r) => d.push(r.map(String)),
+  function mk(name) { const d = []; const sh = { name, d, getMaxRows: () => 1000, getLastRow: () => d.length, getLastColumn: () => d.reduce((m, r) => Math.max(m, r.length), 0), setFrozenRows() {}, appendRow: (r) => d.push(r.map(String)),
     getDataRange: () => ({ getDisplayValues: () => d.map((r) => r.slice()) }),
     getRange(r, c, nr, nc) { if (typeof r === 'string') return { setNumberFormat() {} }; nr = nr || 1; nc = nc || 1;
-      return { setValues(v) { for (let i = 0; i < nr; i++) { d[r - 1 + i] = d[r - 1 + i] || []; for (let j = 0; j < nc; j++) d[r - 1 + i][c - 1 + j] = String(v[i][j]); } },
+      return { setNumberFormat() {}, setValues(v) { for (let i = 0; i < nr; i++) { d[r - 1 + i] = d[r - 1 + i] || []; for (let j = 0; j < nc; j++) d[r - 1 + i][c - 1 + j] = String(v[i][j]); } },
         getDisplayValues() { const o = []; for (let i = 0; i < nr; i++) { const row = []; for (let j = 0; j < nc; j++) row.push((d[r - 1 + i] || [])[c - 1 + j] ?? ''); o.push(row); } return o; } }; } };
     sheets.push(sh); return sh; }
   return { getSheetByName: (n) => sheets.find((s) => s.name === n) || null, insertSheet: mk, getSheets: () => sheets, deleteSheet: (s) => sheets.splice(sheets.indexOf(s), 1) };
@@ -28,7 +28,7 @@ const post = (q) => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify
 const get = () => JSON.parse(ctx.doGet().t);
 const clearCache = () => Object.keys(cache).forEach((k) => delete cache[k]);
 
-ok('doGet version', get().data.version === '2.2.0' && get().data.shell === '4', get());
+ok('doGet version', get().data.version === '2.3.0' && get().data.shell === '4', get());
 ok('core stored in chunks', Number(props.gaji_core_n) >= 3);
 const init = post({ action: 'init', slug: 't', name: '김', studentId: '1', label: 'PC', masterKey: 'K'.repeat(40) });
 ok('init via shell', init.ok, init);
@@ -39,7 +39,7 @@ const f0 = fetches; post({ action: 'rev', device: M }); ok('cached (no refetch w
 clearCache(); site = 'down'; ok('site down still works', post({ action: 'load', device: M }).ok);
 clearCache(); site = '500'; ok('site 500 still works', post({ action: 'load', device: M }).ok);
 // 새 판 자동 적용
-site = 'up'; CORE = CORE.replace("GAJI_CONNECTOR_VERSION = '2.2.0'", "GAJI_CONNECTOR_VERSION = '2.1.1'"); clearCache();
+site = 'up'; CORE = CORE.replace("GAJI_CONNECTOR_VERSION = '2.3.0'", "GAJI_CONNECTOR_VERSION = '2.1.1'"); clearCache();
 ok('auto update', post({ action: 'ping' }).data.version === '2.1.1');
 // 자동 업데이트 멈춤
 const st = ss.getSheetByName('설정'); st.d.push(['autoUpdate', 'off']);

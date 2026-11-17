@@ -52,7 +52,7 @@
 ## 시험
 
 ```
-node tests/connector.test.cjs          # 연결기 본체 로직 (75개)
+node tests/connector.test.cjs          # 연결기 본체 로직 (98개)
 node tests/shell.test.cjs              # 연결기 껍데기: 본체 받기 · 보관 · 장애 · 멈춤 (14개)
 firebase emulators:exec --only firestore "node tests/rules.test.cjs"   # 보안 규칙 (34개)
 ```

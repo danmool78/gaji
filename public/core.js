@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.2.0';
+var GAJI_CONNECTOR_VERSION = '2.3.0';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util) {
@@ -132,7 +132,9 @@ function GajiCore(store, util) {
     var notice = mine.filter(function (d) { return d.id !== me.deviceId && d.status === '승인' && days(d.approvedAt) < 7; }).map(function (d) { return { id: d.id, label: d.label, at: d.approvedAt }; });
     return {
       rev: Number(setting('rev', '0')), me: { id: me.id, name: me.name, role: me.role }, nodes: nodes,
-      links: store.rows('links').map(function (l) { return { id: l.id, s: l.s, t: l.t, k: l.k }; }),
+      links: store.rows('links').filter(function (l) { return !util.bool(l.off); }).map(function (l) { return { id: l.id, s: l.s, t: l.t, k: l.k }; }),
+      comments: (function () { var seen = {}; nodes.forEach(function (n) { seen[n.id] = 1; });
+        return store.rows('comments').filter(function (c) { return !util.bool(c.off) && seen[c.node]; }).map(function (c) { return { id: c.id, node: c.node, sec: c.sec, kind: c.kind, text: c.text, by: c.by, byId: c.byId, role: c.role, at: c.at, editedAt: c.editedAt, resolved: util.bool(c.resolved) }; }); })(),
       lines: store.rows('lines').reduce(function (o, l) { o[l.key] = l.name; return o; }, {}),
       members: members, newDevices: notice,
       lastNo: { exp: Number(setting('no_exp', 0)), q: Number(setting('no_q', 0)), res: Number(setting('no_res', 0)) }
@@ -140,7 +142,10 @@ function GajiCore(store, util) {
   };
   function cleanNode(n) { var o = {}; Object.keys(n).forEach(function (k) { if (k !== '_row') o[k] = n[k]; }); return o; }
 
-  var NODE_FIELDS = ['type', 'title', 'field', 'status', 'line', 'date', 'owner', 'signal', 'review', 'verdict', 'fans', 'volunteer', 'equip', 'desc', 'private', 'report'];
+  var NODE_FIELDS = ['type', 'title', 'field', 'status', 'line', 'date', 'owner', 'signal', 'review', 'verdict', 'fans', 'volunteer', 'equip', 'desc', 'private', 'report', 'plan', 'prep', 'run', 'deleted'];
+  var LOCKED_FIELDS = { plan: 1, prep: 1, run: 1, report: 1, title: 1 };   // 보고서 확정 뒤에는 관리자만
+  function mineNode(n, me) { return n.createdBy === me.name || n.owner === me.name; }
+  function isFinal(n) { return !!(n.report && n.report.final); }
   A.sync = function (q) {
     var me = deviceOf(q), admin = !!ADMIN[me.role];
     return util.lock(function () {
@@ -170,22 +175,68 @@ function GajiCore(store, util) {
           if (!admin && f === 'status' && c.status === '취소') { rejected.push(old.id + ':cancel'); return; }
           if (f === 'type' && !((old.type === 'idea' && c.type === 'exp') || old.type === c.type)) return;
           if (f === 'private' && !admin && old.owner !== me.name) return;
+          if (f === 'deleted' && !admin && !mineNode(old, me)) { rejected.push(old.id + ':delete'); return; }
+          if (!admin && isFinal(old) && (LOCKED_FIELDS[f] || f === 'status')) { rejected.push(old.id + ':final'); return; }
+          if (f === 'report' && !admin && c.report && c.report.final && !isFinal(old)) { rejected.push(old.id + ':final'); return; }
           u[f] = c[f]; changed = true;
         });
         if (changed) { u.updatedAt = util.now(); u.updatedBy = me.name; store.update('nodes', old._row, u); log(me, '수정', old.title); }
       });
-      var links = store.rows('links'), key = {};
-      links.forEach(function (l) { key[l.s + '|' + l.t + '|' + l.k] = 1; });
+      var links = store.rows('links'), key = {}, nodesNow = {};
+      store.rows('nodes').forEach(function (r) { nodesNow[r.id] = r; });
+      links.forEach(function (l) { key[l.s + '|' + l.t + '|' + l.k] = l; });
       (q.links || []).slice(0, 50).forEach(function (l) {
-        if (!l || !l.s || !l.t || l.s === l.t || key[l.s + '|' + l.t + '|' + l.k]) return;
+        if (!l || !l.s || !l.t || l.s === l.t) return;
         if (['follow', 'next', 'q', 'res', 'rel'].indexOf(l.k) < 0) return;
-        store.append('links', { id: newId('l'), s: l.s, t: l.t, k: l.k, createdBy: me.name, createdAt: util.now() }); key[l.s + '|' + l.t + '|' + l.k] = 1;
+        var old = key[l.s + '|' + l.t + '|' + l.k];
+        if (l.off) {   // 연결 끊기 (가지 옮기기): 관리자, 연결을 만든 사람, 도착 항목을 만든 사람 · 담당
+          if (!old || util.bool(old.off)) return;
+          var tn = nodesNow[l.t] || {};
+          if (!admin && old.createdBy !== me.name && !mineNode(tn, me)) { rejected.push(l.t + ':unlink'); return; }
+          old.off = 'true'; store.update('links', old._row, old); log(me, '연결 끊기', l.s + '→' + l.t); return;
+        }
+        if (old && !util.bool(old.off)) return;
+        if (old) { old.off = ''; old.createdBy = me.name; old.createdAt = util.now(); store.update('links', old._row, old); return; }
+        var nl = { id: newId('l'), s: l.s, t: l.t, k: l.k, createdBy: me.name, createdAt: util.now() };
+        store.append('links', nl); key[l.s + '|' + l.t + '|' + l.k] = nl;
       });
       var lines = store.rows('lines'), lk = {};
       lines.forEach(function (l) { lk[l.key] = l; });
       Object.keys(q.lines || {}).slice(0, 50).forEach(function (k) { var name = String(q.lines[k]).slice(0, 20); if (!lk[k]) store.append('lines', { key: k, name: name }); else if (lk[k].name !== name && admin) store.update('lines', lk[k]._row, { key: k, name: name }); });
       bump();
       return { ok: true, assigned: assigned, rejected: rejected, rev: Number(setting('rev', '0')) };
+    });
+  };
+
+  /* ---------- 댓글 · 첨삭 · 검토 ----------
+     kind: note(댓글) · fix(첨삭: 고칠 곳) · approve(검토 승인) · change(수정 요청) · answer(질문 답)
+     sec: 어느 부분에 대한 것인지 (plan.purpose, report.discuss 등, 비우면 전체) */
+  var KINDS = { note: 1, fix: 1, approve: 1, change: 1, answer: 1 };
+  A.comment = function (q) {
+    var me = deviceOf(q), admin = !!ADMIN[me.role], op = q.op || 'add';
+    return util.lock(function () {
+      var rows = store.rows('comments');
+      if (op === 'add') {
+        var n = store.rows('nodes').filter(function (x) { return x.id === q.node; })[0]; if (!n) err('bad', '항목을 찾을 수 없어요');
+        if (util.bool(n.private) && !admin && n.owner !== me.name) err('bad', '항목을 찾을 수 없어요');
+        var kind = KINDS[q.kind] ? q.kind : 'note', text = String(q.text || '').trim().slice(0, 1000);
+        if (!text && kind !== 'approve') err('bad', '내용을 써 주세요');
+        if (kind === 'approve') {
+          if (mineNode(n, me) && !admin) err('self', '내 실험은 내가 승인할 수 없어요');
+          rows.forEach(function (c) { if (c.node === n.id && c.kind === 'approve' && c.byId === me.id && !util.bool(c.off)) { c.off = 'true'; store.update('comments', c._row, c); } });
+        }
+        var c = { id: newId('c'), node: n.id, sec: String(q.sec || '').slice(0, 40), kind: kind, text: text, by: me.name, byId: me.id, role: me.role, at: util.now(), editedAt: '', resolved: '', off: '' };
+        store.append('comments', c); bump(); log(me, { note: '댓글', fix: '첨삭', approve: '검토 승인', change: '수정 요청', answer: '답변' }[kind], n.title);
+        delete c.off; c.resolved = false; return { comment: c };
+      }
+      var cm = rows.filter(function (x) { return x.id === q.id && !util.bool(x.off); })[0]; if (!cm) err('bad', '댓글을 찾을 수 없어요');
+      var node = store.rows('nodes').filter(function (x) { return x.id === cm.node; })[0] || {};
+      if (op === 'edit') { if (cm.byId !== me.id) err('not_mine', '내가 쓴 댓글만 고칠 수 있어요'); cm.text = String(q.text || '').trim().slice(0, 1000); if (!cm.text) err('bad', '내용을 써 주세요'); cm.editedAt = util.now(); }
+      else if (op === 'delete') { if (cm.byId !== me.id && !admin) err('not_mine', '내가 쓴 댓글만 지울 수 있어요'); cm.off = 'true'; }
+      else if (op === 'resolve' || op === 'reopen') { if (cm.byId !== me.id && !admin && !mineNode(node, me)) err('not_mine', '실험 담당자나 관리자만 할 수 있어요'); cm.resolved = op === 'resolve' ? 'true' : ''; }
+      else err('bad');
+      store.update('comments', cm._row, cm); bump(); log(me, '댓글 ' + op, node.title || '');
+      return { ok: true };
     });
   };
 
@@ -273,20 +324,22 @@ var GAJI_TABS = {
   settings: { name: '설정', cols: ['key', 'value'] },
   members: { name: '부원', cols: ['id', 'studentId', 'name', 'role', 'codeHash', 'status', 'createdAt', 'codeEnc'] },
   devices: { name: '기기', cols: ['id', 'memberId', 'label', 'secretHash', 'status', 'confirm', 'shared', 'createdAt', 'approvedAt', 'approvedBy', 'lastSeen'] },
-  nodes: { name: '실험', cols: ['id', 'no', 'type', 'title', 'field', 'status', 'line', 'date', 'owner', 'signal', 'review', 'verdict', 'fans', 'volunteer', 'equip', 'desc', 'private', 'report', 'created', 'createdBy', 'updatedAt', 'updatedBy'] },
-  links: { name: '연결', cols: ['id', 's', 't', 'k', 'createdBy', 'createdAt'] },
+  nodes: { name: '실험', cols: ['id', 'no', 'type', 'title', 'field', 'status', 'line', 'date', 'owner', 'signal', 'review', 'verdict', 'fans', 'volunteer', 'equip', 'desc', 'private', 'report', 'created', 'createdBy', 'updatedAt', 'updatedBy', 'plan', 'prep', 'run', 'deleted'] },
+  links: { name: '연결', cols: ['id', 's', 't', 'k', 'createdBy', 'createdAt', 'off'] },
+  comments: { name: '댓글', cols: ['id', 'node', 'sec', 'kind', 'text', 'by', 'byId', 'role', 'at', 'editedAt', 'resolved', 'off'] },
   lines: { name: '줄기', cols: ['key', 'name'] },
   log: { name: '기록', cols: ['at', 'member', 'device', 'action', 'detail'] }
 };
 var GAJI_NUM = { no: 1, signal: 1, review: 1, fans: 1 };
-var GAJI_JSON = { report: 1 };
+var GAJI_JSON = { report: 1, plan: 1, prep: 1, run: 1 };
 
 function GajiSheetStore(ss) {
   var cache = {};
   function sheet(t) {
     var def = GAJI_TABS[t], sh = ss.getSheetByName(def.name);
-    if (!sh) { sh = ss.insertSheet(def.name); sh.getRange(1, 1, 1, def.cols.length).setValues([def.cols]); sh.setFrozenRows(1); sh.getRange('A:Z').setNumberFormat('@'); }
-    else if (sh.getLastColumn() < def.cols.length) sh.getRange(1, 1, 1, def.cols.length).setValues([def.cols]);   // 새 열 추가 (지우지 않음)
+    if (!sh) { sh = ss.insertSheet(def.name); sh.getRange(1, 1, 1, def.cols.length).setValues([def.cols]); sh.setFrozenRows(1); sh.getRange(1, 1, sh.getMaxRows(), def.cols.length).setNumberFormat('@'); }
+    else if (sh.getLastColumn() < def.cols.length) {   // 새 열 추가 (지우지 않음) · 글자 형식으로
+      sh.getRange(1, 1, 1, def.cols.length).setValues([def.cols]); sh.getRange(1, 1, sh.getMaxRows(), def.cols.length).setNumberFormat('@'); }
     return sh;
   }
   function enc(k, v) { if (v === undefined || v === null) return ''; if (GAJI_JSON[k]) return typeof v === 'string' ? v : JSON.stringify(v); return String(v); }
@@ -312,7 +365,7 @@ function gajiUtil() {
     random: Math.random,
     token: function (n) { var a = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789', s = ''; var b = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, ''); for (var i = 0; i < n; i++) s += a[(parseInt(b.substr((i * 2) % 60, 2), 16) + Math.floor(Math.random() * 256)) % a.length]; return s; },
     sha256: function (s) { return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, s, Utilities.Charset.UTF_8).map(function (b) { return ('0' + (b & 255).toString(16)).slice(-2); }).join(''); },
-    bool: function (v) { return v === true || v === 'true'; },
+    bool: function (v) { return v === true || String(v).toLowerCase() === 'true'; },
     secret: function () { var p = PropertiesService.getScriptProperties(), v = p.getProperty('GAJI_SECRET'); if (!v) { v = Utilities.getUuid() + Utilities.getUuid(); p.setProperty('GAJI_SECRET', v); } return v; },
     lock: function (fn) { var l = LockService.getScriptLock(); l.waitLock(20000); try { return fn(); } finally { l.releaseLock(); } }
   };
