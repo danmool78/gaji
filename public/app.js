@@ -1585,10 +1585,14 @@
   // 관리자: 동아리 데이터 바로 열기 (주소는 연결기가 알려 줌)
   function linksCard() {
     if (PF.mode !== 'live' || !isAdmin()) return '';
-    if (!PF.links && !PF.linksLoading) { PF.linksLoading = true; rpc('links', null, null, { quiet: true }).then((l) => { PF.links = l || {}; render(); }, () => { PF.links = {}; }).finally(() => { PF.linksLoading = false; }); }
+    if ((!PF.links || (PF.links.err && Date.now() - PF.links.at > 60000)) && !PF.linksLoading) {
+      PF.linksLoading = true;
+      rpc('links', null, null, { quiet: true }).then((l) => { PF.links = l || {}; }, () => { PF.links = { err: true, at: Date.now() }; }).finally(() => { PF.linksLoading = false; render(); });
+    }
     const L = PF.links || {}, a = (href, label) => href ? '<a class="btn" href="' + esc(href) + '" target="_blank" rel="noopener">' + label + '</a>' : '';
     return '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">동아리 데이터 바로 열기</b><span class="badge t-info">관리자</span></div>' +
-      (PF.links ? '<div class="btn-row">' + a(L.sheet, '가지 데이터 시트 열기') + a(L.script, '연결기(Apps Script) 열기') + a(L.folder || L.home, L.folder ? '사진 폴더 열기' : '동아리 폴더 열기') + '</div>' +
+      (PF.links && !L.sheet ? '<span class="muted" style="font-size:13px;line-height:1.6">연결기가 아직 이 기능을 몰라요. 새 본체는 10분 안에 저절로 들어와요. 잠시 뒤 다시 열어 보세요.</span>' :
+       PF.links ? '<div class="btn-row">' + a(L.sheet, '가지 데이터 시트 열기') + a(L.script, '연결기(Apps Script) 열기') + a(L.folder || L.home, L.folder ? '사진 폴더 열기' : '동아리 폴더 열기') + '</div>' +
         '<span class="muted" style="font-size:12px;line-height:1.6">구글 계정에 이 시트 · 폴더의 편집 권한이 있어야 열려요. 시트를 직접 고치면 가지가 헷갈릴 수 있으니 보기만 하세요.</span>'
         : '<span class="muted loading-line">' + SPIN + '주소를 받는 중…</span>') + '</div>';
   }
