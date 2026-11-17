@@ -15,7 +15,7 @@
   const WD = ['일', '월', '화', '수', '목', '금', '토'];
   /* 진단 화면: 주소 끝에 ?debug 를 붙이면 오른쪽 위에 상태가 보임 */
   const DEBUG = /[?&]debug/.test(location.search);
-  const D = { 열림: 0, 그리기: 0, 바뀜: 0, 동아리설정: 0, 로그인변화: 0, 크기변화: 0, 모드: '', 포커스잃음: '', 복사: '', 오류: '', 클릭: '' };
+  const D = { 열림: 0, 그리기: 0, 바뀜: 0, 동아리설정: 0, 로그인변화: 0, 크기변화: 0, 모드: '', 포커스잃음: '', 복사: '', 오류: '', 클릭: '', 클릭도착: '', 바뀐이유: '' };
   try { D.열림 = +(sessionStorage.getItem('gajiLoads') || 0) + 1; sessionStorage.setItem('gajiLoads', D.열림); } catch (e) {}
   function dbg(k, v) {
     if (k) D[k] = v === undefined ? (D[k] || 0) + 1 : v;
@@ -699,6 +699,7 @@
     el.querySelectorAll('input:not([type=file]):not([type=checkbox]),textarea,select').forEach((f) => { const k = (f.form ? f.form.id : '') + '|' + (f.id || f.name); if (f.value && !f.readOnly) keep.push([k, f.value]); });
     const focusKey = act && el.contains(act) && /INPUT|TEXTAREA|SELECT/.test(act.tagName) ? [(act.form ? act.form.id : '') + '|' + (act.id || act.name), act.selectionStart, act.selectionEnd] : null;
     el.innerHTML = html; lastHTML[sel] = html; dbg('바뀜');
+    if (DEBUG) dbg('바뀐이유', sel + ' ' + PF.mode + '/' + (nav[nav.length - 1] || {}).s + ' ' + ((new Error().stack || '').split('\n').slice(3, 6).map((l) => (l.match(/at (\S+)/) || [])[1] || '').join('←')) + ' @' + new Date().toLocaleTimeString());
     const find = (k) => Array.from(el.querySelectorAll('input,textarea,select')).find((f) => (f.form ? f.form.id : '') + '|' + (f.id || f.name) === k);
     keep.forEach(([k, v]) => { const f = find(k); if (f && !f.value && f.id !== 'q') f.value = v; });
     if (focusKey) { const f = find(focusKey[0]); if (f) { f.focus(); try { f.setSelectionRange(focusKey[1], focusKey[2]); } catch (e) {} } }
@@ -800,6 +801,15 @@
     if (act === 'toIdea') { save(); return newForm('idea', n); }
     save(); render();
   }
+  // 누르는 사이에 버튼이 새것으로 바뀌어도 누른 것으로 처리
+  let downAct = null;
+  document.addEventListener('pointerdown', (e) => { const b = e.target.closest && e.target.closest('[data-act]'); downAct = b ? { el: b, act: b.dataset.act, id: b.dataset.id || '' } : null; }, true);
+  document.addEventListener('pointerup', (e) => {
+    const d = downAct; downAct = null; if (!d || document.contains(d.el)) return;
+    const b = e.target.closest && e.target.closest('[data-act]');
+    if (b && b.dataset.act === d.act && (b.dataset.id || '') === d.id) { dbg('클릭', '복구 ' + d.act); setTimeout(() => b.click(), 0); }
+  }, true);
+  document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('[data-act]'); if (b) dbg('클릭도착', b.dataset.act + ' @' + new Date().toLocaleTimeString()); }, true);
   $('#screen').addEventListener('click', (e) => onClick(e, 'main'));
   $('#screen').addEventListener('focusin', (e) => { if (e.target.id === 'gsCode') setTimeout(() => { e.target.select(); e.target.scrollTop = 0; }, 0); });
   window.addEventListener('error', (e) => { if (e.message) toast('화면 오류: ' + e.message); });
