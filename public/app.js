@@ -492,6 +492,8 @@
   const TYPE = { exp: { label: '실험', color: 'var(--exp)' }, idea: { label: '아이디어', color: 'var(--idea)' }, q: { label: '질문', color: 'var(--q)' }, res: { label: '자료', color: 'var(--res)' } };
   const STAGES = ['아이디어', '계획 작성', '검토 중', '준비 중', '실험 완료', '기록 완료'];
   const FCODE = { '물리': 'PHY', '화학': 'CHE', '생명': 'BIO', '지구': 'EAR', '공통': 'GEN', '융합': 'MIX' };
+  // 분야 뱃지: 제목 앞에 붙여 화학 · 물리 … 를 한눈에
+  const fieldTag = (n, size) => n && n.field && n.type !== 'q' ? '<span class="ftag f-' + (FCODE[n.field] || 'GEN') + (size ? ' ' + size : '') + '">' + esc(n.field) + '</span>' : '';
   const PREFIX = { exp: 'EXP', idea: 'EXP', q: 'Q', res: 'R' };
   const uid = (n) => PREFIX[n.type] + '-' + n.no;
   const code = (n) => (n.type === 'exp' || n.type === 'idea') ? String(n.created).slice(2, 4) + '-' + (FCODE[n.field] || 'GEN') + '-' + String(n.no).padStart(3, '0') : uid(n);
@@ -670,6 +672,60 @@
   }
 
   /* ---------- 가지 ---------- */
+  /* 전체 가지: 달을 가로로 놓고, 줄기마다 실험이 날짜 자리에서 가지를 침 (끌어서 옆으로 · 한 번 누르면 요약 · 두 번 누르면 상세) */
+  function viewAllBranches() {
+    const Ls = computeLines(); if (!Ls.length) return '<div class="card empty">아직 가지가 없어요. 홈에서 새 실험이나 아이디어를 올려 보세요.</div>';
+    const D = (s) => new Date(String(s).slice(0, 10) + 'T00:00:00');
+    const all = Ls.flatMap((L) => L.rows.map((r) => r.n)), ds = all.map((n) => D(n.date).getTime()).filter((x) => !isNaN(x)).concat([TODAY.getTime()]);
+    const s0 = new Date(Math.min(...ds)); s0.setDate(1); s0.setMonth(s0.getMonth() - 0); const e0 = new Date(Math.max(...ds)); e0.setMonth(e0.getMonth() + 1); e0.setDate(1);
+    const PX = 3.2, LAB = 150, RH = 64, GAP = 26, TOP = 40, day = 864e5;
+    const X = (d) => Math.round((D(d) - s0) / day * PX) + 40, W = Math.round((e0 - s0) / day * PX) + 120;
+    let y = TOP, rowsOut = [], labels = '';
+    Ls.forEach((L, gi) => {
+      labels += '<div class="tl-lab" style="top:' + (y + 6) + 'px"><b>' + esc(L.name) + '</b><small>' + L.rows.length + '개 · ' + (Math.max(...L.rows.map((r) => r.depth)) + 1) + '세대</small></div>';
+      L.rows.forEach((r, i) => { rowsOut.push({ r, y: y + 22 + i * RH, gi }); });
+      y += L.rows.length * RH + GAP;
+    });
+    const H = y + 10, pos = {}; rowsOut.forEach((o) => { pos[o.r.n.id] = { x: X(o.r.n.date), y: o.y }; });
+    let g = '';
+    for (let m = new Date(s0); m <= e0; m.setMonth(m.getMonth() + 1)) {   // 달 눈금
+      const x = X(m.toISOString().slice(0, 10)), lb = (m.getMonth() === 0 || +m === +s0 ? m.getFullYear() + '년 ' : '') + (m.getMonth() + 1) + '월';
+      g += '<line x1="' + x + '" y1="' + (TOP - 14) + '" x2="' + x + '" y2="' + H + '" stroke="var(--line)" stroke-width="1"/><text x="' + (x + 6) + '" y="' + (TOP - 20) + '" font-size="12" font-weight="700" fill="var(--muted)">' + lb + '</text>';
+    }
+    let gy = TOP; Ls.forEach((L, gi) => { if (gi) g += '<line x1="0" y1="' + (gy - GAP / 2) + '" x2="' + W + '" y2="' + (gy - GAP / 2) + '" stroke="var(--line)" stroke-dasharray="2 4"/>'; gy += L.rows.length * RH + GAP; });
+    const tx = X(dstr(TODAY)); g += '<line x1="' + tx + '" y1="' + (TOP - 14) + '" x2="' + tx + '" y2="' + H + '" stroke="var(--today)" stroke-width="2" stroke-dasharray="5 4"/><rect x="' + (tx - 34) + '" y="' + (H - 22) + '" width="68" height="20" rx="10" fill="var(--today)"/><text x="' + tx + '" y="' + (H - 8) + '" text-anchor="middle" font-size="11" font-weight="800" fill="#fff">오늘 ' + (TODAY.getMonth() + 1) + '/' + TODAY.getDate() + '</text>';
+    const sel = PF.tlSel, chain = new Set(sel && byId(sel) ? lineage(byId(sel)).concat(treeRows([byId(sel)]).map((r) => r.n)).map((x) => x.id) : []);
+    rowsOut.forEach((o) => { const r = o.r; if (!r.parent || !pos[r.parent.id]) return; const p = pos[r.parent.id], q = pos[r.n.id], c = nodeColor(r.n), hot = chain.has(r.n.id) && chain.has(r.parent.id);
+      const fut = r.n.type === 'idea' || (days(r.n.date) > 0 && r.n.status !== '기록 완료'), rr = 10, dx = q.x >= p.x ? 1 : -1;
+      g += '<path d="M' + p.x + ' ' + (p.y + 16) + 'V' + (q.y - rr) + 'Q' + p.x + ' ' + q.y + ' ' + (p.x + rr * dx) + ' ' + q.y + 'H' + (q.x - 16 * dx) + '" fill="none" stroke="' + c + '" stroke-width="' + (hot ? 5 : 3) + '" stroke-linecap="round"' + (fut ? ' stroke-dasharray="7 6"' : '') + ' opacity="' + (chain.size && !hot ? .35 : .9) + '"/>'; });
+    rowsOut.forEach((o) => { const n = o.r.n, p = pos[n.id], c = nodeColor(n), idea = n.type === 'idea', t = n.title.length > 14 ? n.title.slice(0, 13) + '…' : n.title, on = sel === n.id, dim = chain.size && !chain.has(n.id);
+      g += '<g data-tnode="' + n.id + '" style="cursor:pointer" opacity="' + (dim ? .4 : 1) + '">' + (on ? '<circle cx="' + p.x + '" cy="' + p.y + '" r="25" fill="var(--halo)"/>' : '') +
+        '<circle cx="' + p.x + '" cy="' + p.y + '" r="15" fill="' + (idea ? 'var(--surface)' : c) + '" stroke="' + c + '" stroke-width="3"' + (idea ? ' stroke-dasharray="4 3"' : '') + '/>' +
+        (n.status === '기록 완료' ? '<path d="m' + (p.x - 6) + ' ' + p.y + ' 4 4 8-9" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' : '') +
+        '<text x="' + p.x + '" y="' + (p.y + 32) + '" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--fg)" style="paint-order:stroke;stroke:var(--surface);stroke-width:4px">' + esc(t) + '</text></g>'; });
+    const sn = sel && byId(sel);
+    setTimeout(() => { const sc = $('#tlScroll'); if (!sc) return; sc.scrollLeft = PF.tlScroll != null ? PF.tlScroll : Math.max(0, tx - sc.clientWidth * 0.6); }, 0);
+    return '<p class="muted" style="margin:0 2px;font-size:13px">달을 따라 줄기마다 실험이 가지를 쳐요. <b>끌어서 옆으로</b> 움직이고, 원을 한 번 누르면 요약 · <b>두 번 누르면 상세</b>로 들어가요.</p>' +
+      '<div class="tl-box"><div class="tl-scroll" id="tlScroll"><div class="tl-inner" style="width:' + (W + LAB) + 'px;height:' + H + 'px"><div class="tl-labels" style="height:' + H + 'px">' + labels + '</div>' +
+      '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" style="margin-left:' + LAB + 'px">' + g + '</svg></div></div>' +
+      (sn ? '<div class="map-tip"><span class="code muted">' + esc(code(sn)) + '</span><b>' + fieldTag(sn) + esc(sn.title) + '</b><span class="muted">' + esc([sn.status, sn.owner, md(sn.date)].filter(Boolean).join(' · ')) + '</span><div class="btn-row" style="margin-top:6px"><button type="button" class="btn primary" data-go="' + esc(sn.id) + '">상세 보기</button><button type="button" class="btn" data-tlclear>닫기</button></div></div>' : '') +
+      '</div><div class="tl-legend muted"><span><i style="background:var(--done)"></i>끝난 실험</span><span><i style="background:var(--exp)"></i>진행 중</span><span><i class="ring"></i>아이디어</span><span>점선 = 아직 안 한 일 · 빨간 선 = 오늘</span></div>';
+  }
+  // 전체 가지 움직이기: 마우스로 끌면 옆으로 (손가락은 그냥 밀면 됨), 한 번 = 요약, 두 번 = 상세
+  (function tlDrag() {
+    let st = null, moved = false, last = { id: '', t: 0 };
+    document.addEventListener('pointerdown', (e) => { const sc = e.target.closest && e.target.closest('#tlScroll'); if (!sc) return; st = { x: e.clientX, y: e.clientY, l: sc.scrollLeft, t: sc.scrollTop, sc, mouse: e.pointerType === 'mouse' }; moved = false; });
+    document.addEventListener('pointermove', (e) => { if (!st) return; const dx = e.clientX - st.x, dy = e.clientY - st.y; if (Math.abs(dx) + Math.abs(dy) > 5) moved = true; if (st.mouse && moved) { st.sc.scrollLeft = st.l - dx; st.sc.classList.add('drag'); } });
+    document.addEventListener('pointerup', (e) => {
+      if (!st) return; const sc = st.sc; sc.classList.remove('drag'); PF.tlScroll = sc.scrollLeft; const was = moved; st = null; if (was) return;
+      const nd = e.target.closest && e.target.closest('[data-tnode]'), now = Date.now(); if (!nd) return;
+      const id = nd.dataset.tnode;
+      if (last.id === id && now - last.t < 450) { last = { id: '', t: 0 }; return go('item', id); }
+      last = { id, t: now }; PF.tlSel = id; render();
+    });
+    document.addEventListener('scroll', (e) => { if (e.target && e.target.id === 'tlScroll') PF.tlScroll = e.target.scrollLeft; }, true);
+    document.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('[data-tlclear]')) { PF.tlSel = null; render(); } });
+  })();
   function lineCard(L) {
     const st = { active: ['t-info', '진행 중'], idea: ['t-warn', '아이디어'], done: ['t-neutral', '끝남'] }[L.state];
     return '<button type="button" class="line-card" data-line="' + esc(L.key) + '"><span class="head"><b>' + esc(L.name) + '</b><span class="badge ' + st[0] + '">' + st[1] + '</span></span>' +
@@ -677,8 +733,9 @@
       '<span class="next">' + (L.state === 'done' ? '마지막 ' + fmt(L.last) + ' · 실험 ' + L.rows.length + '개' : '다음: <b>' + fmt(L.next.date) + ' ' + esc(L.next.title) + '</b> · ' + esc(tone(L.next)[1].replace('● ', ''))) + '</span></button>';
   }
   function viewTree() {
-    const mode = prefs.treeMode || 'line';
-    let h = '<div class="seg" role="group" aria-label="보기"><button type="button" data-tmode="line" aria-pressed="' + (mode === 'line') + '">줄기별</button><button type="button" data-tmode="date" aria-pressed="' + (mode === 'date') + '">날짜별</button></div>';
+    const mode = prefs.treeMode || 'all';
+    let h = '<div class="seg" role="group" aria-label="보기" style="grid-template-columns:repeat(3,1fr)"><button type="button" data-tmode="all" aria-pressed="' + (mode === 'all') + '">전체 가지</button><button type="button" data-tmode="line" aria-pressed="' + (mode === 'line') + '">줄기별</button><button type="button" data-tmode="date" aria-pressed="' + (mode === 'date') + '">날짜별</button></div>';
+    if (mode === 'all') return h + viewAllBranches();
     if (mode === 'line') {
       const L = computeLines(), live = L.filter((l) => l.state !== 'done'), done = L.filter((l) => l.state === 'done');
       h += '<div class="grid2 wide3">' + live.map(lineCard).join('') + '</div>' || '<div class="card empty">아직 가지가 없어요. 홈에서 새 실험이나 아이디어를 올려 보세요.</div>';
@@ -691,7 +748,7 @@
         if (!t && d >= TODAY) { t = true; h += '<div class="todayline">오늘 ' + fmt(TODAY) + '</div>'; }
         const g = lineage(n).length, a = after(n);
         h += '<button type="button" class="srow' + (d < TODAY && n.status === '기록 완료' ? ' past' : '') + '" data-item="' + n.id + '"><span class="sdate"><b>' + d.getDate() + '</b><small>' + WD[d.getDay()] + '</small></span>' + ico(n) +
-          '<span class="tx"><small class="code">' + esc(code(n)) + (g > 1 || a ? ' · ' + (g > 1 ? g + '세대' : '') + (g > 1 && a ? ' · ' : '') + (a ? '후속 ' + a : '') : '') + '</small><b>' + esc(n.title) + '</b></span>' + badge(n) + '</button>'; });
+          '<span class="tx"><small class="code">' + esc(code(n)) + (g > 1 || a ? ' · ' + (g > 1 ? g + '세대' : '') + (g > 1 && a ? ' · ' : '') + (a ? '후속 ' + a : '') : '') + '</small><b>' + fieldTag(n) + esc(n.title) + '</b></span>' + badge(n) + '</button>'; });
       if (!t) h += '<div class="todayline">오늘 ' + fmt(TODAY) + '</div>';
       h += '</div>';
     }
@@ -711,7 +768,7 @@
     if (isArch(n) && PF.mode === 'live') { const head = '<div class="detail-head"><div class="idrow">' + ico(n) + '<span class="idchip">' + esc(code(n)) + '</span></div><h2>' + esc(n.title) + '</h2><div class="idrow">' + badge(n) + '</div></div>'; return head + archWait(n); }
     if (isDel(n)) return '<div class="card empty">휴지통에 있는 항목이에요. <button type="button" class="chipbtn" data-act="restore" data-id="' + esc(n.id) + '">되살리기</button></div>';
     let h = '<div class="detail-head"><div class="idrow">' + ico(n) + '<span class="idchip">' + esc(code(n)) + '</span><button type="button" class="chipbtn" data-act="copy">번호 복사</button><span class="muted" style="font-size:12px">' + TYPE[n.type].label + ' · ' + esc(n.field) + (n.owner ? ' · ' + esc(n.owner) : '') + '</span><button type="button" class="chipbtn more-btn" data-act="itemMenu" aria-label="더 보기">⋯ 관리</button></div>' +
-      '<h2>' + esc(n.title) + '</h2><div class="idrow">' + badge(n) + (n.type === 'exp' && tone(n)[1] !== n.status ? '<span class="badge t-info">' + esc(n.status) + '</span>' : '') + (isFinal(n) ? '<span class="badge t-ok">보고서 확정</span>' : '') + (isPriv(n) ? '<span class="badge t-neutral">비공개</span>' : '') + (inTeam(n) ? '<span class="badge t-info">내 실험</span>' : '') + '</div></div>';
+      '<h2>' + fieldTag(n, 'big') + esc(n.title) + '</h2><div class="idrow">' + badge(n) + (n.type === 'exp' && tone(n)[1] !== n.status ? '<span class="badge t-info">' + esc(n.status) + '</span>' : '') + (isFinal(n) ? '<span class="badge t-ok">보고서 확정</span>' : '') + (isPriv(n) ? '<span class="badge t-neutral">비공개</span>' : '') + (inTeam(n) ? '<span class="badge t-info">내 실험</span>' : '') + '</div></div>';
     h += nowCard(n);
     if (isExpLike(n)) { const rows = familyRows(n);
       h += '<div class="card"><div class="panel-title"><span>이 실험의 가지 · ' + lineage(n).length + '세대' + (after(n) ? ' · 후속 ' + after(n) + '개' : '') + '</span><span>' + esc(lineName(lineage(n)[0].line)) + '</span></div>' + branchSvg(rows, n.id) + '</div>'; }
@@ -1306,7 +1363,7 @@
     const n = byId(id); if (!n) return '<div class="card empty">항목을 찾지 못했어요.</div>';
     if (isArch(n) && PF.mode === 'live') return archWait(n);
     const p = n.plan || {}, r = n.report || {}, run = n.run || {}, miss = (t) => '<p class="miss">(아직 안 씀)</p>';
-    const sec = (key, i, inner) => '<section class="rp-sec"><div class="rp-h"><h3>' + (i + 1) + '. ' + REPORT_SECS[i][1] + '</h3><span class="no-print">' + secChip(n, 'report.' + key) + '</span></div>' + inner + '</section>';
+    const sec = (key, i, inner) => '<section class="rp-sec"><div class="rp-h"><span class="rp-no">' + String(i + 1).padStart(2, '0') + '</span><h3>' + REPORT_SECS[i][1] + '</h3><span class="no-print">' + secChip(n, 'report.' + key) + '</span></div><div class="rp-body">' + inner + '</div></section>';
     const L = (arr, ol) => arr && arr.length ? (ol ? '<ol>' : '<ul>') + arr.map((x) => '<li>' + esc(x) + '</li>').join('') + (ol ? '</ol>' : '</ul>') : miss();
     const T = (v) => v ? '<p>' + para(v) + '</p>' : miss();
     const lin = lineage(n), kids = childrenOf(n);
@@ -1331,10 +1388,24 @@
     return '<div class="rp-bar no-print"><button type="button" class="btn" data-act="printReport">인쇄 · PDF 저장</button>' + (canEdit(n) ? '<button type="button" class="btn" data-act="record">결과 · 고찰 고치기</button><button type="button" class="btn" data-act="plan">계획서 고치기</button>' : '') +
       (isAdmin() && n.status === '기록 완료' ? (isFinal(n) ? '<button type="button" class="btn" data-act="unfinal">확정 풀기</button>' : '<button type="button" class="btn primary" data-act="final">보고서 확정</button>') : '') + '</div>' +
       (missing ? '<div class="card gate-note no-print" style="font-weight:400">아직 안 쓴 칸이 ' + missing + '개 있어요. ‘(아직 안 씀)’ 부분을 채우면 보고서가 완성돼요.</div>' : '') +
-      '<article class="report"><header class="rp-cover"><small>' + esc(brand().clubName) + ' 실험 보고서' + (isFinal(n) ? ' · 확정' : ' · 초안') + '</small><h2>' + esc(n.title) + '</h2>' +
-      '<dl><dt>실험 번호</dt><dd class="code">' + esc(code(n)) + ' (' + esc(uid(n)) + ')</dd><dt>분야</dt><dd>' + esc(n.field || '') + '</dd><dt>연구 줄기</dt><dd>' + esc(lineName(lin[0].line)) + (lin.length > 1 ? ' · ' + lin.length + '세대 (' + esc(code(lin[lin.length - 2])) + '에서 이어짐)' : '') + '</dd><dt>참여</dt><dd>' + esc(people.join(', ') || '-') + '</dd><dt>기간</dt><dd>' + esc(period(n)) + '</dd></dl></header>' + body +
-      '<footer class="rp-foot">가지 · ' + esc(brand().clubName) + ' · ' + esc(code(n)) + (isFinal(n) ? ' · ' + esc(n.report.final.by) + ' 확정 ' + esc(String(n.report.final.at).slice(0, 10)) : '') + '</footer></article>' +
+      '<article class="report"><header class="rp-cover">' +
+      '<div class="rp-top"><span class="logo rp-logo">' + logoInner() + '</span><div class="rp-club"><b>' + esc(brand().clubName) + '</b><small>실험 보고서</small></div><span class="rp-state' + (isFinal(n) ? ' final' : '') + '">' + (isFinal(n) ? '확정' : '초안') + '</span></div>' +
+      '<p class="rp-code">' + fieldTag(n) + esc(code(n)) + '</p><h2>' + esc(n.title) + '</h2>' +
+      '<dl class="rp-meta"><div><dt>실험 번호</dt><dd class="code">' + esc(code(n)) + ' (' + esc(uid(n)) + ')</dd></div><div><dt>분야</dt><dd>' + esc(n.field || '-') + '</dd></div>' +
+      '<div><dt>연구 줄기</dt><dd>' + esc(lineName(lin[0].line)) + (lin.length > 1 ? ' · ' + lin.length + '세대 (' + esc(code(lin[lin.length - 2])) + '에서 이어짐)' : '') + '</dd></div><div><dt>기간</dt><dd>' + esc(period(n) || '-') + '</dd></div>' +
+      '<div><dt>참여</dt><dd>' + esc(people.join(', ') || '-') + '</dd></div><div><dt>판정</dt><dd>' + esc(n.verdict || r.claim || '대기') + '</dd></div></dl></header>' + body + signBlock(n) +
+      '<footer class="rp-foot"><span class="logo rp-logo sm">' + logoInner() + '</span><span>' + esc(brand().clubName) + ' · ' + esc(code(n)) + (isFinal(n) ? ' · ' + esc(n.report.final.by) + ' 확정 ' + esc(String(n.report.final.at).slice(0, 10)) : ' · 초안') + '</span><span class="rp-made">가지로 만든 보고서</span></footer></article>' +
       '<div class="no-print">' + commentsCard(n) + '</div>';
+  }
+  // 보고서 끝: 작성 · 검토 · 승인 · 확정 (서명란처럼)
+  function signBlock(n) {
+    const ap = approvals(n), tn = teacherNames(), peers = ap.filter((c) => !tn.includes(c.by) && (rules().team || !teamOf(n).includes(c.by))), tch = ap.filter((c) => tn.includes(c.by));
+    const box = (label, who, when) => '<div class="rp-sbox"><small>' + label + '</small><b>' + (who ? esc(who) : '<span class="muted">-</span>') + '</b><span>' + (when ? esc(md(when)) : '&nbsp;') + '</span></div>';
+    const f = n.report && n.report.final;
+    return '<section class="rp-sign">' + box('작성', n.owner || (n.plan && n.plan.by) || '', n.plan && n.plan.at) +
+      box('부원 검토', peers.map((c) => c.by).join(' · '), peers.length ? peers[peers.length - 1].at : '') +
+      box('지도교사 승인', tch.map((c) => c.by).join(' · '), tch.length ? tch[0].at : '') +
+      box('보고서 확정', f ? f.by : '', f ? f.at : '') + '</section>';
   }
   // 보고서용 결과(표 + 그래프): reportCard의 표 · 그래프 부분만
   function resultBlock(n) {
@@ -1571,7 +1642,7 @@
       '<div class="chips" role="group" aria-label="종류">' + chip('all', '전체') + chip('mine', '내 것') + chip('exp', '실험 · 아이디어', 'var(--exp)') + chip('q', '질문', 'var(--q)') + chip('res', '자료', 'var(--res)') + '</div>' +
       '<div class="fsels">' + opts('fy', '연도', years, F.fy) + opts('ff', '분야', fields, F.ff) + opts('fp', '사람', people, F.fp) + opts('fs', '단계', stages, F.fs) + '</div>' +
       '<div class="find-count muted">' + list.length + '개' + (q ? ' · ‘' + esc(prefs.q.trim()) + '’' : '') + (filtered ? ' <button type="button" class="chipbtn" data-act="clearFilters">거르기 풀기</button>' : '') + '</div>' +
-      '<div class="day-list">' + (list.length ? list.map(({ n, hit }) => '<button type="button" class="srow" data-item="' + n.id + '">' + ico(n) + '<span class="tx"><small class="code">' + esc(code(n)) + ' · ' + esc(yearOf(n)) + (n.owner ? ' · ' + esc(n.owner) : '') + '</small><b>' + (q ? hiSnip(n.title, q.split(/\s+/)[0]) : esc(n.title)) + '</b>' +
+      '<div class="day-list">' + (list.length ? list.map(({ n, hit }) => '<button type="button" class="srow" data-item="' + n.id + '">' + ico(n) + '<span class="tx"><small class="code">' + esc(code(n)) + ' · ' + esc(yearOf(n)) + (n.owner ? ' · ' + esc(n.owner) : '') + '</small><b>' + fieldTag(n) + (q ? hiSnip(n.title, q.split(/\s+/)[0]) : esc(n.title)) + '</b>' +
         (inTeam(n) ? '<small class="mine-tag">내 실험</small>' : '') + (hit ? '<small class="snip"><em>' + esc(hit[0]) + '</em> ' + hiSnip(hit[1], String(hit[1]).toLowerCase().includes(q) ? q : q.split(/\s+/)[0]) + '</small>' : '') + '</span>' + badge(n) + '</button>').join('') : '<div class="card empty">찾는 항목이 없어요.</div>') + '</div>';
   }
 

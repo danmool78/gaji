@@ -93,13 +93,13 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) process
   t = await body(); ok(t.includes('보고서를 다듬어요') && t.includes('0.93'), '기록 완료 → 보고서 안내 · 평균 0.93'); await shot('07-item-done');
   // 6. 보고서
   await click('[data-act=report]'); t = await body();
-  ok(t.includes('1. 연구 동기와 목적') && t.includes('11. 참고 자료') && t.includes('구리-아연') && t.includes('알루미늄 호일'), '보고서 11개 칸 · 결과 · 진행 메모 포함');
+  ok(t.includes('01연구 동기와 목적') && t.includes('11참고 자료') && t.includes('구리-아연') && t.includes('알루미늄 호일'), '보고서 11개 칸 · 결과 · 진행 메모 포함');
   ok(!t.includes('(아직 안 씀)'), '빈 칸 없음');
   ok(t.includes('그림 1') && t.includes('그림 2') && t.includes('엑셀로 그린 전압 그래프'), '보고서 실험 결과에 그림 1 · 2');
   await click('.rp-sec:nth-of-type(8) [data-act=secNotes]'); await p.fill('#sheet .cm-add [name=text]', '산화막을 어떻게 확인했는지 근거를 더 써 주세요'); await click('#sheet .cm-add button[value=fix]');
   ok((await p.textContent('#sheet')).includes('산화막을 어떻게'), '보고서 고찰에 첨삭'); await click('#sheet [data-act=closeSheet]');
   await shot('08-report');
-  await click('[data-act=final]'); t = await body(); ok(t.includes('· 확정'), '보고서 확정');
+  await click('[data-act=final]'); t = await body(); ok(t.includes('확정') && !!(await p.$('.rp-state.final')), '보고서 확정');
   // 인쇄 화면
   await p.emulateMedia({ media: 'print' }); await p.screenshot({ path: OUT + '09-print.png', fullPage: true }); await p.emulateMedia({ media: 'screen' });
   // 7. 다음 아이디어 → 실험 → 가지 옮기기
