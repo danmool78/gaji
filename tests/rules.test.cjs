@@ -35,6 +35,12 @@ async function createClub(db, uid, slug, name) {
   await t('마스터는 이름 · 색을 바꾼다', () => assertSucceeds(updateDoc(doc(user('alice'), 'clubs', 'bukil-sci'), { name: '북일고 과학탐구반', color: '#2F6FDB' })));
   await t('다른 사람은 이름을 못 바꾼다', () => assertFails(updateDoc(doc(user('bob'), 'clubs', 'bukil-sci'), { name: '해킹' })));
   await t('공개 정보에 다른 칸(이메일 등)을 넣을 수 없다', () => assertFails(updateDoc(doc(user('alice'), 'clubs', 'bukil-sci'), { email: 'a@b.c' })));
+  await t('마스터는 연결기 주소를 저장한다', () => assertSucceeds(updateDoc(doc(user('alice'), 'clubs', 'bukil-sci'), { connector: 'https://script.google.com/macros/s/AKfy123/exec' })));
+  await t('연결기 주소는 구글 스크립트 주소만', () => assertFails(updateDoc(doc(user('alice'), 'clubs', 'bukil-sci'), { connector: 'https://evil.example.com/exec' })));
+  await t('누구나 연결기 주소를 읽는다 (부원 기기용)', () => assertSucceeds(getDoc(doc(anon(), 'clubs', 'bukil-sci'))));
+  await t('마스터는 연결기 키를 저장 · 읽는다', async () => { await assertSucceeds(setDoc(doc(user('alice'), 'clubs/bukil-sci/secret/key'), { masterKey: 'K'.repeat(32) })); await assertSucceeds(getDoc(doc(user('alice'), 'clubs/bukil-sci/secret/key'))); });
+  await t('시스템 마스터도 연결기 키는 못 읽는다', () => assertFails(getDoc(doc(user('sys'), 'clubs/bukil-sci/secret/key'))));
+  await t('다른 사람은 연결기 키를 못 읽는다', () => assertFails(getDoc(doc(user('bob'), 'clubs/bukil-sci/secret/key'))));
   await t('마스터는 사용 현황 숫자를 올린다', () => assertSucceeds(updateDoc(doc(user('alice'), 'clubs', 'bukil-sci', 'private', 'info'), { stats: { members: 12, experiments: 30 } })));
   await t('마스터도 마스터 ID를 직접 바꿀 수 없다', () => assertFails(updateDoc(doc(user('alice'), 'clubs', 'bukil-sci', 'private', 'info'), { masterUid: 'bob' })));
   await t('동아리는 지울 수 없다', () => assertFails(deleteDoc(doc(user('alice'), 'clubs', 'bukil-sci'))));

@@ -26,12 +26,13 @@
     return S;
   }
   function load() { try { const s = localStorage.getItem(KEY); if (s) return JSON.parse(s); } catch (e) {} return freshSample(); }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {} }
+  function save() { if (PF.mode === 'live') return scheduleSync(); try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {} }
   let db = load();
   /* 실제 동아리 주소(/c/주소)로 열렸을 때 platform.js 가 채워 줌 */
-  const PF = { club: null, isMaster: false, api: null, slug: null, handover: null };
+  const PF = { club: null, isMaster: false, api: null, slug: null, handover: null, mode: 'demo', me: null, dev: null, rev: 0, base: null, busy: false, newDevices: [], people: null,
+    approveId: new URLSearchParams(location.search).get('approve') };
   window.GAJI_APP = {
-    setClub(club, isMaster, api, slug) { PF.club = club; PF.isMaster = !!isMaster; PF.api = api; PF.slug = slug; render(); },
+    setClub(club, isMaster, api, slug) { PF.club = club; PF.isMaster = !!isMaster; PF.api = api; PF.slug = slug; startClub(); },
     refresh() { render(); }, toast: (m) => toast(m)
   };
   const brand = () => PF.club ? { clubName: PF.club.name, color: PF.club.color, logo: PF.club.logo || '' } : db.settings;
@@ -43,6 +44,279 @@
   }
   const prefs = (() => { try { return JSON.parse(localStorage.getItem('gaji-prefs') || '{}'); } catch (e) { return {}; } })();
   const savePrefs = () => { try { localStorage.setItem('gaji-prefs', JSON.stringify(prefs)); } catch (e) {} };
+
+  /* ================= 드라이브 연결 (동아리 연결기) =================
+   * mode: demo(체험) · preview(마스터, 연결 전 · 예시 데이터) · closed(부원, 연결 전)
+   *       join(학번 + 개인 코드) · pending(승인 기다림) · loading · error · live(연결됨) */
+  const GATE = new Set(['closed', 'join', 'pending', 'loading', 'error']);
+  const devKey = () => 'gaji-dev:' + PF.slug;
+  const getDev = () => { try { return JSON.parse(localStorage.getItem(devKey()) || 'null'); } catch (e) { return null; } };
+  const putDev = (d) => { try { localStorage.setItem(devKey(), JSON.stringify(d)); } catch (e) {} PF.dev = d; };
+  const dropDev = () => { try { localStorage.removeItem(devKey()); } catch (e) {} PF.dev = null; };
+  const isAdmin = () => PF.mode === 'live' && PF.me && (PF.me.role === '관리자' || PF.me.role === '마스터');
+  const meName = () => (PF.mode === 'live' && PF.me ? PF.me.name : '나');
+  const URL_RE = /^https:\/\/script\.google\.com\/(a\/[^/]+\/)?macros\/s\/[\w-]+\/exec$/;
+  function deviceLabel() {
+    const u = navigator.userAgent;
+    if (/iPad/.test(u) || (/Macintosh/.test(u) && navigator.maxTouchPoints > 1)) return 'iPad';
+    if (/iPhone/.test(u)) return 'iPhone';
+    if (/Android/.test(u)) return /Mobile/.test(u) ? '안드로이드 휴대폰' : '안드로이드 태블릿';
+    if (/CrOS/.test(u)) return '크롬북'; if (/Windows/.test(u)) return 'Windows PC'; if (/Mac/.test(u)) return 'Mac'; return '기기';
+  }
+  async function rpc(action, data, url) {
+    let j;
+    try {
+      const r = await fetch(url || PF.club.connector, { method: 'POST', body: JSON.stringify(Object.assign({ action, device: PF.dev ? { id: PF.dev.id, secret: PF.dev.secret } : null }, data || {})) });
+      j = await r.json();
+    } catch (e) { const x = new Error('연결기에 닿지 않아요. 인터넷이나 연결기 주소를 확인해 주세요'); x.code = 'network'; throw x; }
+    if (!j || !j.ok) { const x = new Error((j && j.message) || '연결기에서 문제가 생겼어요'); x.code = (j && j.code) || 'error'; throw x; }
+    return j.data;
+  }
+  // 기기가 끊긴 경우 공통 처리
+  function deviceLost(e) {
+    if (['no_device', 'blocked', 'member_off', 'expired'].includes(e.code)) { dropDev(); PF.mode = 'join'; PF.notice = e.message; render(); return true; }
+    if (e.code === 'pending') { startClub(); return true; }
+    return false;
+  }
+  async function startClub() {
+    const c = PF.club; PF.notice = PF.notice || '';
+    if (!c.connector) { PF.mode = PF.isMaster ? 'preview' : 'closed'; return render(); }
+    let d = getDev(); if (d && d.url !== c.connector) { dropDev(); d = null; }
+    if (!d) { PF.mode = 'join'; return render(); }
+    PF.dev = d; PF.mode = 'loading'; render();
+    try {
+      const st = await rpc('status');
+      if (st.status === '승인') return liveLoad();
+      if (st.status === '만료') { dropDev(); PF.mode = 'join'; PF.notice = '오래 안 써서 다시 승인이 필요해요'; return render(); }
+      PF.pending = st; PF.mode = 'pending'; render(); pollPending();
+    } catch (e) { if (!deviceLost(e)) { PF.mode = 'error'; PF.error = e.message; render(); } }
+  }
+  function pollPending() {
+    clearTimeout(pollPending.t);
+    pollPending.t = setTimeout(async () => {
+      if (PF.mode !== 'pending') return;
+      if (document.visibilityState === 'visible') {
+        try { const st = await rpc('status'); if (st.status === '승인') { toast('승인됐어요!'); return liveLoad(); } }
+        catch (e) { if (deviceLost(e)) return; }
+      }
+      pollPending();
+    }, 4000);
+  }
+  const fixNode = (n) => Object.assign(n, { equip: n.equip === true || n.equip === 'true', fans: +n.fans || 0, signal: +n.signal || 0, review: +n.review || 0, no: +n.no || 0, date: n.date || n.created || dstr(TODAY), created: n.created || dstr(TODAY), field: n.field || '공통', desc: n.desc || '' });
+  const lkey = (l) => l.s + '|' + l.t + '|' + l.k;
+  function snapshot() { const m = {}; db.nodes.forEach((n) => (m[n.id] = JSON.stringify(n))); return { nodes: m, links: new Set(db.links.map(lkey)), lines: JSON.stringify(db.lines) }; }
+  async function liveLoad() {
+    try {
+      const d = await rpc('load');
+      PF.me = d.me; PF.rev = d.rev; PF.newDevices = (d.newDevices || []).filter((x) => !(prefs.seenDev || []).includes(x.id));
+      db = { settings: db.settings, nodes: d.nodes.map(fixNode), links: d.links, lines: d.lines || {}, lastNo: d.lastNo || { exp: 0, q: 0, res: 0 } };
+      PF.base = snapshot(); PF.mode = 'live'; PF.notice = ''; render(); pollRev();
+      if (PF.isMaster && PF.api && !PF.statsSent) { PF.statsSent = true; rpc('stats').then((st) => PF.api.saveStats(st)).catch(() => {}); }
+      if (PF.approveId) { const id = PF.approveId; PF.approveId = null; history.replaceState(null, '', location.pathname); openApprove(id); }
+    } catch (e) { if (!deviceLost(e)) { PF.mode = 'error'; PF.error = e.message; render(); } }
+  }
+  /* 바꾼 것만 연결기로 보냄 → 번호는 연결기가 매김 */
+  function dirty() {
+    const nodes = db.nodes.filter((n) => PF.base.nodes[n.id] !== JSON.stringify(n)), links = db.links.filter((l) => !PF.base.links.has(lkey(l)));
+    const lines = JSON.stringify(db.lines) !== PF.base.lines;
+    return nodes.length || links.length || lines ? { nodes, links, lines } : null;
+  }
+  function scheduleSync() { clearTimeout(scheduleSync.t); scheduleSync.t = setTimeout(doSync, 300); }
+  async function doSync() {
+    if (PF.mode !== 'live') return; if (PF.busy) return scheduleSync();
+    const d = dirty(); if (!d) return;
+    const sent = d.nodes.map((n) => JSON.parse(JSON.stringify(n))), links = d.links.map((l) => ({ s: l.s, t: l.t, k: l.k })), lines = Object.assign({}, db.lines);
+    PF.busy = true; applyBrand();
+    try {
+      const r = await rpc('sync', { nodes: sent, links, lines });
+      PF.busy = false;
+      if (r.rejected && r.rejected.length) { toast('결과 판정 · 취소 · 단계 되돌리기는 관리자만 할 수 있어요'); return liveLoad(); }
+      sent.forEach((s) => { const no = r.assigned && r.assigned[s.id]; const n = byId(s.id); if (no) { s.no = no; if (n) n.no = no; } PF.base.nodes[s.id] = JSON.stringify(s); });
+      links.forEach((l) => PF.base.links.add(lkey(l))); PF.base.lines = JSON.stringify(lines);
+      PF.rev = r.rev; render();
+      if (dirty()) scheduleSync();
+    } catch (e) { PF.busy = false; applyBrand(); if (!deviceLost(e)) { toast('저장하지 못했어요 · 잠시 뒤 다시 보낼게요'); clearTimeout(scheduleSync.t); scheduleSync.t = setTimeout(doSync, 8000); } }
+  }
+  // 다른 사람이 바꾼 것: 15초마다 번호(rev)만 확인
+  function pollRev() {
+    clearTimeout(pollRev.t);
+    pollRev.t = setTimeout(async () => {
+      if (PF.mode !== 'live') return;
+      if (document.visibilityState === 'visible' && !PF.busy && !dirty() && $('#sheet').hidden) {
+        try { const r = await rpc('rev'); if (r.rev !== PF.rev) return liveLoad(); } catch (e) { if (deviceLost(e)) return; }
+      }
+      pollRev();
+    }, 15000);
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && PF.mode === 'live') { clearTimeout(pollRev.t); pollRev.t = setTimeout(() => rpc('rev').then((r) => { if (r.rev !== PF.rev && !dirty()) liveLoad(); else pollRev(); }, (e) => { if (!deviceLost(e)) pollRev(); }), 50); } });
+
+  /* ---------- 들어가기 화면 (탭 없이 한 장) ---------- */
+  function gateCard(inner) { return '<div class="gate"><span class="logo gate-logo">' + logoInner() + '</span><b class="gate-name">' + esc(brand().clubName) + '</b>' + inner + '</div>'; }
+  function viewGate() {
+    const m = PF.mode;
+    if (m === 'loading') return gateCard('<p class="muted">동아리 드라이브에 연결하는 중…</p>');
+    if (m === 'error') return gateCard('<div class="card gate-box"><b>연결하지 못했어요</b><p class="muted">' + esc(PF.error) + '</p><button type="button" class="btn primary" data-act="retry">다시 시도</button></div>');
+    if (m === 'closed') return gateCard('<div class="card gate-box"><b>아직 준비 중이에요</b><p class="muted">동아리 마스터가 드라이브를 연결하면 이 주소에서 바로 쓸 수 있어요.</p><a class="btn" href="/c/demo">가지 체험해 보기</a>' + (PF.api ? '<button type="button" class="chipbtn" data-act="pfLogin">동아리 마스터라면 구글로 로그인</button>' : '') + '</div>');
+    if (m === 'pending') {
+      const p = PF.pending || {}, d = PF.dev || {};
+      return gateCard('<div class="card gate-box"><b>승인 기다리는 중</b><p class="muted">' + esc(p.name || d.name || '') + ' · ' + esc(d.label || deviceLabel()) + '</p>' +
+        '<div class="confirm-num" aria-label="확인 숫자">' + esc(p.confirm || '').split('').map((c) => '<span>' + c + '</span>').join('') + '</div><small class="muted">확인 숫자</small>' +
+        '<button type="button" class="btn primary" data-act="askApprove">기장님께 승인 요청 보내기</button>' +
+        '<p class="muted" style="font-size:13px">카톡 등으로 승인 링크를 보내요. 관리자가 승인하면 이 화면이 저절로 열려요.</p>' +
+        '<button type="button" class="chipbtn" data-act="restartJoin">다른 학번으로 다시 하기</button></div>');
+    }
+    // join
+    const mk = PF.isMaster && PF.club.masterKey;
+    return gateCard((PF.notice ? '<div class="card gate-note">' + esc(PF.notice) + '</div>' : '') +
+      '<form class="card gate-box" id="joinForm"><b>들어가기</b>' +
+      '<label class="field">학번<input name="sid" inputmode="numeric" autocomplete="username" maxlength="12" required placeholder="예: 20315"></label>' +
+      '<label class="field">개인 코드 <span class="muted" style="font-weight:400">관리자에게 받은 4자리</span><input name="code" inputmode="numeric" autocomplete="current-password" type="password" maxlength="4" pattern="[0-9]{4}" required placeholder="••••"></label>' +
+      '<button type="submit" class="btn primary">들어가기</button>' +
+      '<p class="muted" style="font-size:12px;line-height:1.6">처음 쓰는 기기는 기장님 승인 뒤에 열려요. 내 코드와 기기는 다른 사람에게 빌려주지 않아요.</p></form>' +
+      (mk ? '<form class="card gate-box" id="masterJoinForm"><b>동아리 마스터로 이 기기 연결</b><p class="muted" style="font-size:13px">구글로 로그인한 마스터는 승인 없이 바로 연결돼요.</p>' +
+        '<label class="field">내 학번<input name="sid" inputmode="numeric" maxlength="12" required></label>' +
+        '<label class="field">내 이름 <span class="muted" style="font-weight:400">처음 쓰는 학번일 때만</span><input name="name" maxlength="20"></label>' +
+        '<button type="submit" class="btn">마스터로 연결</button></form>'
+        : (PF.api && !PF.isMaster ? '<button type="button" class="chipbtn" data-act="pfLogin">동아리 마스터라면 구글로 로그인</button>' : '')));
+  }
+  async function submitJoin(f) {
+    const fd = new FormData(f), sid = String(fd.get('sid')).trim(), code = String(fd.get('code')).trim(), btn = f.querySelector('[type=submit]');
+    btn.disabled = true;
+    try {
+      const label = deviceLabel(), r = await rpc('register', { studentId: sid, code, label });
+      putDev({ id: r.device.id, secret: r.device.secret, url: PF.club.connector, name: r.name, studentId: sid, label });
+      PF.pending = { status: '대기', name: r.name, confirm: r.confirm }; PF.mode = 'pending'; PF.notice = ''; render(); pollPending();
+    } catch (e) { btn.disabled = false; toast(e.message); }
+  }
+  async function submitMasterJoin(f) {
+    const fd = new FormData(f), sid = String(fd.get('sid')).trim(), name = String(fd.get('name') || '').trim(), btn = f.querySelector('[type=submit]');
+    btn.disabled = true;
+    try {
+      const label = deviceLabel(), r = await rpc('masterRegister', { masterKey: PF.club.masterKey, studentId: sid, name, label, slug: PF.slug });
+      putDev({ id: r.device.id, secret: r.device.secret, url: PF.club.connector, name: r.name, studentId: sid, label });
+      if (r.code) showCode(r.name, r.code, true);
+      liveLoad();
+    } catch (e) { btn.disabled = false; toast(e.message); }
+  }
+  function askApprove() {
+    const d = PF.dev || {}, p = PF.pending || {}, link = location.origin + '/c/' + PF.slug + '?approve=' + encodeURIComponent(d.id);
+    const text = '기장님, 가지 새 기기 승인 부탁해요\n' + (p.name || d.name) + ' (' + (d.studentId || '') + ') · ' + (d.label || '') + ' · 확인 숫자 ' + (p.confirm || '');
+    if (navigator.share) return navigator.share({ title: '가지 기기 승인', text, url: link }).catch(() => {});
+    (navigator.clipboard ? navigator.clipboard.writeText(text + '\n' + link) : Promise.reject()).then(() => toast('메시지를 복사했어요 · 카톡에 붙여 넣어 주세요'), () => toast(link));
+  }
+
+  /* ---------- 승인 (관리자) ---------- */
+  async function openApprove(id) {
+    if (!isAdmin()) return toast('기기 승인은 관리자만 할 수 있어요');
+    openSheet('<h3>기기 승인</h3><p class="muted">불러오는 중…</p>');
+    try {
+      const d = await rpc('getDevice', { id });
+      if (d.status !== '대기') return openSheet('<h3>기기 승인</h3><p>' + esc(d.member) + ' · ' + esc(d.label) + '</p><p class="muted">이미 처리된 요청이에요 (' + esc(d.status) + ').</p><div class="btn-row"><button type="button" class="btn" data-act="closeSheet">닫기</button></div>');
+      openSheet('<h3>기기 승인</h3><div class="approve-who"><b>' + esc(d.member) + '</b><span class="code muted">' + esc(d.studentId) + '</span></div>' +
+        '<dl class="kv"><dt>기기</dt><dd>' + esc(d.label || '알 수 없음') + '</dd><dt>쓰는 기기</dt><dd>' + d.others + '대' + (d.others >= 5 ? ' <span class="badge t-warn">기기 많음</span>' : '') + '</dd><dt>요청</dt><dd>' + esc(String(d.createdAt).slice(0, 16).replace('T', ' ')) + '</dd></dl>' +
+        '<div class="confirm-num">' + esc(d.confirm).split('').map((c) => '<span>' + c + '</span>').join('') + '</div>' +
+        '<p class="muted" style="font-size:13px;text-align:center">받은 메시지의 확인 숫자와 같은지 보세요.</p>' +
+        '<div class="btn-row"><button type="button" class="btn" data-act="denyDev" data-id="' + esc(d.id) + '">거절</button><button type="button" class="btn primary" data-act="approveDev" data-id="' + esc(d.id) + '">승인</button></div>' +
+        '<label style="display:flex;gap:8px;align-items:center;font-size:13px;margin-top:4px"><input type="checkbox" id="sharedDev" style="width:18px;height:18px">동아리 공용 기기 (과학실 태블릿 등)</label>');
+    } catch (e) { closeSheet(); if (!deviceLost(e)) toast(e.message); }
+  }
+  async function devAction(act, id) {
+    try {
+      if (act === 'approveDev') { await rpc('approve', { id, shared: !!($('#sharedDev') && $('#sharedDev').checked) }); toast('승인했어요'); }
+      else { await rpc('block', { id }); toast('막았어요'); }
+      closeSheet(); PF.people = null; render();
+    } catch (e) { if (!deviceLost(e)) toast(e.message); }
+  }
+
+  /* ---------- 부원 · 기기 (관리자) ---------- */
+  function loadPeople() {
+    if (PF.peopleLoading) return; PF.peopleLoading = true;
+    rpc('people').then((p) => { PF.people = p; }, (e) => { if (!deviceLost(e)) toast(e.message); }).finally(() => { PF.peopleLoading = false; render(); });
+  }
+  function viewPeople() {
+    if (!isAdmin()) return '<div class="card empty">관리자만 볼 수 있어요.</div>';
+    if (!PF.people) { loadPeople(); return '<div class="card empty">부원 명단을 불러오는 중…</div>'; }
+    const p = PF.people, wait = p.devices.filter((d) => d.status === '대기'), act = p.members.filter((m) => m.status === '활동'), off = p.members.filter((m) => m.status !== '활동');
+    const ROLE = { '마스터': 't-info', '관리자': 't-ok', '부원': 't-neutral' };
+    return '<div class="btn-row"><button type="button" class="btn primary" data-act="addMember">부원 추가</button><button type="button" class="btn" data-act="refreshPeople">새로 고침</button></div>' +
+      (wait.length ? '<h2 class="sec">승인 기다리는 기기 <small>' + wait.length + '</small></h2>' + wait.map((d) => '<button type="button" class="srow" data-act="openApprove" data-id="' + esc(d.id) + '"><span class="tx"><b>' + esc(d.member) + ' · ' + esc(d.label) + '</b><small class="code">' + esc(d.studentId) + ' · 확인 숫자 ' + esc(d.confirm) + '</small></span><span class="badge t-warn">승인</span></button>').join('') : '') +
+      '<h2 class="sec">부원 <small>' + act.length + '명</small></h2>' +
+      act.map((m) => '<button type="button" class="srow" data-act="member" data-id="' + esc(m.id) + '"><span class="tx"><b>' + esc(m.name) + '</b><small class="code">' + esc(m.studentId) + ' · 기기 ' + m.devices + '대' + (m.devices >= 6 ? ' · 기기 많음' : '') + '</small></span><span class="badge ' + ROLE[m.role] + '">' + esc(m.role) + '</span></button>').join('') +
+      (off.length ? '<h2 class="sec">활동 중지 <small>' + off.length + '명</small></h2>' + off.map((m) => '<button type="button" class="srow" data-act="member" data-id="' + esc(m.id) + '"><span class="tx"><b>' + esc(m.name) + '</b><small class="code">' + esc(m.studentId) + '</small></span><span class="badge t-neutral">중지</span></button>').join('') : '') +
+      '<div class="card" style="display:flex;flex-direction:column;gap:8px;margin-top:8px"><b>긴급</b><span class="muted" style="font-size:13px">코드가 새어 나간 것 같을 때. 내 기기를 뺀 모든 기기가 다시 승인을 받아야 해요.</span><button type="button" class="btn danger" data-act="logoutAll">모든 기기 로그아웃</button></div>';
+  }
+  function memberSheet(id) {
+    const m = PF.people && PF.people.members.find((x) => x.id === id); if (!m) return;
+    const master = PF.me.role === '마스터';
+    openSheet('<h3>' + esc(m.name) + ' <span class="code muted" style="font-size:14px">' + esc(m.studentId) + '</span></h3><p class="muted">' + esc(m.role) + ' · 승인된 기기 ' + m.devices + '대</p><div style="display:flex;flex-direction:column;gap:10px">' +
+      (m.status === '활동' ? '<button type="button" class="btn" data-act="resetCode" data-id="' + esc(m.id) + '">개인 코드 다시 만들기</button><small class="muted">코드를 잊었거나 새어 나갔을 때. 이 부원의 기기는 모두 다시 승인받아야 해요.</small>' : '') +
+      (master && m.role !== '마스터' && m.status === '활동' ? '<button type="button" class="btn" data-act="setRole" data-id="' + esc(m.id) + '" data-role="' + (m.role === '관리자' ? '부원' : '관리자') + '">' + (m.role === '관리자' ? '부원으로 바꾸기' : '관리자로 지정') + '</button>' : '') +
+      (m.role !== '마스터' ? '<button type="button" class="btn' + (m.status === '활동' ? ' danger' : '') + '" data-act="setStatus" data-id="' + esc(m.id) + '" data-status="' + (m.status === '활동' ? '중지' : '활동') + '">' + (m.status === '활동' ? '활동 중지 (기기 모두 차단)' : '다시 활동') + '</button>' : '') +
+      '<button type="button" class="btn" data-act="closeSheet">닫기</button></div>');
+  }
+  function showCode(name, code, self) {
+    const text = (self ? '내' : name) + ' 가지 개인 코드: ' + code;
+    openSheet('<h3>' + esc(name) + ' 개인 코드</h3><div class="confirm-num big">' + esc(code).split('').map((c) => '<span>' + c + '</span>').join('') + '</div>' +
+      '<p class="muted" style="font-size:13px;text-align:center">' + (self ? '다른 기기에서 들어갈 때 학번과 함께 써요. 잘 적어 두세요.' : '이 코드는 지금만 보여요. 부원에게 직접 알려 주세요.') + '</p>' +
+      '<div class="btn-row">' + (self ? '' : '<button type="button" class="btn" data-act="shareCode" data-text="' + esc(text + '\n' + location.origin + '/c/' + PF.slug) + '">보내기</button>') + '<button type="button" class="btn primary" data-act="closeSheet">확인</button></div>');
+  }
+  async function peopleAction(a) {
+    const act = a.dataset.act, id = a.dataset.id;
+    try {
+      if (act === 'resetCode') { if (!confirm('코드를 다시 만들까요? 이 부원의 기기는 모두 다시 승인받아야 해요.')) return; const r = await rpc('resetCode', { id }); const m = PF.people.members.find((x) => x.id === id); PF.people = null; showCode(m ? m.name : '', r.code); render(); return; }
+      if (act === 'setRole') { await rpc('setMember', { id, role: a.dataset.role }); toast('바꿨어요'); }
+      if (act === 'setStatus') { if (a.dataset.status === '중지' && !confirm('활동을 멈추면 이 부원의 기기가 모두 막혀요. 계속할까요?')) return; await rpc('setMember', { id, status: a.dataset.status }); toast('바꿨어요'); }
+      if (act === 'logoutAll') { if (!confirm('내 기기를 뺀 모든 기기를 로그아웃할까요?')) return; await rpc('logoutAll'); toast('모든 기기를 로그아웃했어요'); }
+      closeSheet(); PF.people = null; render();
+    } catch (e) { if (!deviceLost(e)) toast(e.message); }
+  }
+
+  /* ---------- 드라이브 연결 마법사 (마스터) ---------- */
+  function connectCard() {
+    const c = PF.club;
+    if (c.connector && !PF.rewire) return '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">드라이브 연결</b><span class="badge t-ok">● 연결됨</span></div>' +
+      '<span class="code muted" style="font-size:12px;word-break:break-all">' + esc(c.connector) + '</span>' +
+      '<div class="btn-row"><button type="button" class="btn" data-act="testConn">연결 시험</button><button type="button" class="btn" data-act="copyGs">연결기 코드 복사</button></div>' +
+      '<span class="muted" style="font-size:12px;line-height:1.6">연결기를 새로 배포했거나 다른 시트로 옮길 때만 주소를 바꿔요.</span><button type="button" class="chipbtn" data-act="rewire">연결기 주소 바꾸기</button></div>';
+    const step = (n, t, d, extra) => '<li class="wstep"><span class="wnum">' + n + '</span><div><b>' + t + '</b><span class="muted">' + d + '</span>' + (extra || '') + '</div></li>';
+    return '<div class="card" style="display:flex;flex-direction:column;gap:12px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">드라이브 연결</b><span class="badge t-warn">● 연결 전</span></div>' +
+      '<span class="muted" style="font-size:13px;line-height:1.6">동아리 기록은 우리 드라이브의 시트에 저장돼요. 한 번만 하면 되고, 컴퓨터에서 하는 게 편해요 (10분).</span>' +
+      '<ol class="wizard">' +
+      step(1, '가지 데이터 시트 만들기', '학교 공유 드라이브(권장)나 내 드라이브에 새 구글 시트를 만들고 이름을 <b>가지 데이터</b>로 바꿔요.', '<a class="btn" href="https://docs.google.com/spreadsheets/create" target="_blank" rel="noopener">새 시트 열기</a>') +
+      step(2, '연결기 코드 붙여 넣기', '시트 메뉴 <b>확장 프로그램 → Apps Script</b>. 원래 있던 코드를 모두 지우고 붙여 넣은 뒤 저장해요.', '<button type="button" class="btn" data-act="copyGs">연결기 코드 복사</button>') +
+      step(3, '웹 앱으로 배포', '<b>배포 → 새 배포 → 유형: 웹 앱</b> · 실행: <b>나</b> · 액세스: <b>모든 사용자</b> → 배포 → 권한 허용. ‘확인되지 않은 앱’이 나오면 고급 → 이동을 눌러요.') +
+      step(4, '웹 앱 주소 붙여 넣기', '배포가 끝나면 나오는 웹 앱 URL을 복사해 아래에 넣어요.',
+        '<form id="connectForm" style="display:flex;flex-direction:column;gap:10px;margin-top:6px"><label class="field">웹 앱 URL<input name="url" required placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" spellcheck="false"></label>' +
+        '<div class="grid2"><label class="field">내 학번<input name="sid" inputmode="numeric" maxlength="12" required></label><label class="field">내 이름<input name="name" maxlength="20" required></label></div>' +
+        '<button type="submit" class="btn primary">연결하기</button>' + (PF.rewire ? '<button type="button" class="chipbtn" data-act="rewireCancel">취소</button>' : '') + '</form>') +
+      '</ol></div>';
+  }
+  function fetchGs() { if (!PF.gs) fetch('/connector.gs').then((r) => r.text()).then((t) => { PF.gs = t; }).catch(() => {}); }
+  async function submitConnect(f) {
+    const fd = new FormData(f), url = String(fd.get('url')).trim(), sid = String(fd.get('sid')).trim(), name = String(fd.get('name')).trim(), btn = f.querySelector('[type=submit]');
+    if (!URL_RE.test(url)) return toast('웹 앱 주소는 https://script.google.com/…/exec 모양이에요');
+    btn.disabled = true; btn.textContent = '연결하는 중…';
+    const done = () => { btn.disabled = false; btn.textContent = '연결하기'; };
+    try {
+      PF.dev = null;
+      const ping = await rpc('ping', {}, url), label = deviceLabel();
+      let key = PF.club.masterKey || PF.api.newKey(), r;
+      if (!ping.initialized) r = await rpc('init', { slug: PF.slug, name, studentId: sid, label, masterKey: key }, url);
+      else {
+        if (ping.slug && ping.slug !== PF.slug && !confirm('이 연결기는 다른 동아리 주소(' + ping.slug + ')로 쓰던 거예요. 이 동아리로 옮겨 올까요?')) return done();
+        r = await rpc('masterRegister', { masterKey: key, studentId: sid, name, label, slug: PF.slug }, url);
+      }
+      await PF.api.saveConnector(url, key);
+      putDev({ id: r.device.id, secret: r.device.secret, url, name, studentId: sid, label });
+      PF.rewire = false; PF.statsSent = false;
+      if (r.code) showCode(name, r.code, true); else toast('연결했어요');
+      liveLoad();
+    } catch (e) {
+      done();
+      if (e.code === 'wrong_key') return toast('다른 동아리의 연결기예요. 시트 주인이라면 시트의 설정 탭에서 masterKeyHash 값을 지우고 다시 해 보세요');
+      toast(e.code === 'network' ? '연결기에 닿지 않아요. 배포 때 액세스를 ‘모든 사용자’로 했는지 확인해 주세요' : e.message);
+    }
+  }
 
   /* ---------- 의미 ---------- */
   const ICON = {
@@ -190,7 +464,9 @@
   }
   function viewHome() {
     const t = todos(), lines = computeLines().filter((l) => l.state !== 'done').slice(0, 3);
-    return '<div class="home-grid"><div><div class="hello"><span class="muted">' + (TODAY.getMonth() + 1) + '월 ' + TODAY.getDate() + '일 ' + WD[TODAY.getDay()] + '요일</span><b>지금 챙길 것 ' + t.length + '개</b></div>' +
+    const nd = PF.mode === 'live' ? PF.newDevices : [];
+    return nd.map((d) => '<div class="card notice"><b>내 이름으로 새 기기가 승인됐어요</b><span class="muted">' + esc(d.label || '기기') + ' · ' + esc(String(d.at).slice(5, 10).replace('-', '/')) + '</span><div class="btn-row"><button type="button" class="btn danger" data-act="notMe" data-id="' + esc(d.id) + '">내가 아니에요</button><button type="button" class="btn" data-act="seenDev" data-id="' + esc(d.id) + '">확인</button></div></div>').join('') +
+      '<div class="home-grid"><div><div class="hello"><span class="muted">' + (TODAY.getMonth() + 1) + '월 ' + TODAY.getDate() + '일 ' + WD[TODAY.getDay()] + '요일</span><b>지금 챙길 것 ' + t.length + '개</b></div>' +
       '<div class="todo">' + (t.length ? t.map((x) => '<button type="button" class="todo-item" data-item="' + x.n.id + '">' + ico(x.n) + '<span class="tx"><b>' + esc(x.n.title) + '</b><small>' + esc(x.why) + '</small></span>' + badge(x.n) + '</button>').join('') : '<div class="card empty">지금 챙길 일이 없어요.</div>') + '</div>' +
       '<div class="quick">' +
         '<button type="button" data-new="exp" style="background:#2F6FDB">' + svgIcon('exp', '#fff') + '새 실험</button>' +
@@ -273,7 +549,8 @@
   function viewMore() {
     const mi = (s, c, path, t, d) => '<button type="button" class="menu-item" data-go-screen="' + s + '"><span class="mi" style="background:' + c + '"><svg viewBox="0 0 24 24"><path d="' + path + '"/></svg></span><span class="tx"><b>' + t + '</b><small>' + d + '</small></span></button>';
     return '<div class="menu">' +
-      (PF.isMaster ? mi('club', 'var(--brand)', 'M8 15a4 4 0 1 0 0-.01zM11 12l8.5-8.5M16.5 6.5l3 3M14 9l2 2', '동아리 관리', '동아리 주소 · 학교 계정 · 마스터 넘기기') : '') +
+      (PF.isMaster ? mi('club', 'var(--brand)', 'M8 15a4 4 0 1 0 0-.01zM11 12l8.5-8.5M16.5 6.5l3 3M14 9l2 2', '동아리 관리', '드라이브 연결 · 동아리 주소 · 마스터 넘기기') : '') +
+      (isAdmin() ? mi('people', 'var(--done)', 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v1M17 11l2 2 4-4', '부원 · 기기', '부원 추가 · 개인 코드 · 기기 승인') : '') +
       mi('settings', 'var(--club)', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z', '설정', '동아리 이름 · 로고 · 색 · 화면 밝기') +
       mi('board', 'var(--exp)', 'M3 4h5v16H3zM10 4h5v11h-5zM17 4h4v7h-4z', '보드', '단계별로 실험 카드 보기 (관리자용)') +
       mi('map', 'var(--q)', 'M12 12m-2.5 0a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0 -5 0M5 5m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M19 6m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M6 19m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M10.2 10.2L6.4 6.4M13.8 11l3.6-3.6M10.3 13.8L7.4 17.4', '전체 지도', '동아리 연구 전체를 한 장으로 (발표용)') +
@@ -310,14 +587,15 @@
       '<div class="field">대표 색<div class="swatches">' + COLORS.map((c) => '<button type="button" data-color="' + c + '" aria-label="색 ' + c + '" aria-pressed="' + (st.color === c) + '" style="background:' + c + '"' + dis + '></button>').join('') + '</div></div>' +
       '<div class="field">화면 밝기<div class="seg" style="grid-template-columns:repeat(3,1fr)">' + [['system', '기기 설정'], ['light', '밝게'], ['dark', '어둡게']].map(([k, l]) => '<button type="button" data-theme="' + k + '" aria-pressed="' + (th === k) + '">' + l + '</button>').join('') + '</div></div>' +
       '</div>' +
-      '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>체험 데이터</b><span class="muted" style="font-size:13px">' + (PF.club ? '동아리 드라이브 연결 전까지 실험 목록은 예시 데이터로 보여요. 이 기기에만 저장됩니다.' : '지금은 이 브라우저에만 저장돼요.') + '</span><button type="button" class="btn" data-act="reset">예시로 되돌리기</button></div>';
+      (PF.mode === 'live' ? '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>이 기기</b><span class="muted" style="font-size:13px">' + esc(PF.me.name) + ' · ' + esc(PF.me.role) + ' · ' + esc((PF.dev && PF.dev.label) || deviceLabel()) + '<br>동아리 기록은 동아리 드라이브에 저장돼요.</span><button type="button" class="btn" data-act="leaveDevice">이 기기에서 나가기</button></div>' :
+      '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>체험 데이터</b><span class="muted" style="font-size:13px">' + (PF.club ? '동아리 드라이브 연결 전까지 실험 목록은 예시 데이터로 보여요. 이 기기에만 저장됩니다.' : '지금은 이 브라우저에만 저장돼요.') + '</span><button type="button" class="btn" data-act="reset">예시로 되돌리기</button></div>');
   }
   function viewClub() {
     if (!PF.isMaster) return '<div class="card empty">동아리 마스터만 볼 수 있어요.</div>';
-    const url = location.origin + '/c/' + PF.slug, h = PF.handover;
-    return '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>동아리 주소</b><span class="code" style="font-size:15px;word-break:break-all;user-select:all">' + esc(url) + '</span>' +
+    const url = location.origin + '/c/' + PF.slug, h = PF.handover; fetchGs();
+    return connectCard() + '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>동아리 주소</b><span class="code" style="font-size:15px;word-break:break-all;user-select:all">' + esc(url) + '</span>' +
       '<div class="btn-row"><button type="button" class="btn" data-act="copyAddr">주소 복사</button><button type="button" class="btn" data-act="shareAddr">부원에게 보내기</button></div>' +
-      '<span class="muted" style="font-size:13px">부원은 이 주소로 들어와 학번과 개인 코드로 씁니다 (드라이브 연결 단계에서 열림).</span></div>' +
+      '<span class="muted" style="font-size:13px">부원은 이 주소로 들어와 학번과 개인 코드로 씁니다. 개인 코드는 더 보기 → 부원 · 기기에서 만들어요.</span></div>' +
       '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>학교 계정 제한 (선택)</b><label class="field">관리자 구글 로그인에 허용할 도메인<input id="domainInput" placeholder="예: school.hs.kr" value="' + esc(PF.club.domain || '') + '"></label><span class="muted" style="font-size:12px">비워 두면 제한하지 않아요.</span></div>' +
       '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>마스터 넘기기</b><span class="muted" style="font-size:13px;line-height:1.6">새 마스터에게 보낼 일회용 링크를 만듭니다. 24시간 동안만 쓸 수 있고, 새 마스터가 구글로 로그인하면 바로 넘어갑니다. 넘긴 뒤 나는 이 화면을 볼 수 없어요.</span>' +
       (h ? '<span class="code" style="font-size:13px;word-break:break-all;user-select:all;background:var(--surface-2);padding:10px;border-radius:10px">' + esc(h.link) + '</span><span class="muted" style="font-size:12px">' + esc(h.until) + '까지 유효</span><div class="btn-row"><button type="button" class="btn" data-act="copyHandover">링크 복사</button><button type="button" class="btn primary" data-act="shareHandover">새 마스터에게 보내기</button></div>'
@@ -355,19 +633,25 @@
   }
 
   /* ---------- 그리기 ---------- */
-  const TITLES = { line: '', item: '', board: '보드', map: '전체 지도', settings: '설정', about: '가지 소개', club: '동아리 관리' };
+  const TITLES = { line: '', item: '', board: '보드', map: '전체 지도', settings: '설정', about: '가지 소개', club: '동아리 관리', people: '부원 · 기기' };
   function logoInner() { const st = brand(); return st.logo ? '<img src="' + esc(st.logo) + '" alt="">' : '<svg viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="9" r="2"/><path d="' + ICON.branch + '"/></svg>'; }
   function applyBrand() {
     const st = brand();
-    $('#demoPill').textContent = PF.club ? '드라이브 연결 전' : '체험 모드';
+    const pill = $('#demoPill');
+    pill.hidden = GATE.has(PF.mode);
+    pill.textContent = PF.mode === 'live' ? (PF.busy ? '저장 중…' : PF.me.name + (PF.me.role !== '부원' ? ' · ' + PF.me.role : '')) : PF.club ? '드라이브 연결 전' : '체험 모드';
+    pill.classList.toggle('live', PF.mode === 'live');
     document.documentElement.style.setProperty('--brand', st.color || '#C26A00');
     $('#clubName').textContent = st.clubName; $('#clubLogo').innerHTML = logoInner();
     const th = prefs.theme || 'system'; if (th === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', th);
   }
   const titleOf = (e) => e.s === 'line' ? lineName(e.arg) : e.s === 'item' ? (byId(e.arg) ? TYPE[byId(e.arg).type].label + ' 상세' : '') : TITLES[e.s] || '';
-  function viewFor(e) { return ({ home: viewHome, tree: viewTree, find: viewFind, more: viewMore, line: () => viewLine(e.arg), item: () => viewItem(e.arg), board: viewBoard, map: viewMap, settings: viewSettings, about: viewAbout, club: viewClub }[e.s] || (() => ''))(); }
+  function viewFor(e) { return ({ home: viewHome, tree: viewTree, find: viewFind, more: viewMore, line: () => viewLine(e.arg), item: () => viewItem(e.arg), board: viewBoard, map: viewMap, settings: viewSettings, about: viewAbout, club: viewClub, people: viewPeople }[e.s] || (() => ''))(); }
   function render(scrollTop) {
     applyBrand();
+    const gated = GATE.has(PF.mode);
+    $('.app').classList.toggle('gated', gated);
+    if (gated) { $('#backBtn').hidden = true; $('#brand').hidden = false; $('#screenTitle').hidden = true; $('#pane').hidden = true; $('#screen').innerHTML = viewGate(); if (scrollTop) window.scrollTo(0, 0); return; }
     const mi = mainIndex(), main = nav[mi], paneOn = mi < nav.length - 1, root = mi === 0;
     $('#backBtn').hidden = root; $('#brand').hidden = !root; $('#screenTitle').hidden = root;
     if (!root) $('#screenTitle').textContent = titleOf(main);
@@ -406,9 +690,30 @@
     const th = t.closest('[data-theme]'); if (th) { prefs.theme = th.dataset.theme; savePrefs(); return render(); }
     const a = t.closest('[data-act]'); if (!a) return;
     const n = cur().s === 'item' ? byId(cur().arg) : null, act = a.dataset.act;
+    const did = a.dataset.id;
+    const copyText = (txt, done) => (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast(done), () => toast('길게 눌러 복사해 주세요'));
+    if (act === 'retry') return startClub();
+    if (act === 'pfLogin') return PF.api && PF.api.login();
+    if (act === 'askApprove') return askApprove();
+    if (act === 'restartJoin') { dropDev(); PF.mode = 'join'; return render(); }
+    if (act === 'leaveDevice') { if (!confirm('이 기기에서 나갈까요? 다시 들어오려면 학번 · 개인 코드와 승인이 필요해요.')) return; rpc('block', { id: PF.dev.id }).catch(() => {}); dropDev(); PF.mode = 'join'; nav = [{ s: 'home' }]; return render(true); }
+    if (act === 'openApprove') return openApprove(did);
+    if (act === 'approveDev' || act === 'denyDev') return devAction(act, did);
+    if (act === 'addMember') return openSheet('<h3>부원 추가</h3><form id="addMemberForm" style="display:flex;flex-direction:column;gap:12px"><label class="field">학번<input name="sid" inputmode="numeric" maxlength="12" required></label><label class="field">이름<input name="name" maxlength="20" required></label><p class="muted" style="font-size:13px;margin:0">추가하면 4자리 개인 코드가 만들어져요.</p><div class="btn-row"><button type="button" class="btn" data-act="closeSheet">취소</button><button type="submit" class="btn primary">추가</button></div></form>');
+    if (act === 'refreshPeople') { PF.people = null; return render(); }
+    if (act === 'member') return memberSheet(did);
+    if (['resetCode', 'setRole', 'setStatus', 'logoutAll'].includes(act)) return peopleAction(a);
+    if (act === 'seenDev' || act === 'notMe') {
+      prefs.seenDev = (prefs.seenDev || []).concat(did).slice(-20); savePrefs(); PF.newDevices = PF.newDevices.filter((x) => x.id !== did);
+      if (act === 'notMe') rpc('block', { id: did }).then(() => toast('그 기기를 막았어요 · 관리자에게도 알려 주세요'), (er) => toast(er.message));
+      return render();
+    }
+    if (act === 'copyGs') return PF.gs ? copyText(PF.gs, '연결기 코드를 복사했어요 · Apps Script에 붙여 넣어 주세요') : (fetchGs(), toast('잠시 뒤 다시 눌러 주세요'));
+    if (act === 'testConn') { rpc('ping').then((p) => toast('연결 정상 · 연결기 ' + p.version), (er) => toast(er.message)); return; }
+    if (act === 'rewire') { PF.rewire = true; return render(); }
+    if (act === 'rewireCancel') { PF.rewire = false; return render(); }
     if (act === 'reset') { db = freshSample(); save(); toast('예시 데이터로 되돌렸어요'); return render(); }
     if (act === 'logoClear') return saveBrand({ logo: '' });
-    const copyText = (txt, done) => (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast(done), () => toast('길게 눌러 복사해 주세요'));
     const shareText = (title, text, url) => navigator.share ? navigator.share({ title, text, url }).catch(() => {}) : copyText(url, '링크를 복사했어요');
     if (act === 'copyAddr') return copyText(location.origin + '/c/' + PF.slug, '동아리 주소를 복사했어요');
     if (act === 'shareAddr') return shareText(brand().clubName, brand().clubName + ' 가지 주소예요', location.origin + '/c/' + PF.slug);
@@ -418,7 +723,7 @@
     if (!n) return;
     if (act === 'copy') { const c = code(n); (navigator.clipboard ? navigator.clipboard.writeText(c) : Promise.reject()).then(() => toast(c + ' 복사했어요'), () => toast('번호: ' + c)); return; }
     if (act === 'fan') { n.fans = (n.fans || 0) + 1; toast('같이 해요 ' + n.fans + '명'); }
-    if (act === 'volunteer') { n.volunteer = '나'; toast('담당으로 지원했어요'); }
+    if (act === 'volunteer') { n.volunteer = meName(); toast('담당으로 지원했어요'); }
     if (act === 'equip') { n.equip = true; toast('장비 확인 완료'); }
     if (act === 'convert') { n.type = 'exp'; n.status = '계획 작성'; n.owner = n.volunteer; n.signal = 0; n.review = 0; toast('계획서가 됐어요 · 번호 ' + code(n) + ' 그대로'); }
     if (act === 'advance') { const i = STAGES.indexOf(n.status); n.status = STAGES[i + 1]; if (n.status === '준비 중') n.signal = n.signal || 2; toast(n.status + ' 단계로 옮겼어요'); }
@@ -446,13 +751,28 @@
       cx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 160, 160); saveBrand({ logo: cv.toDataURL('image/png') }); toast('로고를 바꿨어요'); }; img.src = r.result; };
     r.readAsDataURL(f);
   });
-  $('#sheet').addEventListener('click', (e) => { if (e.target.closest('[data-act="closeSheet"]')) closeSheet(); });
+  $('#sheet').addEventListener('click', (e) => {
+    const a = e.target.closest('[data-act]'); if (!a) return; const act = a.dataset.act;
+    if (act === 'closeSheet') return closeSheet();
+    if (act === 'approveDev' || act === 'denyDev') return devAction(act, a.dataset.id);
+    if (['resetCode', 'setRole', 'setStatus'].includes(act)) return peopleAction(a);
+    if (act === 'shareCode') { const t = a.dataset.text; if (navigator.share) navigator.share({ text: t }).catch(() => {}); else (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('복사했어요'), () => {}); }
+  });
+  $('#screen').addEventListener('submit', (e) => {
+    const id = e.target.id; if (!['joinForm', 'masterJoinForm', 'connectForm'].includes(id)) return;
+    e.preventDefault(); if (id === 'joinForm') submitJoin(e.target); else if (id === 'masterJoinForm') submitMasterJoin(e.target); else submitConnect(e.target);
+  });
   $('#sheet').addEventListener('submit', (e) => {
+    if (e.target.id === 'addMemberForm') {
+      e.preventDefault(); const fd = new FormData(e.target), name = String(fd.get('name')).trim(), btn = e.target.querySelector('[type=submit]'); btn.disabled = true;
+      rpc('addMember', { studentId: String(fd.get('sid')).trim(), name }).then((r) => { PF.people = null; showCode(name, r.code); render(); }, (er) => { btn.disabled = false; if (!deviceLost(er)) toast(er.message); });
+      return;
+    }
     e.preventDefault(); const fm = e.target, fd = new FormData(fm), type = fm.dataset.type, parent = fm.dataset.parent ? byId(fm.dataset.parent) : null;
     const title = String(fd.get('title') || '').trim(); if (!title) return;
     const f = { type, title, field: fd.get('field'), date: fd.get('date') || dstr(TODAY) };
     if (type !== 'q') { let ln = parent ? parent.line : fd.get('line'); if (!ln || ln === '__new') { ln = 'L' + Date.now().toString(36); db.lines[ln] = title.slice(0, 12); } f.line = ln; }
-    if (type === 'exp') Object.assign(f, { status: '계획 작성', owner: '나', signal: 0, review: 0 });
+    if (type === 'exp') Object.assign(f, { status: '계획 작성', owner: meName(), signal: 0, review: 0 });
     if (type === 'idea') Object.assign(f, { status: '아이디어', fans: 1, volunteer: '', equip: false });
     if (type === 'q') f.status = '미해결';
     const n = create(f, parent); closeSheet(); toast(TYPE[type].label + '를 만들었어요 · ' + code(n)); go('item', n.id, 'main');

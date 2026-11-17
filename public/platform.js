@@ -8,7 +8,7 @@ const auth = getAuth(fb);
 const db = getFirestore(fb);
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const VERSION = 'v0.2';
+const VERSION = 'v0.3';
 const COLORS = ['#C26A00', '#2F6FDB', '#1F8F5A', '#6E4FE0', '#D2394B', '#475467'];
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{2,29}$/;
 const RESERVED = ['demo', 'system', 'admin', 'api', 'www', 'gaji'];
@@ -94,11 +94,22 @@ async function clubPage(slug) {
   if (user) {
     const info = await getDoc(doc(db, 'clubs', slug, 'private', 'info')).catch(() => null);
     if (info && info.exists()) { isMaster = true; club.domain = info.data().domain || '';
-      updateDoc(info.ref, { 'stats.lastActive': serverTimestamp(), 'stats.version': VERSION }).catch(() => {}); }
+      updateDoc(info.ref, { 'stats.lastActive': serverTimestamp(), 'stats.version': VERSION }).catch(() => {});
+      const k = await getDoc(doc(db, 'clubs', slug, 'secret', 'key')).catch(() => null);
+      club.masterKey = k && k.exists() ? k.data().masterKey : ''; }
   }
   const api = {
     savePublic: (patch) => { const p = {}; if ('name' in patch) p.name = patch.name; if ('color' in patch) p.color = patch.color; if ('logo' in patch) p.logo = patch.logo; return updateDoc(doc(db, 'clubs', slug), p); },
     saveInfo: (patch) => updateDoc(doc(db, 'clubs', slug, 'private', 'info'), patch.domain ? { domain: patch.domain } : { domain: '' }),
+    newKey: () => randomCode(40),
+    saveConnector: async (url, key) => {
+      const b = writeBatch(db);
+      b.update(doc(db, 'clubs', slug), { connector: url });
+      if (key) b.set(doc(db, 'clubs', slug, 'secret', 'key'), { masterKey: key });
+      await b.commit(); club.connector = url; if (key) club.masterKey = key;
+    },
+    saveStats: (st) => updateDoc(doc(db, 'clubs', slug, 'private', 'info'), { 'stats.members': st.members | 0, 'stats.experiments': st.experiments | 0, 'stats.lastActive': serverTimestamp() }),
+    login: () => login(),
     createHandover: async () => {
       const code = randomCode(28), until = new Date(Date.now() + 24 * 3600e3);
       await setDoc(doc(db, 'clubs', slug, 'handover', 'current'), { code, expiresAt: Timestamp.fromDate(until) });
