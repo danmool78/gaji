@@ -3,3 +3,4 @@ node_modules/
 *-debug.log
 shots/
 intro/out/
+__pycache__/
