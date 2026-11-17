@@ -761,6 +761,7 @@ textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3p
 .ev-row.no { opacity: .6; } .ev-row.no .ev-tag { background: var(--bad-bg); color: var(--bad); }
 .chipbtn.ok { background: var(--ok-bg); color: var(--ok); border-color: transparent; font-weight: 800; }
 .cal-wait { background: var(--warn-bg); color: var(--warn); border-color: transparent; font-weight: 800; }
-/* 칸 제목 개수 뱃지: 동아리 색 원 + 잘 보이는 숫자, 크게 */
-/* 칸 제목 개수 뱃지: 크고 또렷하게 */
-.zone-sub .cnt { min-width: 34px; height: 30px; padding: 0 10px; border-radius: 10px; background: var(--brand); color: var(--on-brand, #fff); font-family: var(--f-num); font-size: 17px; font-weight: 800; letter-spacing: -.4px; font-variant-numeric: tabular-nums; line-height: 1; box-shadow: 0 0 0 3px var(--brand-soft); }
+/* 칸 제목 개수: 상자 없이 동아리 색 큰 숫자 */
+.zone-sub .cnt { min-width: 0; height: auto; padding: 0; margin-left: 2px; border-radius: 0; background: none; box-shadow: none; color: var(--brand); font-family: var(--f-num); font-size: 22px; font-weight: 800; letter-spacing: -.5px; line-height: 1; font-variant-numeric: tabular-nums; }
+:root[data-theme="dark"] .zone-sub .cnt { filter: brightness(1.35); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .zone-sub .cnt { filter: brightness(1.35); } }
