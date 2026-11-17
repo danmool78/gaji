@@ -64,7 +64,7 @@ function createPage() {
     '<div class="field">대표 색<div class="swatches">' + COLORS.map((c, i) => '<button type="button" data-pc="' + c + '" aria-label="색 ' + c + '" aria-pressed="' + (i === 0) + '" style="background:' + c + '"></button>').join('') + '</div></div>' +
     '<label class="field">학교 계정 도메인 (선택)<input name="domain" maxlength="60" placeholder="예: school.hs.kr" autocapitalize="off"></label>' +
     '<label style="display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.6"><input type="checkbox" name="agree" required style="width:20px;height:20px;margin-top:2px">동아리 기록은 우리 학교 구글 드라이브에 저장되고, 가지 서버에는 동아리 이름 · 로고 · 마스터 계정 ID · 사용 현황 숫자만 저장되는 것을 확인했어요.</label>' +
-    '<button type="submit" class="btn primary">동아리 만들기</button></form>');
+    '<button type="submit" class="btn primary">동아리 만들기</button><span class="muted" style="font-size:12px;line-height:1.6">다음 화면에서 동아리 구글 드라이브를 연결해요 (컴퓨터에서 10분).</span></form>');
 }
 async function submitCreate(f) {
   const fd = new FormData(f), name = String(fd.get('name')).trim(), slug = String(fd.get('slug')).trim().toLowerCase(), domain = String(fd.get('domain') || '').trim().toLowerCase().replace(/^@/, '');
@@ -118,7 +118,11 @@ async function clubPage(slug) {
   };
   showApp();
   window.GAJI_APP.setClub(club, isMaster, api, slug);
-  if (params.get('welcome')) { window.GAJI_APP.toast('동아리를 만들었어요! 더 보기 → 동아리 관리에서 주소를 보낼 수 있어요'); history.replaceState(null, '', '/c/' + slug); }
+  if (params.get('welcome')) {
+    history.replaceState(null, '', '/c/' + slug);
+    if (isMaster && !club.connector) { window.GAJI_APP.open('settings'); window.GAJI_APP.toast('동아리를 만들었어요! 이제 동아리 드라이브를 연결해 주세요'); }
+    else window.GAJI_APP.toast(isMaster ? '마스터가 됐어요! 이 기기를 연결해 주세요' : '동아리를 열었어요');
+  }
 }
 
 /* ---------- 마스터 넘겨받기 ---------- */
