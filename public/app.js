@@ -1533,7 +1533,7 @@
   /* 설정 맨 위: 드라이브 연결 (동아리마다 따로) */
   function driveCard() {
     const box = (badge, body) => '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">드라이브 연결</b>' + badge + '</div>' + body + '</div>';
-    if (!PF.club) return box('<span class="badge t-neutral">체험 모드</span>', '<span class="muted" style="font-size:13px;line-height:1.6">드라이브 연결은 동아리마다 따로 해요. 우리 동아리를 만들면 그 동아리의 설정에서 동아리 드라이브를 연결할 수 있어요. 지금 화면은 체험용이라 이 기기에만 저장돼요.</span><a class="btn primary" href="/new">우리 동아리 만들기</a>');
+    if (!PF.club) return box('<span class="badge t-neutral">체험</span>', '<span class="muted" style="font-size:13px;line-height:1.7">지금은 <b>체험용 가상 동아리(북일고등학교 실험 동아리)</b>예요. 드라이브 연결 없이 바로 써 볼 수 있어요. 바꾼 내용은 이 브라우저에만 저장되고 <b>매일 처음 상태로 돌아가요.</b></span><button type="button" class="btn" data-act="demoWho" style="align-self:flex-start">누구로 체험할지 바꾸기 · 처음 상태로</button>');
     if (PF.isMaster) { fetchGs(); return connectCard(); }
     return '';   // 부원 · 관리자에게는 보이지 않음 (연결은 동아리 마스터만)
   }
@@ -1682,6 +1682,7 @@
     const copyText = (txt, done) => (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast(done), () => toast('길게 눌러 복사해 주세요'));
     if (act === 'clearFilters') { ['fy', 'ff', 'fp', 'fs'].forEach((k) => delete prefs[k]); savePrefs(); return render(); }
     if (act === 'retry') return startClub();
+    if (act === 'demoWho') return demoWho();
     if (act === 'pfLogin') return PF.api && PF.api.login();
     if (act === 'askApprove') return askApprove();
     if (act === 'myCode') return myCode();
@@ -1778,6 +1779,7 @@
     if (['resetCode', 'setRole', 'setStatus'].includes(act)) return peopleAction(a);
     if (['fileFull', 'fileCap', 'fileDel'].includes(act)) return fileAct(act, a.dataset.fid);
     if (flowAct(act, a, ['item', 'run', 'report'].includes(cur().s) ? byId(cur().arg) : null)) return;
+    if (act === 'demoWho') return demoWho();
     if (act === 'demoMe') { prefs.demoMe = a.dataset.name; savePrefs(); closeSheet(); render(); return toast(a.dataset.name + '(으)로 체험해요'); }
     if (act === 'demoReset') { if (!confirm('체험 데이터를 처음 상태로 되돌릴까요?')) return; db = freshSample(); save(); closeSheet(); nav = [{ s: 'home' }]; render(true); return toast('처음 상태로 되돌렸어요'); }
     if (act === 'shareCode') { const t = a.dataset.text; if (navigator.share) navigator.share({ text: t }).catch(() => {}); else (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('복사했어요'), () => {}); }

@@ -34,6 +34,9 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) process
   await p.reload(); await p.waitForTimeout(300);
   await click('.tabs [data-tab="find"]'); await p.fill('#q', '연결 그림을 넣으면'); await p.waitForTimeout(150);
   ok(!(await p.textContent('.day-list')).includes('병렬'), '날짜가 바뀌면 처음 상태 (댓글 사라짐)');
+  await click('.tabs [data-tab="more"]'); await click('[data-go-screen="settings"]'); t = await body();
+  ok(t.includes('체험용 가상 동아리') && !(await p.$('a[href="/new"]')), '체험 설정: 안내만 · 동아리 만들기 버튼 없음');
+  await click('[data-act=demoWho]'); ok((await p.textContent('#sheet')).includes('누구로 체험할까요'), '설정에서 누구로 체험할지 바꾸기');
   ok(!errs.length, '화면 오류 없음 ' + errs.join(' / '));
   await b.close(); srv.close();
 })();
