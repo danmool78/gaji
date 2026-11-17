@@ -1653,7 +1653,8 @@
 
   /* ---------- 그리기 ---------- */
   const TITLES = { line: '', item: '', board: '보드', map: '전체 지도', settings: '설정', about: '가지 소개', club: '동아리 관리', people: '부원 · 기기', run: '진행 도우미', report: '보고서', trash: '휴지통' };
-  function logoInner() { const st = brand(); return st.logo ? '<img src="' + esc(st.logo) + '" alt="">' : '<svg viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="9" r="2"/><path d="' + ICON.branch + '"/></svg>'; }
+  const GAJI_MARK = '<svg viewBox="96 72 340 380" class="gaji-mark"><g fill="#fff" fill-opacity=".72" stroke="none"><path d="M0 0C26-30 74-34 104-6C74 22 28 26 0 0Z" transform="translate(138 222) rotate(-132)"/><path d="M0 0C26-30 74-34 104-6C74 22 28 26 0 0Z" transform="translate(402 290) rotate(28)"/><path d="M0 0C22-26 62-28 88-6C62 18 24 22 0 0Z" transform="translate(330 182) rotate(-12)"/></g><g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"><path d="M164 432C190 356 228 304 284 254C326 216 356 172 368 118" stroke-width="42"/><path d="M232 318C196 292 164 262 140 222" stroke-width="30"/><path d="M298 240C334 246 368 262 400 288" stroke-width="28"/></g><circle cx="368" cy="112" r="32" fill="#FFC24B" stroke="none"/></svg>';
+  function logoInner() { const st = brand(); return st.logo ? '<img src="' + esc(st.logo) + '" alt="">' : GAJI_MARK; }
   function applyBrand() {
     const st = brand();
     const pill = $('#demoPill');
