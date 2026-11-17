@@ -33,6 +33,40 @@
   // 휴대폰에서 두 손가락 확대 막기 (아이폰 사파리는 화면 설정을 무시해서 따로 막음). 3D 지도 · 전체 가지는 자기 확대를 씀
   ['gesturestart', 'gesturechange', 'gestureend'].forEach((ev) => document.addEventListener(ev, (e) => { if (!(e.target.closest && e.target.closest('#map3d, #tlScroll'))) e.preventDefault(); }, { passive: false }));
   document.addEventListener('touchmove', (e) => { if (e.touches.length > 1 && !(e.target.closest && e.target.closest('#map3d, #tlScroll'))) e.preventDefault(); }, { passive: false });
+  /* 화면 아래에 떠 있는 가로 스크롤 막대: 보드 · 전체 가지처럼 옆으로 긴 화면을, 아래까지 내려가지 않아도 바로 좌우로 움직임 */
+  (function floatingHBar() {
+    const SEL = '.board, #tlScroll';
+    const bar = document.createElement('div'); bar.className = 'hbar'; bar.hidden = true;
+    bar.innerHTML = '<button type="button" class="hbar-btn" data-hb="-1" aria-label="왼쪽으로">‹</button><div class="hbar-track"><div class="hbar-thumb"></div></div><button type="button" class="hbar-btn" data-hb="1" aria-label="오른쪽으로">›</button>';
+    const ready = () => { if (!bar.isConnected) document.body.appendChild(bar); };
+    let cur = null, drag = null;
+    const track = bar.querySelector('.hbar-track'), thumb = bar.querySelector('.hbar-thumb');
+    function pick() {   // 화면에 보이고 옆으로 넘치는 것 중 가장 많이 보이는 것
+      let best = null, bestVis = 0;
+      document.querySelectorAll(SEL).forEach((el) => { if (el.scrollWidth <= el.clientWidth + 4) return; const r = el.getBoundingClientRect(); const vis = Math.min(r.bottom, innerHeight) - Math.max(r.top, 0); if (vis > 80 && vis > bestVis) { best = el; bestVis = vis; } });
+      return best;
+    }
+    function update() {
+      ready(); cur = pick();
+      if (!cur || $('#sheet') && !$('#sheet').hidden) { bar.hidden = true; return; }
+      const r = cur.getBoundingClientRect();
+      // 그 상자의 아래쪽이 이미 화면 안에 보이면 (상자 자체 막대가 보이면) 띄우지 않음
+      bar.hidden = false;
+      const left = Math.max(8, r.left), width = Math.min(innerWidth - 8, r.right) - left;
+      bar.style.left = left + 'px'; bar.style.width = Math.max(160, width) + 'px';
+      const tw = track.clientWidth, ratio = cur.clientWidth / cur.scrollWidth, w = Math.max(40, tw * ratio), max = tw - w;
+      thumb.style.width = w + 'px'; thumb.style.transform = 'translateX(' + (max * (cur.scrollLeft / Math.max(1, cur.scrollWidth - cur.clientWidth))) + 'px)';
+    }
+    let raf = 0; const later = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(update); };
+    addEventListener('scroll', later, true); addEventListener('resize', later);
+    new MutationObserver(later).observe(document.documentElement, { childList: true, subtree: true });
+    thumb.addEventListener('pointerdown', (e) => { if (!cur) return; e.preventDefault(); thumb.setPointerCapture(e.pointerId); drag = { x: e.clientX, l: cur.scrollLeft, k: cur.scrollWidth / track.clientWidth }; bar.classList.add('on'); });
+    thumb.addEventListener('pointermove', (e) => { if (drag && cur) cur.scrollLeft = drag.l + (e.clientX - drag.x) * drag.k; });
+    thumb.addEventListener('pointerup', () => { drag = null; bar.classList.remove('on'); });
+    track.addEventListener('pointerdown', (e) => { if (!cur || e.target === thumb) return; const r = track.getBoundingClientRect(); cur.scrollTo({ left: ((e.clientX - r.left) / r.width) * cur.scrollWidth - cur.clientWidth / 2, behavior: 'smooth' }); });
+    bar.addEventListener('click', (e) => { const b = e.target.closest('[data-hb]'); if (b && cur) cur.scrollBy({ left: Number(b.dataset.hb) * cur.clientWidth * 0.7, behavior: 'smooth' }); });
+    setTimeout(later, 300);
+  })();
   function toast(msg, action) {
     const t = $('#toast'); t.textContent = msg;
     if (action) { const b = document.createElement('button'); b.type = 'button'; b.className = 'toast-act'; b.textContent = action.label; b.onclick = () => { t.hidden = true; action.fn(); }; t.appendChild(b); }
