@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.6.1';
+var GAJI_CONNECTOR_VERSION = '2.6.2';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
@@ -133,6 +133,7 @@ function GajiCore(store, util, drive) {
 
   A.load = function (q) {
     var me = deviceOf(q), admin = !!ADMIN[me.role];
+    if (setting('version', '') !== GAJI_CONNECTOR_VERSION) { setSetting('version', GAJI_CONNECTOR_VERSION); setSetting('shell', typeof GAJI_SHELL_VERSION !== 'undefined' ? String(GAJI_SHELL_VERSION) : ''); }   // 시트 '설정' 탭에 지금 돌고 있는 판
     var nodes = store.rows('nodes').filter(function (n) { return !util.bool(n.private) || admin || inTeam(n, me); }).map(cleanNode);
     var members = store.rows('members').filter(function (m) { return m.status === '활동'; }).map(function (m) { return { id: m.id, name: m.name, role: m.role }; });
     var mine = store.rows('devices').filter(function (d) { return d.memberId === me.id; });
