@@ -285,6 +285,7 @@
       '<ol class="wizard">' +
       step(1, '가지 데이터 시트 만들기', '학교 공유 드라이브(권장)나 내 드라이브에 새 구글 시트를 만들고 이름을 <b>가지 데이터</b>로 바꿔요.', '<a class="btn" href="https://docs.google.com/spreadsheets/create" target="_blank" rel="noopener">새 시트 열기</a>') +
       step(2, '연결기 코드 붙여 넣기', '시트 메뉴 <b>확장 프로그램 → Apps Script</b>. 원래 있던 코드를 모두 지우고 붙여 넣은 뒤 저장해요.', '<textarea id="gsCode" class="gs-code" readonly spellcheck="false" aria-label="연결기 코드">' + esc(PF.gs || '불러오는 중…') + '</textarea>' +
+        '<span class="muted" style="font-size:12px">버튼이 안 되면 상자를 한 번 누르고 <b>Ctrl+C</b> (맥은 ⌘+C)</span>' +
         '<div class="btn-row"><button type="button" class="btn primary" data-act="copyGs">코드 전체 복사</button><a class="btn" href="/connector.gs" target="_blank" rel="noopener">새 창에서 보기</a></div>') +
       step(3, '웹 앱으로 배포', '<b>배포 → 새 배포 → 유형: 웹 앱</b> · 실행: <b>나</b> · 액세스: <b>모든 사용자</b> → 배포 → 권한 허용. ‘확인되지 않은 앱’이 나오면 고급 → 이동을 눌러요.') +
       step(4, '웹 앱 주소 붙여 넣기', '배포가 끝나면 나오는 웹 앱 URL을 복사해 아래에 넣어요.',
@@ -299,6 +300,9 @@
   }
   // 복사: 클립보드 → 안 되면 글상자 선택 후 execCommand → 그래도 안 되면 선택된 채로 안내
   function copyGs() {
+    try { copyGs2(); } catch (e) { toast('복사 오류: ' + e.message); }
+  }
+  function copyGs2() {
     const ta = $('#gsCode');
     if (!PF.gs) { fetchGs(); return toast('코드를 불러오는 중이에요 · 잠시 뒤 다시 눌러 주세요'); }
     const sel = () => { if (!ta) return false; ta.focus(); ta.select(); ta.setSelectionRange(0, ta.value.length); try { return document.execCommand('copy'); } catch (e) { return false; } };
@@ -755,6 +759,9 @@
     save(); render();
   }
   $('#screen').addEventListener('click', (e) => onClick(e, 'main'));
+  $('#screen').addEventListener('focusin', (e) => { if (e.target.id === 'gsCode') setTimeout(() => { e.target.select(); e.target.scrollTop = 0; }, 0); });
+  window.addEventListener('error', (e) => { if (e.message) toast('화면 오류: ' + e.message); });
+  window.addEventListener('unhandledrejection', (e) => { const m = e.reason && e.reason.message; if (m) console.warn(m); });
   $('#paneBody').addEventListener('click', (e) => onClick(e, 'pane'));
   const onKey = (src) => (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('g[data-go]')) { e.preventDefault(); go('item', e.target.closest('g[data-go]').dataset.go, src); } };
   $('#screen').addEventListener('keydown', onKey('main'));
