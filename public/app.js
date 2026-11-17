@@ -2244,6 +2244,21 @@
     const now = Date.now(); rTimes.push(now); while (rTimes.length && now - rTimes[0] > 3000) rTimes.shift();
     if (rTimes.length === 12) { const st = (new Error().stack || '').split('\n').slice(3, 6).map((l) => l.trim().replace(/^at /, '').replace(/\(.*\/([^/]+)\)/, '($1)')).join(' ← '); toast('화면 반복 그리기: ' + st); console.warn('render loop', new Error().stack); }
   }
+  // 찾기 입력: 입력칸은 그대로 두고 아래 결과만 다시 그림 (한글 조합이 끊기지 않게)
+  function findRefresh() {
+    const old = $('#q'), host = $('#screen');
+    if (!old || old.parentNode !== host || nav[mainIndex()].s !== 'find') return render();
+    const t = document.createElement('div'); t.innerHTML = viewFor(nav[mainIndex()]);
+    const nq = t.querySelector('#q'); if (!nq || nq.parentNode !== t) return render();
+    [...host.childNodes].forEach((n) => { if (n !== old) n.remove(); });
+    const before = [], after = []; let seen = false;
+    [...t.childNodes].forEach((n) => { if (n === nq) seen = true; else (seen ? after : before).push(n); });
+    before.forEach((n) => host.insertBefore(n, old));
+    after.forEach((n) => host.appendChild(n));
+    delete lastHTML['#screen'];
+    if (nav.length - 1 > mainIndex()) { const p = cur(), sel = p.s === 'item' ? '[data-item="' + p.arg + '"]' : '[data-line="' + p.arg + '"]'; document.querySelectorAll('#screen ' + sel).forEach((el) => el.classList.add('sel-ring')); }
+    if (PF.mode === 'live') setTimeout(loadThumbs, 0);
+  }
   function render(scrollTop) {
     renderWatch(); dbg('그리기'); dbg('모드', PF.mode);
     applyBrand();
@@ -2394,7 +2409,7 @@
   $('#screen').addEventListener('keydown', onKey('main'));
   $('#paneBody').addEventListener('keydown', onKey('pane'));
   $('#screen').addEventListener('input', (e) => {
-    if (e.target.id === 'q') { prefs.q = e.target.value; savePrefs(); const pos = e.target.selectionStart; render(); const q = $('#q'); q.focus(); q.setSelectionRange(pos, pos); }
+    if (e.target.id === 'q') { prefs.q = e.target.value; savePrefs(); findRefresh(); }
     if (e.target.id === 'clubInput' && !PF.club) { db.settings.clubName = e.target.value.trim() || '실험 동아리'; save(); applyBrand(); }
   });
   $('#screen').addEventListener('change', (e) => {
