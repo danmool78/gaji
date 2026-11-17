@@ -673,7 +673,7 @@
     const king = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0];
     if (king) cards.push({ who: king[0], k: '연구왕', v: king[1] + '개 완성', s: '기록 완료까지 함께 해낸 실험 수', ic: 'M3 7l4 4 5-7 5 7 4-4-2 12H5z' });
     if (!cards.length) return '';
-    return '<section class="zone zone-hof"><h2 class="zone-h"><span class="zone-dot"></span>명예의 전당<small>쌓인 기록에서 저절로 뽑아요</small></h2><div class="hof">' + cards.map((c, i) =>
+    return '<section class="zone zone-hof"><h3 class="zone-sub">명예의 전당 <small>쌓인 기록에서 저절로 뽑아요</small></h3><div class="hof">' + cards.map((c, i) =>
       '<button type="button" class="hof-card" ' + (c.n ? 'data-item="' + esc(c.n.id) + '"' : 'data-act="findPerson" data-name="' + esc(c.who) + '"') + ' style="--i:' + i + '"><span class="hof-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="' + c.ic + '"/></svg></span>' +
       '<span class="hof-k">' + c.k + '</span><b class="hof-v">' + c.v + '</b>' + (c.n ? '<span class="hof-t">' + fieldTag(c.n) + esc(c.n.title) + '</span>' : '<span class="hof-t"><b>' + esc(c.who) + '</b></span>') + '<small class="muted">' + (c.n ? esc(c.s) : c.s) + '</small></button>').join('') + '</div></section>';
   }
@@ -711,20 +711,20 @@
       '<div class="home-grid">' +
       // 왼쪽 = 해야 할 일
       '<section class="zone zone-do"><h2 class="zone-h"><span class="zone-dot"></span>해야 할 일<small>나와 동아리가 지금 챙길 것</small></h2>' +
-      '<div class="hello"><span class="muted">' + (TODAY.getMonth() + 1) + '월 ' + TODAY.getDate() + '일 ' + WD[TODAY.getDay()] + '요일 · ' + esc(meName()) + '</span><b>내가 할 일 <span class="hello-n">' + t.length + '</span>개</b></div>' +
+      '<h3 class="zone-sub">내가 할 일 <span class="cnt">' + t.length + '</span><small>' + (TODAY.getMonth() + 1) + '월 ' + TODAY.getDate() + '일 ' + WD[TODAY.getDay()] + '요일</small></h3>' +
       '<div class="todo">' + (t.length ? t.slice(0, 6).map((x) => '<button type="button" class="todo-item' + (x.req ? ' req' : '') + '" data-item="' + x.n.id + '">' + ico(x.n) + '<span class="tx"><b>' + fieldTag(x.n) + esc(x.n.title) + '</b><small>' + esc(x.why) + '</small></span>' + (x.req ? '<span class="badge t-warn">검토 요청</span>' : badge(x.n)) + '</button>').join('') +
         (t.length > 6 ? '<button type="button" class="fold" data-act="findMine">내 것 모두 보기 (' + t.length + ') →</button>' : '')
         : '<div class="card empty">지금 할 일이 없어요. 새 실험을 만들거나, 아이디어에 담당 지원해 보세요.</div>') + '</div>' +
-      (club.length ? '<h3 class="zone-sub">동아리 챙길 것 <small>' + (club.length > 3 ? '급한 3개 · 모두 ' + club.length + '개' : '기장 · 선생님') + '</small></h3><div class="todo">' + club.slice(0, 3).map((x) => '<button type="button" class="todo-item" data-item="' + x.n.id + '">' + ico(x.n) + '<span class="tx"><b>' + fieldTag(x.n) + esc(x.n.title) + '</b><small>' + esc(x.why) + (x.n.owner ? ' · ' + esc(x.n.owner) : '') + '</small></span>' + badge(x.n) + '</button>').join('') + '</div>' + (club.length > 3 ? '<button type="button" class="fold" data-go-screen="board">동아리 챙길 것 모두 보기 (' + club.length + ') →</button>' : '') : '') +
-      '<h3 class="zone-sub">새로 올리기</h3><div class="quick">' +
+      (club.length ? '<h3 class="zone-sub">동아리 챙길 것 <span class="cnt">' + club.length + '</span><small>' + (club.length > 3 ? '급한 3개만 · 기장 · 선생님' : '기장 · 선생님') + '</small></h3><div class="todo">' + club.slice(0, 3).map((x) => '<button type="button" class="todo-item" data-item="' + x.n.id + '">' + ico(x.n) + '<span class="tx"><b>' + fieldTag(x.n) + esc(x.n.title) + '</b><small>' + esc(x.why) + (x.n.owner ? ' · ' + esc(x.n.owner) : '') + '</small></span>' + badge(x.n) + '</button>').join('') + '</div>' + (club.length > 3 ? '<button type="button" class="fold" data-go-screen="board">동아리 챙길 것 모두 보기 (' + club.length + ') →</button>' : '') : '') +
+      '<h3 class="zone-sub">새로 올리기 <small>실험 · 아이디어 · 질문</small></h3><div class="quick">' +
         [['exp', '새 실험', '계획서부터 시작해요', 'var(--exp)'], ['idea', '아이디어', '해 보고 싶은 것을 남겨요', 'var(--idea)'], ['q', '질문', '선배 · 선생님께 물어봐요', 'var(--q)']].map((q) =>
           '<button type="button" data-new="' + q[0] + '" style="--qc:' + q[3] + '"><span class="q-ic">' + svgIcon(q[0], 'currentColor') + '</span><span class="q-tx"><b>' + q[1] + '</b><small>' + q[2] + '</small></span><span class="q-plus" aria-hidden="true">+</span></button>').join('') + '</div>' +
       '</section>' +
       // 오른쪽 = 쌓인 기록
       '<section class="zone zone-done"><h2 class="zone-h"><span class="zone-dot"></span>쌓인 기록<small>우리 동아리 연구가 자라는 모습</small></h2>' +
-      '<h3 class="zone-sub">연구 줄기 <small>' + (allLines.length > 3 ? '큰 줄기 3개 · 모두 ' + allLines.length + '개' : '큰 가지부터 · 누르면 펼쳐져요') + '</small></h3>' + lines.map(lineCard).join('') +
+      '<h3 class="zone-sub">연구 줄기 <span class="cnt">' + allLines.length + '</span><small>' + (allLines.length > 3 ? '큰 줄기 3개만' : '큰 가지부터') + '</small></h3>' + lines.map(lineCard).join('') +
       '<button type="button" class="fold" data-tab-go="tree">줄기 ' + allLines.length + '개 · 전체 가지 보기 →</button>' +
-            (reps.length ? '<h3 class="zone-sub">완성된 보고서 <small>' + (repAll > 3 ? '최근 3개 · 모두 ' + repAll + '개' : '누르면 보고서가 열려요') + '</small></h3><div class="rep-list">' + reps.map((n) => '<button type="button" class="rep-card" data-report="' + esc(n.id) + '"><span class="rep-ic">' + svgIcon('res', '#fff') + '</span><span class="tx"><small class="code">' + esc(code(n)) + ' · ' + esc(n.owner || '') + '</small><b>' + fieldTag(n) + esc(n.title) + '</b><small>' + esc(lineName(lineage(n)[0].line)) + ' · ' + fmt(n.date) + '</small></span>' + (isFinal(n) ? '<span class="badge t-ok">확정</span>' : badge(n)) + '</button>').join('') + '</div>' : '') +
+            (reps.length ? '<h3 class="zone-sub">완성된 보고서 <span class="cnt">' + repAll + '</span><small>' + (repAll > 3 ? '최근 3개만' : '누르면 보고서가 열려요') + '</small></h3><div class="rep-list">' + reps.map((n) => '<button type="button" class="rep-card" data-report="' + esc(n.id) + '"><span class="rep-ic">' + svgIcon('res', '#fff') + '</span><span class="tx"><small class="code">' + esc(code(n)) + ' · ' + esc(n.owner || '') + '</small><b>' + fieldTag(n) + esc(n.title) + '</b><small>' + esc(lineName(lineage(n)[0].line)) + ' · ' + fmt(n.date) + '</small></span>' + (isFinal(n) ? '<span class="badge t-ok">확정</span>' : badge(n)) + '</button>').join('') + '</div>' : '') +
       (repAll > 3 ? '<button type="button" class="fold" data-act="findDone">보고서 모두 보기 (' + repAll + ') →</button>' : '') +
       '</section></div>' + hallOfFame();
   }
