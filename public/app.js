@@ -669,11 +669,13 @@
       if (n.type === 'idea' && mine && ready(n).every(Boolean)) out.push({ n, why: '계획서로 바꿀 수 있어요', w: 5 });
       if (n.type === 'exp' && n.status === '검토 중' && planReady(n.plan) && n.owner !== me && n.createdBy !== me && !approvals(n).some((c) => c.by === me)) {
         const isT = teacherNames().includes(me), R = rules();
-        if (isT && teacherNeeded() && reviewCount(n) >= R.peers) out.push({ n, why: '선생님 최종 승인 요청 · 부원 검토가 끝났어요', w: -1, req: true });
+        if (isT && teacherNeeded() && reviewCount(n) >= R.peers) out.push({ n, why: '최종 승인 요청 · 부원 검토 ' + reviewCount(n) + '/' + R.peers + ' 끝 · 계획서를 읽고 승인해요', w: -2, req: true, tag: '최종 승인' });
         else if (!isT && (R.team || !mine) && reviewCount(n) < R.peers) out.push({ n, why: '검토 요청 · 계획서를 읽고 승인하거나 고칠 곳을 남겨요', w: 4, req: true });
       }
       if (n.type === 'q' && n.createdBy === me && n.status !== '해결') { const a = commentsOf(n.id).filter((c) => c.kind === 'answer').length; if (a) out.push({ n, why: '답변 ' + a + '개가 달렸어요', w: 2 }); }
     });
+    // 실험일 승인 요청 (선생님 · 마스터)
+    if (isApprover()) curEvents().filter((e) => e.state === 'wait').forEach((e) => { const n = e.node && byId(e.node); if (n) out.push({ n, ev: e, why: '실험일 ' + md(e.date) + ' · ' + e.by + ' · 허가하면 모두에게 보여요', w: -1, req: true, tag: '실험일 승인' }); });
     return out.sort((a, b) => a.w - b.w);
   }
   function todos() {
@@ -716,8 +718,8 @@
   function noticeBoard() {
     const nt = curNotice(), ed = isAdmin();
     if (!nt && !ed) return '';
-    if (!nt) return '<div class="notice-board empty"><span class="nb-ic">' + NB_IC + '</span><span class="muted">공지판이 비어 있어요. 부원 모두에게 알릴 것이 있으면 적어 주세요.</span><button type="button" class="btn" data-act="noticeEdit">공지 쓰기</button></div>';
-    return '<div class="notice-board"><span class="nb-ic">' + NB_IC + '</span><div class="nb-body"><div class="nb-head"><b>공지</b><span class="muted">' + esc(nt.by) + (nt.role && nt.role !== '부원' ? ' · ' + esc(nt.role === '마스터' ? '기장' : nt.role === '교사' ? '선생님' : nt.role) : '') + ' · ' + esc(md(nt.at)) + ' ' + esc(hm(nt.at)) + '</span>' +
+    if (!nt) return '<div class="notice-board empty"><span class="muted">공지판이 비어 있어요. 부원 모두에게 알릴 것이 있으면 적어 주세요.</span><button type="button" class="btn" data-act="noticeEdit">공지 쓰기</button></div>';
+    return '<div class="notice-board"><div class="nb-body"><div class="nb-head"><b>공지</b><span class="muted">' + esc(nt.by) + (nt.role && nt.role !== '부원' ? ' · ' + esc(nt.role === '마스터' ? '기장' : nt.role === '교사' ? '선생님' : nt.role) : '') + ' · ' + esc(md(nt.at)) + ' ' + esc(hm(nt.at)) + '</span>' +
       (ed ? '<button type="button" class="chipbtn" data-act="noticeEdit">고치기</button>' : '') + '</div><p>' + para(nt.text) + '</p></div></div>';
   }
   const NB_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12"/></svg>';
@@ -813,7 +815,7 @@
       // 왼쪽 = 해야 할 일
       '<section class="zone zone-do"><h2 class="zone-h"><span class="zone-dot"></span>해야 할 일<small>나와 동아리가 지금 챙길 것</small></h2>' +
       '<h3 class="zone-sub">내가 할 일 <span class="cnt">' + t.length + '</span><small>' + (TODAY.getMonth() + 1) + '월 ' + TODAY.getDate() + '일 ' + WD[TODAY.getDay()] + '요일</small></h3>' +
-      '<div class="todo">' + (t.length ? t.slice(0, 6).map((x) => '<button type="button" class="todo-item' + (x.req ? ' req' : '') + '" data-item="' + x.n.id + '">' + ico(x.n) + '<span class="tx"><b>' + fieldTag(x.n) + esc(x.n.title) + '</b><small>' + esc(x.why) + '</small></span>' + (x.req ? '<span class="badge t-warn">검토 요청</span>' : badge(x.n)) + '</button>').join('') +
+      '<div class="todo">' + (t.length ? t.slice(0, 6).map((x) => '<button type="button" class="todo-item' + (x.req ? ' req' : '') + '" ' + (x.ev ? 'data-evgo="' + esc(x.ev.id) + '"' : 'data-item="' + x.n.id + '"') + '>' + ico(x.n) + '<span class="tx"><b>' + fieldTag(x.n) + esc(x.n.title) + '</b><small>' + esc(x.why) + '</small></span>' + (x.req ? '<span class="badge t-warn">' + (x.tag || '검토 요청') + '</span>' : badge(x.n)) + '</button>').join('') +
         (t.length > 6 ? '<button type="button" class="fold" data-act="findMine">내 것 모두 보기 (' + t.length + ') →</button>' : '')
         : '<div class="card empty">지금 할 일이 없어요. 새 실험을 만들거나, 아이디어에 담당 지원해 보세요.</div>') + '</div>' +
       (club.length ? '<h3 class="zone-sub">동아리 챙길 것 <span class="cnt">' + club.length + '</span><small>' + (club.length > 3 ? '급한 3개만 · 기장 · 선생님' : '기장 · 선생님') + '</small></h3><div class="todo">' + club.slice(0, 3).map((x) => '<button type="button" class="todo-item" data-item="' + x.n.id + '">' + ico(x.n) + '<span class="tx"><b>' + fieldTag(x.n) + esc(x.n.title) + '</b><small>' + esc(x.why) + (x.n.owner ? ' · ' + esc(x.n.owner) : '') + '</small></span>' + badge(x.n) + '</button>').join('') + '</div>' + (club.length > 3 ? '<button type="button" class="fold" data-go-screen="board">동아리 챙길 것 모두 보기 (' + club.length + ') →</button>' : '') : '') +
@@ -2277,6 +2279,7 @@
     const ed = t.closest('[data-evdel]'); if (ed) return evDel(ed.dataset.evdel);
     const eo = t.closest('[data-evok]'); if (eo) return evDecide(eo.dataset.evok, true);
     const en = t.closest('[data-evno]'); if (en) { if (confirm('이 실험일을 거절할까요?')) evDecide(en.dataset.evno, false); return; }
+    const eg = t.closest('[data-evgo]'); if (eg) { const w = curEvents().find((e) => e.id === eg.dataset.evgo); if (w) { PF.calDay = w.date; const d = new Date(w.date + 'T00:00:00'); PF.calOff = (d.getFullYear() - TODAY.getFullYear()) * 12 + d.getMonth() - TODAY.getMonth(); render(); const c = document.querySelector('.cal'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'center' }); } return; }
     if (t.closest('[data-evnext]')) { const w = curEvents().filter((e) => e.state === 'wait').sort((a, b) => a.date.localeCompare(b.date))[0]; if (w) { PF.calDay = w.date; const d = new Date(w.date + 'T00:00:00'); PF.calOff = (d.getFullYear() - TODAY.getFullYear()) * 12 + d.getMonth() - TODAY.getMonth(); render(); } return; }
     const it = t.closest('[data-item],[data-go]'); if (it) return go('item', it.dataset.item || it.dataset.go, src);
     const rpb = t.closest('[data-report]'); if (rpb) return go('report', rpb.dataset.report, src);
