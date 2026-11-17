@@ -28,6 +28,19 @@
   function load() { try { const s = localStorage.getItem(KEY); if (s) return JSON.parse(s); } catch (e) {} return freshSample(); }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {} }
   let db = load();
+  /* 실제 동아리 주소(/c/주소)로 열렸을 때 platform.js 가 채워 줌 */
+  const PF = { club: null, isMaster: false, api: null, slug: null, handover: null };
+  window.GAJI_APP = {
+    setClub(club, isMaster, api, slug) { PF.club = club; PF.isMaster = !!isMaster; PF.api = api; PF.slug = slug; render(); },
+    refresh() { render(); }, toast: (m) => toast(m)
+  };
+  const brand = () => PF.club ? { clubName: PF.club.name, color: PF.club.color, logo: PF.club.logo || '' } : db.settings;
+  const canEditBrand = () => !PF.club || PF.isMaster;
+  function saveBrand(patch) {
+    if (PF.club) { if (!PF.isMaster) return toast('동아리 마스터만 바꿀 수 있어요'); Object.assign(PF.club, patch); render(); PF.api.savePublic(patch).catch(() => toast('저장하지 못했어요 · 다시 시도해 주세요')); return; }
+    if ('name' in patch) { db.settings.clubName = patch.name; delete patch.name; }
+    Object.assign(db.settings, patch); save(); render();
+  }
   const prefs = (() => { try { return JSON.parse(localStorage.getItem('gaji-prefs') || '{}'); } catch (e) { return {}; } })();
   const savePrefs = () => { try { localStorage.setItem('gaji-prefs', JSON.stringify(prefs)); } catch (e) {} };
 
@@ -260,6 +273,7 @@
   function viewMore() {
     const mi = (s, c, path, t, d) => '<button type="button" class="menu-item" data-go-screen="' + s + '"><span class="mi" style="background:' + c + '"><svg viewBox="0 0 24 24"><path d="' + path + '"/></svg></span><span class="tx"><b>' + t + '</b><small>' + d + '</small></span></button>';
     return '<div class="menu">' +
+      (PF.isMaster ? mi('club', 'var(--brand)', 'M8 15a4 4 0 1 0 0-.01zM11 12l8.5-8.5M16.5 6.5l3 3M14 9l2 2', '동아리 관리', '동아리 주소 · 학교 계정 · 마스터 넘기기') : '') +
       mi('settings', 'var(--club)', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z', '설정', '동아리 이름 · 로고 · 색 · 화면 밝기') +
       mi('board', 'var(--exp)', 'M3 4h5v16H3zM10 4h5v11h-5zM17 4h4v7h-4z', '보드', '단계별로 실험 카드 보기 (관리자용)') +
       mi('map', 'var(--q)', 'M12 12m-2.5 0a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0 -5 0M5 5m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M19 6m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M6 19m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M10.2 10.2L6.4 6.4M13.8 11l3.6-3.6M10.3 13.8L7.4 17.4', '전체 지도', '동아리 연구 전체를 한 장으로 (발표용)') +
@@ -288,14 +302,27 @@
   }
   const COLORS = ['#C26A00', '#2F6FDB', '#1F8F5A', '#6E4FE0', '#D2394B', '#475467'];
   function viewSettings() {
-    const st = db.settings, th = prefs.theme || 'system';
-    return '<div class="card" style="display:flex;flex-direction:column;gap:16px">' +
-      '<div class="logo-edit"><span class="logo" id="logoPreview">' + logoInner() + '</span><div style="display:flex;flex-direction:column;gap:6px"><label class="btn" for="logoFile" style="min-height:40px">로고 바꾸기</label><input id="logoFile" type="file" accept="image/*" hidden>' + (st.logo ? '<button type="button" class="chipbtn" data-act="logoClear">기본 로고로</button>' : '') + '</div></div>' +
-      '<label class="field">동아리 이름<input id="clubInput" maxlength="24" value="' + esc(st.clubName) + '"></label>' +
-      '<div class="field">대표 색<div class="swatches">' + COLORS.map((c) => '<button type="button" data-color="' + c + '" aria-label="색 ' + c + '" aria-pressed="' + (st.color === c) + '" style="background:' + c + '"></button>').join('') + '</div></div>' +
+    const st = brand(), th = prefs.theme || 'system', ed = canEditBrand(), dis = ed ? '' : ' disabled';
+    return (ed ? '' : '<div class="card muted" style="font-size:13px">동아리 이름 · 로고 · 색은 동아리 마스터만 바꿀 수 있어요. 화면 밝기는 이 기기에서 바로 바뀝니다.</div>') +
+      '<div class="card" style="display:flex;flex-direction:column;gap:16px">' +
+      '<div class="logo-edit"><span class="logo" id="logoPreview">' + logoInner() + '</span><div style="display:flex;flex-direction:column;gap:6px">' + (ed ? '<label class="btn" for="logoFile" style="min-height:40px">로고 바꾸기</label><input id="logoFile" type="file" accept="image/*" hidden>' : '') + (ed && st.logo ? '<button type="button" class="chipbtn" data-act="logoClear">기본 로고로</button>' : '') + '</div></div>' +
+      '<label class="field">동아리 이름<input id="clubInput" maxlength="30" value="' + esc(st.clubName) + '"' + dis + '></label>' +
+      '<div class="field">대표 색<div class="swatches">' + COLORS.map((c) => '<button type="button" data-color="' + c + '" aria-label="색 ' + c + '" aria-pressed="' + (st.color === c) + '" style="background:' + c + '"' + dis + '></button>').join('') + '</div></div>' +
       '<div class="field">화면 밝기<div class="seg" style="grid-template-columns:repeat(3,1fr)">' + [['system', '기기 설정'], ['light', '밝게'], ['dark', '어둡게']].map(([k, l]) => '<button type="button" data-theme="' + k + '" aria-pressed="' + (th === k) + '">' + l + '</button>').join('') + '</div></div>' +
       '</div>' +
-      '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>체험 데이터</b><span class="muted" style="font-size:13px">지금은 이 브라우저에만 저장돼요. 드라이브 연결은 다음 단계에서 열립니다.</span><button type="button" class="btn" data-act="reset">예시로 되돌리기</button></div>';
+      '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>체험 데이터</b><span class="muted" style="font-size:13px">' + (PF.club ? '동아리 드라이브 연결 전까지 실험 목록은 예시 데이터로 보여요. 이 기기에만 저장됩니다.' : '지금은 이 브라우저에만 저장돼요.') + '</span><button type="button" class="btn" data-act="reset">예시로 되돌리기</button></div>';
+  }
+  function viewClub() {
+    if (!PF.isMaster) return '<div class="card empty">동아리 마스터만 볼 수 있어요.</div>';
+    const url = location.origin + '/c/' + PF.slug, h = PF.handover;
+    return '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>동아리 주소</b><span class="code" style="font-size:15px;word-break:break-all;user-select:all">' + esc(url) + '</span>' +
+      '<div class="btn-row"><button type="button" class="btn" data-act="copyAddr">주소 복사</button><button type="button" class="btn" data-act="shareAddr">부원에게 보내기</button></div>' +
+      '<span class="muted" style="font-size:13px">부원은 이 주소로 들어와 학번과 개인 코드로 씁니다 (드라이브 연결 단계에서 열림).</span></div>' +
+      '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>학교 계정 제한 (선택)</b><label class="field">관리자 구글 로그인에 허용할 도메인<input id="domainInput" placeholder="예: school.hs.kr" value="' + esc(PF.club.domain || '') + '"></label><span class="muted" style="font-size:12px">비워 두면 제한하지 않아요.</span></div>' +
+      '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>마스터 넘기기</b><span class="muted" style="font-size:13px;line-height:1.6">새 마스터에게 보낼 일회용 링크를 만듭니다. 24시간 동안만 쓸 수 있고, 새 마스터가 구글로 로그인하면 바로 넘어갑니다. 넘긴 뒤 나는 이 화면을 볼 수 없어요.</span>' +
+      (h ? '<span class="code" style="font-size:13px;word-break:break-all;user-select:all;background:var(--surface-2);padding:10px;border-radius:10px">' + esc(h.link) + '</span><span class="muted" style="font-size:12px">' + esc(h.until) + '까지 유효</span><div class="btn-row"><button type="button" class="btn" data-act="copyHandover">링크 복사</button><button type="button" class="btn primary" data-act="shareHandover">새 마스터에게 보내기</button></div>'
+         : '<button type="button" class="btn primary" data-act="handover">넘기기 링크 만들기</button>') + '</div>' +
+      '<div class="card muted" style="font-size:12px;line-height:1.7">가지 서버(Firebase)에는 이 동아리의 이름 · 로고 · 색과 <b>마스터 계정 ID 하나</b>, 사용 현황 숫자만 저장돼요. 부원 이름 · 학번 · 실험 내용은 동아리 드라이브에만 있어요.</div>';
   }
   function viewAbout() {
     return '<div class="card" style="display:flex;flex-direction:column;gap:12px;line-height:1.7"><b style="font-size:18px">가지 · 실험이 가지를 치며 이어지는 곳</b>' +
@@ -328,16 +355,17 @@
   }
 
   /* ---------- 그리기 ---------- */
-  const TITLES = { line: '', item: '', board: '보드', map: '전체 지도', settings: '설정', about: '가지 소개' };
-  function logoInner() { const st = db.settings; return st.logo ? '<img src="' + esc(st.logo) + '" alt="">' : '<svg viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="9" r="2"/><path d="' + ICON.branch + '"/></svg>'; }
+  const TITLES = { line: '', item: '', board: '보드', map: '전체 지도', settings: '설정', about: '가지 소개', club: '동아리 관리' };
+  function logoInner() { const st = brand(); return st.logo ? '<img src="' + esc(st.logo) + '" alt="">' : '<svg viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="9" r="2"/><path d="' + ICON.branch + '"/></svg>'; }
   function applyBrand() {
-    const st = db.settings;
+    const st = brand();
+    $('#demoPill').textContent = PF.club ? '드라이브 연결 전' : '체험 모드';
     document.documentElement.style.setProperty('--brand', st.color || '#C26A00');
     $('#clubName').textContent = st.clubName; $('#clubLogo').innerHTML = logoInner();
     const th = prefs.theme || 'system'; if (th === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', th);
   }
   const titleOf = (e) => e.s === 'line' ? lineName(e.arg) : e.s === 'item' ? (byId(e.arg) ? TYPE[byId(e.arg).type].label + ' 상세' : '') : TITLES[e.s] || '';
-  function viewFor(e) { return ({ home: viewHome, tree: viewTree, find: viewFind, more: viewMore, line: () => viewLine(e.arg), item: () => viewItem(e.arg), board: viewBoard, map: viewMap, settings: viewSettings, about: viewAbout }[e.s] || (() => ''))(); }
+  function viewFor(e) { return ({ home: viewHome, tree: viewTree, find: viewFind, more: viewMore, line: () => viewLine(e.arg), item: () => viewItem(e.arg), board: viewBoard, map: viewMap, settings: viewSettings, about: viewAbout, club: viewClub }[e.s] || (() => ''))(); }
   function render(scrollTop) {
     applyBrand();
     const mi = mainIndex(), main = nav[mi], paneOn = mi < nav.length - 1, root = mi === 0;
@@ -374,12 +402,19 @@
     const tm = t.closest('[data-tmode]'); if (tm) { prefs.treeMode = tm.dataset.tmode; savePrefs(); return render(); }
     if (t.closest('[data-fold]')) { prefs.showDone = !prefs.showDone; savePrefs(); return render(); }
     const ty = t.closest('[data-ty]'); if (ty) { prefs.ty = ty.dataset.ty; savePrefs(); return render(); }
-    const col = t.closest('[data-color]'); if (col) { db.settings.color = col.dataset.color; save(); return render(); }
+    const col = t.closest('[data-color]'); if (col) return saveBrand({ color: col.dataset.color });
     const th = t.closest('[data-theme]'); if (th) { prefs.theme = th.dataset.theme; savePrefs(); return render(); }
     const a = t.closest('[data-act]'); if (!a) return;
     const n = cur().s === 'item' ? byId(cur().arg) : null, act = a.dataset.act;
     if (act === 'reset') { db = freshSample(); save(); toast('예시 데이터로 되돌렸어요'); return render(); }
-    if (act === 'logoClear') { db.settings.logo = ''; save(); return render(); }
+    if (act === 'logoClear') return saveBrand({ logo: '' });
+    const copyText = (txt, done) => (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast(done), () => toast('길게 눌러 복사해 주세요'));
+    const shareText = (title, text, url) => navigator.share ? navigator.share({ title, text, url }).catch(() => {}) : copyText(url, '링크를 복사했어요');
+    if (act === 'copyAddr') return copyText(location.origin + '/c/' + PF.slug, '동아리 주소를 복사했어요');
+    if (act === 'shareAddr') return shareText(brand().clubName, brand().clubName + ' 가지 주소예요', location.origin + '/c/' + PF.slug);
+    if (act === 'handover') { PF.api.createHandover().then((h) => { PF.handover = h; render(); }).catch(() => toast('링크를 만들지 못했어요')); return; }
+    if (act === 'copyHandover') return copyText(PF.handover.link, '넘기기 링크를 복사했어요');
+    if (act === 'shareHandover') return shareText('가지 마스터 넘기기', brand().clubName + ' 가지 마스터를 넘겨요. 24시간 안에 열어 구글로 로그인해 주세요.', PF.handover.link);
     if (!n) return;
     if (act === 'copy') { const c = code(n); (navigator.clipboard ? navigator.clipboard.writeText(c) : Promise.reject()).then(() => toast(c + ' 복사했어요'), () => toast('번호: ' + c)); return; }
     if (act === 'fan') { n.fans = (n.fans || 0) + 1; toast('같이 해요 ' + n.fans + '명'); }
@@ -399,14 +434,16 @@
   $('#paneBody').addEventListener('keydown', onKey('pane'));
   $('#screen').addEventListener('input', (e) => {
     if (e.target.id === 'q') { prefs.q = e.target.value; savePrefs(); const pos = e.target.selectionStart; render(); const q = $('#q'); q.focus(); q.setSelectionRange(pos, pos); }
-    if (e.target.id === 'clubInput') { db.settings.clubName = e.target.value.trim() || '실험 동아리'; save(); applyBrand(); }
+    if (e.target.id === 'clubInput' && !PF.club) { db.settings.clubName = e.target.value.trim() || '실험 동아리'; save(); applyBrand(); }
   });
   $('#screen').addEventListener('change', (e) => {
+    if (e.target.id === 'clubInput' && PF.club) return saveBrand({ name: e.target.value.trim().slice(0, 30) || PF.club.name });
+    if (e.target.id === 'domainInput' && PF.club) { const d = e.target.value.trim().toLowerCase().replace(/^@/, '').slice(0, 60); PF.club.domain = d; PF.api.saveInfo({ domain: d }).then(() => toast('저장했어요'), () => toast('저장하지 못했어요')); return; }
     if (e.target.id !== 'logoFile' || !e.target.files[0]) return;
     const f = e.target.files[0]; if (f.size > 2e6) return toast('2MB 이하 이미지를 골라 주세요');
     const img = new Image(), r = new FileReader();
     r.onload = () => { img.onload = () => { const cv = document.createElement('canvas'); cv.width = cv.height = 160; const cx = cv.getContext('2d'), s = Math.min(img.width, img.height);
-      cx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 160, 160); db.settings.logo = cv.toDataURL('image/png'); save(); render(); toast('로고를 바꿨어요'); }; img.src = r.result; };
+      cx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 160, 160); saveBrand({ logo: cv.toDataURL('image/png') }); toast('로고를 바꿨어요'); }; img.src = r.result; };
     r.readAsDataURL(f);
   });
   $('#sheet').addEventListener('click', (e) => { if (e.target.closest('[data-act="closeSheet"]')) closeSheet(); });
