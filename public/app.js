@@ -311,7 +311,7 @@
       const core = PF.connAuth === 'core';
       return gateCard('<div class="card gate-box"><b>연결하지 못했어요</b><p class="muted">' + esc(PF.error) + '</p>' +
         (core ? (PF.isMaster
-          ? '<div class="gate-note card" style="text-align:left;line-height:1.8;font-weight:400"><b>연결기 권한 허용이 필요해요 (마스터)</b><br>① 가지 데이터 시트 → 확장 프로그램 → <b>' + ASI + '</b><br>② 아래 <b>연결기 코드 복사</b> → 코드 전체 지우고 붙여 넣기 → <b>저장</b><br>③ 위쪽 도구 줄 <b>디버그</b> 오른쪽 함수 칸에서 <b>권한허용</b>을 골라요<br>④ <b>▷ 실행</b>을 눌러요<br>⑤ <b>권한 검토</b> → 내 계정<br>⑥ 경고 창의 <b>가지 연결기(안전하지 않음) 앱으로 이동</b>(또는 고급 → 이동)<br>⑦ <b>모두 선택</b>에 꼭 체크 → 맨 아래 <b>계속</b> <button type="button" class="chipbtn" data-act="authGuide">그림으로 보기</button><br>⑧ 아래 <b>실행 로그</b>에 ‘준비 완료’가 보이면 여기서 <b>다시 시도</b><br>빨간 오류가 보이면 그 화면을 캡처해 주세요.</div>' +
+          ? '<div class="gate-note card" style="text-align:left;line-height:1.8;font-weight:400"><b>연결기 권한 허용이 필요해요 (마스터)</b><br>① 가지 데이터 시트 → 확장 프로그램 → <b>' + ASI + '</b><br>② 아래 <b>연결기 코드 복사</b> → 코드 전체 지우고 붙여 넣기 → <b>저장</b><br>③ 위쪽 도구 줄 <b>디버그</b> 오른쪽 함수 칸에서 <b>권한허용</b>을 골라요<br>④ <span class="gtool"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.8l7 4.2-7 4.2z" fill="none" stroke="#D93025" stroke-width="1.5" stroke-linejoin="round"/></svg>실행</span>을 눌러요<br>⑤ <b>권한 검토</b> → 내 계정<br>⑥ 경고 창의 <b>가지 연결기(안전하지 않음) 앱으로 이동</b>(또는 고급 → 이동)<br>⑦ <b>모두 선택</b>에 꼭 체크 → 맨 아래 <b>계속</b> <button type="button" class="chipbtn" data-act="authGuide">그림으로 보기</button><br>⑧ 아래 <b>실행 로그</b>에 ‘준비 완료’가 보이면 여기서 <b>다시 시도</b><br>빨간 오류가 보이면 그 화면을 캡처해 주세요.</div>' +
             '<button type="button" class="btn" data-act="copyGs">연결기 코드 복사</button><textarea id="gsCode" class="gs-code" readonly spellcheck="false" style="height:90px">' + esc(PF.gs || '불러오는 중…') + '</textarea>'
           : '<p class="muted" style="font-size:13px">동아리 마스터가 연결기를 손보는 중이에요. 잠시 뒤 다시 열어 주세요.</p>') : '') +
         '<button type="button" class="btn primary" data-act="retry">다시 시도</button></div>');
@@ -415,7 +415,7 @@
       '</div><details class="wmore" style="margin-top:8px"><summary>화면이 다르게 ‘고급’이 보여요</summary><div class="ag-steps" style="margin-top:8px">' +
       card('A', p1, '왼쪽 아래 작은 ‘고급’', '아래쪽의 작은 글씨 <b>고급</b>을 눌러요.') +
       card('B', p2, '‘…(으)로 이동(안전하지 않음)’', '펼쳐진 글 맨 아래 밑줄 친 링크를 눌러요. 그다음 위의 2 · 3번처럼 해요.') +
-      '</div></details><p class="ag-tip">잘못 눌러 창이 닫혔으면 괜찮아요. <b>▷ 실행</b>을 한 번 더 누르면 같은 창이 다시 떠요.</p></div>';
+      '</div></details><p class="ag-tip">잘못 눌러 창이 닫혔으면 괜찮아요. <span class="gtool"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.8l7 4.2-7 4.2z" fill="none" stroke="#D93025" stroke-width="1.5" stroke-linejoin="round"/></svg>실행</span>을 한 번 더 누르면 같은 창이 다시 떠요.</p></div>';
   }
   async function submitJoin(f) {
     const fd = new FormData(f), sid = String(fd.get('sid')).trim(), code = String(fd.get('code')).trim(), btn = f.querySelector('[type=submit]');
@@ -563,7 +563,7 @@
     const c = PF.club;
     if (c.connector && !PF.rewire) return '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg);display:inline-flex;align-items:center;gap:8px">' + GDRIVE + '드라이브 연결</b><span class="badge t-ok">● 연결됨</span></div>' +
       '<span class="code muted" style="font-size:12px;word-break:break-all">' + esc(c.connector) + '</span>' +
-      (PF.connAuth === 'core' ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기가 가지 본체를 받지 못해요 · 권한 허용이 필요해요</span><span style="font-weight:400;line-height:1.7">① ' + ASI + ' 화면 위쪽 <b>▷ 실행</b> 버튼 왼쪽의 함수 목록에서 <b>권한허용</b>(없으면 <b>doGet</b>) 고르기<br>② <b>▷ 실행</b> → <b>권한 검토</b> → 내 계정 → <b>고급 → 이동 → 허용</b><br>③ 여기서 <b>연결 시험</b> (다시 배포할 필요 없어요)</span></div>' : '') +
+      (PF.connAuth === 'core' ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기가 가지 본체를 받지 못해요 · 권한 허용이 필요해요</span><span style="font-weight:400;line-height:1.7">① ' + ASI + ' 화면 위쪽 <span class="gtool"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.8l7 4.2-7 4.2z" fill="none" stroke="#D93025" stroke-width="1.5" stroke-linejoin="round"/></svg>실행</span> 버튼 왼쪽의 함수 목록에서 <b>권한허용</b>(없으면 <b>doGet</b>) 고르기<br>② <span class="gtool"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.8l7 4.2-7 4.2z" fill="none" stroke="#D93025" stroke-width="1.5" stroke-linejoin="round"/></svg>실행</span> → <b>권한 검토</b> → 내 계정 → <b>고급 → 이동 → 허용</b><br>③ 여기서 <b>연결 시험</b> (다시 배포할 필요 없어요)</span></div>' : '') +
       (PF.connAuth === true ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기가 응답하지 않아요 · 권한 허용이 필요할 수 있어요</span><span style="font-weight:400;line-height:1.7">① <b>연결기 권한 확인</b>을 눌러 새 창 열기<br>② ‘권한 필요’ 또는 ‘액세스 승인’이 나오면 → <b>권한 검토</b> → 내 계정 → <b>고급 → 이동 → 허용</b><br>③ 새 창에 <b>"gaji":true</b> 글자가 보이면 성공 → 여기서 <b>연결 시험</b></span></div>' : '') +
       (PF.connVer && !verOld(PF.connVer, LATEST_VER) && PF.connShell !== undefined && Number(PF.connShell || 0) < 6 ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>사진 올리기를 쓰려면 연결기를 한 번 더 배포해야 해요</span><span style="font-weight:400;line-height:1.7">① 아래 <b>연결기 코드 복사</b> → ' + ASI + '에 덮어쓰고 저장<br>② 함수 목록에서 <b>권한허용</b> → ▷ 실행 → 허용<br>③ <b>배포 → 배포 관리</b> → 연필 모양 → 버전: <b>새 버전</b> → 배포 (주소는 그대로)<br>④ 여기서 <b>연결 시험</b></span></div>' : '') +
       (PF.connVer ? (verOld(PF.connVer)
@@ -601,7 +601,7 @@
         : step(1, '가지 데이터 시트 만들기', '새 구글 시트를 만들고 이름을 <b>가지 데이터</b>로 바꿔요.', '<a class="btn" href="https://docs.google.com/spreadsheets/create" target="_blank" rel="noopener">새 시트 열기</a>') +
           step(2, '연결기 코드 붙여 넣기', '시트 메뉴 <b>확장 프로그램 → ' + ASI + '</b>를 열어요.<br>원래 있던 코드를 모두 지우고 붙여 넣은 뒤 <b>저장</b>(Ctrl+S)해요.', codeBox)) +
       step(3, '함수 칸에서 ‘권한허용’ 고르기', '위쪽 도구 줄에서 <b>디버그</b> 오른쪽 함수 칸을 눌러요.<br>목록에서 <b>권한허용</b>을 골라요.', toolPic('fn')) +
-      step(4, '▷ 실행 누르기', '같은 줄의 <b>▷ 실행</b>을 눌러요.', toolPic('run')) +
+      step(4, '▷ 실행 누르기', '같은 줄의 <span class="gtool"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.8l7 4.2-7 4.2z" fill="none" stroke="#D93025" stroke-width="1.5" stroke-linejoin="round"/></svg>실행</span>을 눌러요.', toolPic('run')) +
       step(5, '권한 검토 → 내 계정', '‘승인 필요’ 창이 뜨면 <b>권한 검토</b>를 눌러요.<br>그다음 <b>시트를 만든 내 구글 계정</b>을 골라요.', toolPic('review')) +
       step(6, '경고 넘기고 허용', '‘Google에서 인증하지 않은 앱’ 경고가 나와요. 맨 위에서 말한 정상 경고예요.<br>그림 순서대로 눌러요. 같은 경고가 한 번 더 떠도 똑같이 해요.', authGuide()) +
       step(7, '실행 로그 확인', '아래쪽 <b>실행 로그</b>에 <b>가지 연결기 준비 완료</b>가 보이면 성공이에요.<br>빨간 오류가 보이면 그 화면을 캡처해서 문의해 주세요.', toolPic('log')) +

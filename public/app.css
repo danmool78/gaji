@@ -858,3 +858,5 @@ details.sup-box[open] .sup-last { display: none; }
 .why-drive { display: flex; flex-direction: column; gap: 8px; background: var(--surface-2); border-radius: 14px; padding: 14px 16px; font-size: 13.5px; line-height: 1.65; word-break: keep-all; }
 .why-drive > b { font-size: 15px; color: var(--fg); }
 .why-drive ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.gtool { display: inline-flex; align-items: center; gap: 4px; padding: 0 9px; border-radius: 4px; border: 1px solid #DADCE0; background: #fff; color: #3C4043; font-size: 0.9em; font-weight: 600; line-height: 1.7; white-space: nowrap; vertical-align: 0.05em; }
+.gtool svg { width: 11px; height: 11px; }
