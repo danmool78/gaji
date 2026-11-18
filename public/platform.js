@@ -98,7 +98,9 @@ async function submitCreate(f) {
 /* ---------- 동아리 주소 ---------- */
 async function clubPage(slug) {
   if (slug === 'demo') { showApp(); return; }
-  const snap = await getDoc(doc(db, 'clubs', slug)).catch(() => null);
+  let readErr = null; const snap = await getDoc(doc(db, 'clubs', slug)).catch((e) => { readErr = e; return null; });
+  if (readErr) { let c0 = null; try { c0 = JSON.parse(localStorage.getItem('gaji-club:' + slug) || 'null'); } catch (e) {}   // 가지 서버에 닿지 않음 (학교망 등): 저장해 둔 정보로 계속
+    if (c0 && c0.connector) { showApp(); window.GAJI_APP.setClub(c0, false, null, slug); return; } }
   if (!snap || !snap.exists()) return portal(head() + '<div class="card p-form"><b style="font-size:18px">동아리를 찾을 수 없어요</b><p class="muted">주소 <span class="code">/c/' + esc(slug) + '</span> 를 다시 확인해 주세요.</p><a class="btn" href="/">처음으로</a></div>');
   const club = Object.assign({}, snap.data());
   try { localStorage.setItem('gaji-club:' + slug, JSON.stringify({ name: club.name, color: club.color, color2: club.color2 || '', logo: club.logo || '', connector: club.connector || '' })); } catch (e) {}
@@ -111,7 +113,7 @@ async function clubPage(slug) {
       updateDoc(info.ref, { 'stats.lastActive': serverTimestamp(), 'stats.version': VERSION }).catch(() => {});
       const k = await getDoc(doc(db, 'clubs', slug, 'secret', 'key')).catch(() => null);
       club.masterKey = k && k.exists() ? k.data().masterKey : '';
-      if (k && k.exists() && k.data().pendingKey) { try { club.masterKey = await rekey(slug); } catch (e) { club.rekeyErr = e.message; setTimeout(() => window.GAJI_APP && window.GAJI_APP.toast('마스터 키: ' + e.message), 1500); } } }
+      if (k && k.exists() && (k.data().pendingKey || k.data().keyUid !== user.uid)) { try { club.masterKey = await rekey(slug); } catch (e) { club.rekeyErr = e.message; setTimeout(() => window.GAJI_APP && window.GAJI_APP.toast('마스터 키: ' + e.message), 1500); } } }
   }
   const api = {
     savePublic: (patch) => { const p = {}; if ('name' in patch) p.name = patch.name; if ('color' in patch) p.color = patch.color; if ('color2' in patch) p.color2 = patch.color2; if ('logo' in patch) p.logo = patch.logo; return updateDoc(doc(db, 'clubs', slug), p); },
@@ -120,7 +122,7 @@ async function clubPage(slug) {
     saveConnector: async (url, key) => {
       const b = writeBatch(db);
       b.update(doc(db, 'clubs', slug), { connector: url });
-      if (key) b.set(doc(db, 'clubs', slug, 'secret', 'key'), { masterKey: key });
+      if (key) b.set(doc(db, 'clubs', slug, 'secret', 'key'), { masterKey: key, keyUid: user.uid }, { merge: true });   // 다시 바꾸기(pendingKey)는 남겨 둠
       await b.commit(); club.connector = url; if (key) club.masterKey = key;
     },
     saveStats: (st) => { const n = (k) => Math.max(0, Math.min(100000, st[k] | 0)), d = (k) => /^\d{4}-\d\d-\d\d$/.test(st[k] || '') ? st[k] : '';
@@ -131,8 +133,11 @@ async function clubPage(slug) {
     supportList: async () => (await getDocs(query(collection(db, 'clubs', slug, 'support'), orderBy('at', 'asc'), limit(200)))).docs.map((d) => ({ id: d.id, from: d.data().from, text: d.data().text, at: d.data().at && d.data().at.toDate ? d.data().at.toDate().toISOString() : '' })),
     supportWatch: (cb) => onSnapshot(query(collection(db, 'clubs', slug, 'support'), orderBy('at', 'desc'), limit(50)), (q) => cb(q.docs.slice().reverse().map((d) => ({ id: d.id, from: d.data().from, text: d.data().text, at: d.data({ serverTimestamps: 'estimate' }).at && d.data({ serverTimestamps: 'estimate' }).at.toDate ? d.data({ serverTimestamps: 'estimate' }).at.toDate().toISOString() : '' }))), () => {}),
     supportSend: (text) => addDoc(collection(db, 'clubs', slug, 'support'), { from: 'master', text: String(text).slice(0, 2000), at: serverTimestamp(), uid: user.uid }),
+    getHandover: async () => { const h = await getDoc(doc(db, 'clubs', slug, 'handover', 'current')).catch(() => null); if (!h || !h.exists() || h.data().expiresAt.toDate() < new Date()) return null;
+      const until = h.data().expiresAt.toDate(); return { link: location.origin + '/c/' + slug + '?handover=' + h.data().code, until: until.toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) }; },
+    cancelHandover: () => deleteDoc(doc(db, 'clubs', slug, 'handover', 'current')),
     createHandover: async () => {
-      const code = randomCode(28), until = new Date(Date.now() + 24 * 3600e3);
+      const code = randomCode(28), until = new Date(Date.now() + 23 * 3600e3);   // 기기 시계가 조금 빨라도 되게 23시간
       await setDoc(doc(db, 'clubs', slug, 'handover', 'current'), { code, expiresAt: Timestamp.fromDate(until) });
       return { link: location.origin + '/c/' + slug + '?handover=' + code, until: until.toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) };
     }
@@ -150,17 +155,17 @@ async function clubPage(slug) {
 function handoverPage(slug, club, code) {
   const box = '<div class="card p-form"><span class="logo" style="background:' + esc(club.color) + ';width:56px;height:56px">' + (club.logo ? '<img src="' + esc(club.logo) + '" alt="">' : LOGO) + '</span><b style="font-size:18px">' + esc(club.name) + ' 마스터 넘겨받기</b>';
   if (!user) return portal(head() + box + '<p class="muted">이 동아리의 새 마스터가 됩니다. 구글 계정으로 로그인해 주세요. 링크는 만든 뒤 24시간 동안만 쓸 수 있어요.</p><button type="button" class="btn primary" data-p="login">구글로 로그인</button></div>');
-  portal(head() + box + '<p class="muted">로그인한 계정으로 이 동아리의 마스터를 넘겨받습니다. 예전 마스터는 더 이상 관리할 수 없게 돼요.</p><button type="button" class="btn primary" data-p="claim" data-slug="' + esc(slug) + '" data-code="' + esc(code) + '">넘겨받기</button><a class="btn" href="/">취소</a></div>');
+  portal(head() + box + '<p class="muted">로그인한 계정으로 이 동아리의 마스터를 넘겨받습니다. 예전 마스터는 운영진이 되고, 마스터 키는 새로 바뀌어요. 필요하면 새 마스터가 부원 명단에서 역할을 바꾸면 돼요.</p><button type="button" class="btn primary" data-p="claim" data-slug="' + esc(slug) + '" data-code="' + esc(code) + '">넘겨받기</button><a class="btn" href="/">취소</a></div>');
 }
 // 넘겨받은 뒤 연결기 마스터 키를 새로 바꿈: 예전 마스터가 가진 키로는 더 이상 마스터가 될 수 없게
 async function rekey(slug) {
   const [pub, sec] = await Promise.all([getDoc(doc(db, 'clubs', slug)), getDoc(doc(db, 'clubs', slug, 'secret', 'key'))]);
   const url = pub.exists() && pub.data().connector, old = sec.exists() ? sec.data().masterKey : '', key = (sec.exists() && sec.data().pendingKey) || randomCode(40);
-  if (!url || !old) return old;   // 아직 드라이브 연결 전: 연결할 때 새 키가 정해짐
-  if (!sec.data().pendingKey) await setDoc(doc(db, 'clubs', slug, 'secret', 'key'), { masterKey: old, pendingKey: key });   // 1) 새 키를 먼저 저장 (끊겨도 잃지 않게)
+  if (!url || !old) { if (old) await setDoc(doc(db, 'clubs', slug, 'secret', 'key'), { masterKey: randomCode(40), keyUid: user.uid }); return old ? (await getDoc(doc(db, 'clubs', slug, 'secret', 'key'))).data().masterKey : old; }   // 드라이브 연결 전: 새 키만 정함
+  if (!sec.data().pendingKey) await setDoc(doc(db, 'clubs', slug, 'secret', 'key'), { masterKey: old, pendingKey: key, keyUid: user.uid });   // 1) 새 키를 먼저 저장 (끊겨도 잃지 않게)
   const r = await fetch(url, { method: 'POST', body: JSON.stringify({ action: 'rekey', masterKey: old, newKey: key }) }).then((x) => x.json());   // 2) 연결기를 새 키로
   if (!r || !r.ok) { const e = new Error(r && r.code === 'wrong_key' ? '연결기 마스터 키가 이미 다른 키로 바뀌었어요. 시트 주인이 가지 데이터 시트의 설정 탭에서 masterKeyHash 값을 지우고 다시 열면 맞춰져요' : (r && r.message) || '연결기 키를 바꾸지 못했어요'); e.code = r && r.code; throw e; }
-  await setDoc(doc(db, 'clubs', slug, 'secret', 'key'), { masterKey: key });   // 3) 확정
+  await setDoc(doc(db, 'clubs', slug, 'secret', 'key'), { masterKey: key, keyUid: user.uid });   // 3) 확정
   return key;
 }
 async function claim(slug, code) {

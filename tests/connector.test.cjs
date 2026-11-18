@@ -183,7 +183,7 @@ const mc2 = call({ action: 'myCode', device: r9b.data.device });
 ok('old code renewed', mc2.ok && mc2.data.renewed && /^\d{4}$/.test(mc2.data.code), mc2);
 ok('device kept after renew', call({ action: 'load', device: r9b.data.device }).ok);
 ok('new code works', call({ action: 'register', studentId: '20399', code: mc2.data.code }).ok);
-ok('ping version', call({ action: 'ping' }).data.version === '2.21.1');
+ok('ping version', call({ action: 'ping' }).data.version === '2.22.2');
 
 // 실수 되돌리기: 내가 10분 안에 옮긴 단계는 한 단계 되돌리기 가능
 setRule('approvePeers', 0); setRule('approveTeacher', 'none');
@@ -624,7 +624,7 @@ ok('load has no self rev', !call({ action: 'load', device: ADM }).rev);
 
 // ===== 2.18.2: 시스템 현황 숫자 =====
 const sysStat = call({ action: 'stats', device: ADM });
-ok('stats: numbers only', sysStat.ok && typeof sysStat.data.done === 'number' && typeof sysStat.data.running === 'number' && typeof sysStat.data.devices === 'number' && /^\d{4}-\d\d-\d\d$|^$/.test(sysStat.data.lastEdit) && sysStat.data.core === '2.21.1', sysStat.data);
+ok('stats: numbers only', sysStat.ok && typeof sysStat.data.done === 'number' && typeof sysStat.data.running === 'number' && typeof sysStat.data.devices === 'number' && /^\d{4}-\d\d-\d\d$|^$/.test(sysStat.data.lastEdit) && sysStat.data.core === '2.22.2', sysStat.data);
 ok('stats: no names', !JSON.stringify(sysStat.data).match(/[가-힣]{2,}/));
 ok('stats: member refused', call({ action: 'stats', device: MEM }).code === 'not_admin');
 
@@ -749,6 +749,59 @@ ok('stats: member refused', call({ action: 'stats', device: MEM }).code === 'not
   const rn = store._t.nodes.find((n) => n.id === 'rn1');
   ok('renameAll: name fields only', rn.owner === '김민수(61001)' && rn.title === '김민수' && rn.desc === 'constructor', rn);
   ok('renameAll: comment text kept', store._t.comments.find((c) => c.id === 'rnc').text === 'toString' && store._t.comments.find((c) => c.id === 'rnc').by === '김민수(61001)');
+}
+
+
+// ===== 2.22.0: 세 번째 점검 =====
+{
+  const MS3 = call({ action: 'masterRegister', masterKey: 'NEWKEY'.repeat(5), studentId: '20301', label: 'audit3' }).data.device;
+  const meM = call({ action: 'load', device: MEM }).data.me;
+  const ad = call({ action: 'addMember', device: MS3, studentId: '70001', name: '운영' }); call({ action: 'setMember', device: MS3, id: ad.data.id, role: '관리자' });
+  const adr = call({ action: 'register', studentId: '70001', code: ad.data.code, label: 'x' }); call({ action: 'approve', device: MS3, id: adr.data.device.id });
+  const AD = adr.data.device;
+  // 1. 운영진은 마스터 기기를 못 막고, 전체 로그아웃도 부원 기기만
+  ok('admin cannot block master device', call({ action: 'block', device: AD, id: MS3.id }).code === 'not_master');
+  call({ action: 'logoutAll', device: AD });
+  ok('admin logoutAll keeps master', call({ action: 'load', device: MS3 }).ok);
+  // 다시 쓸 수 있게 부원 기기 되돌림
+  store._t.devices.forEach((d) => { if (d.status === '만료') d.status = '승인'; });
+  // 2. 중지된 학번으로 초대 링크 신청 막기
+  const iv3 = call({ action: 'invite', device: MS3, op: 'make' }).data.invite;
+  call({ action: 'setMember', device: MS3, id: ad.data.id, status: '중지' });
+  ok('apply: suspended sid refused', /중지/.test(call({ action: 'apply', invite: iv3, studentId: '70001', name: '새사람' }).message || ''));
+  call({ action: 'setMember', device: MS3, id: ad.data.id, status: '활동' });
+  // 3. type 을 바꿔 단계 검사를 건너뛸 수 없음
+  store._t.nodes.push({ id: 'tt1', no: 980, type: 'exp', title: '단계', status: '준비 중', plan: PL, owner: meM.name, createdBy: meM.name, created: '2026-01-01', updatedBy: 'x', updatedAt: '2020-01-01' });
+  const tt = call({ action: 'sync', device: MEM, nodes: [{ id: 'tt1', title: '단계', type: 'idea', status: '해결' }] });
+  ok('type trick cannot set q status on exp', store._t.nodes.find((n) => n.id === 'tt1').status === '준비 중', tt.data);
+  // 4. 같은 묶음 같은 새 id
+  call({ action: 'sync', device: MEM, nodes: [{ id: 'dup9', type: 'idea', title: 'one' }, { id: 'dup9', type: 'idea', title: 'two' }] });
+  ok('same new id twice → one node', store._t.nodes.filter((n) => n.id === 'dup9').length === 1);
+  // 8. 새로 만들 때 남의 담당 지원 · 없는 이름 막기
+  call({ action: 'sync', device: MEM, nodes: [{ id: 'nv1', type: 'idea', title: '지원', volunteer: '운영(70001)', team: ['유령'] }] });
+  const nv = store._t.nodes.find((n) => n.id === 'nv1');
+  ok('create: no volunteering others, no ghost team', !nv.volunteer && !(nv.team || []).includes('유령'), nv);
+  // 11. 없는 항목 · 볼 수 없는 비공개로 연결 막기
+  store._t.nodes.push({ id: 'pv9', no: 981, type: 'exp', title: '비공개', status: '계획 작성', private: 'true', owner: '운영(70001)', createdBy: '운영(70001)', created: '2026-01-01' });
+  const lk = call({ action: 'sync', device: MEM, nodes: [], links: [{ s: 'nv1', t: 'ghost9', k: 'next' }, { s: 'pv9', t: 'nv1', k: 'next' }] });
+  ok('links to ghost / hidden private refused', !store._t.links.some((l) => l.t === 'ghost9' || l.s === 'pv9'), lk.data);
+  // 9. 볼 수 없는 비공개 보관 항목을 꺼내지 않음
+  store._t.nodes.find((n) => n.id === 'pv9').arch = 'true'; store._t.archive.push({ id: 'pv9', data: { desc: '비밀' }, comments: [], at: '2026-01-01' });
+  call({ action: 'sync', device: MEM, nodes: [{ id: 'pv9', title: '비공개' }] });
+  ok('hidden private archived stays archived', store._t.archive.some((a) => a.id === 'pv9') && store._t.nodes.find((n) => n.id === 'pv9').arch === 'true');
+  // 7. 검토 중 계획서를 다시 쓰면 승인 초기화
+  store._t.nodes.push({ id: 'rv1', no: 982, type: 'exp', title: '다시 검토', status: '검토 중', plan: PL, owner: meM.name, createdBy: meM.name, created: '2026-01-01' });
+  store._t.comments.push({ id: 'ap1', node: 'rv1', kind: 'approve', text: '', by: '누군가', at: '2026-01-01', off: '' });
+  call({ action: 'sync', device: MEM, nodes: [{ id: 'rv1', title: '다시 검토', plan: { purpose: '완전히 다른 목적', steps: ['x'] } }] });
+  ok('plan rewrite at review resets approvals', store._t.comments.find((c) => c.id === 'ap1').off === 'true');
+  // 10. 썸네일 크기
+  ok('upload: huge thumb refused', call({ action: 'upload', device: MEM, node: 'nv1', mime: 'image/jpeg', data: 'QUJD', thumb: 'A'.repeat(2e6 + 10) }).code === 'bad');
+  // 작은 것: 없는 날짜
+  ok('event: impossible date refused', call({ action: 'eventSet', device: MEM, op: 'add', scope: 'me', date: '2026-99-99', title: 'x' }).code === 'bad');
+  // 공용 기기에서 개인 코드 안 보임
+  const sd = store._t.devices.find((d) => d.id === MEM.id); sd.shared = 'true';
+  ok('myCode refused on shared device', call({ action: 'myCode', device: MEM }).code === 'shared');
+  sd.shared = 'false';
 }
 
 console.log(`connector: ${pass} passed, ${fail} failed`);

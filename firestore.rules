@@ -28,6 +28,7 @@ service cloud.firestore {
     }
     function validPublic(d) {
       return d.keys().hasOnly(['name', 'color', 'color2', 'logo', 'createdAt', 'version', 'connector'])
+        && (!('version' in d) || (d.version is string && d.version.size() <= 20))
         && d.name is string && d.name.size() >= 1 && d.name.size() <= 30
         && d.color is string && d.color.matches('^#[0-9A-Fa-f]{6}$')
         && (!('color2' in d) || (d.color2 is string && d.color2.matches('^#[0-9A-Fa-f]{6}$')))
@@ -70,7 +71,8 @@ service cloud.firestore {
       match /secret/{doc} {
         allow read, delete: if doc == 'key' && isMaster(slug);
         allow create, update: if doc == 'key' && isMaster(slug)
-          && request.resource.data.keys().hasOnly(['masterKey', 'pendingKey'])
+          && request.resource.data.keys().hasOnly(['masterKey', 'pendingKey', 'keyUid'])
+          && (!('keyUid' in request.resource.data) || request.resource.data.keyUid == request.auth.uid)
           && request.resource.data.masterKey is string
           && request.resource.data.masterKey.size() >= 20 && request.resource.data.masterKey.size() <= 100
           && (!('pendingKey' in request.resource.data) || (request.resource.data.pendingKey is string
@@ -112,7 +114,7 @@ service cloud.firestore {
 
       // ---------- 마스터 넘기기 ----------
       match /handover/{doc} {
-        allow read: if isMaster(slug) || isSystem();
+        allow read: if isMaster(slug);   // 시스템 마스터도 못 읽음 (코드로 스스로 마스터가 되지 못하게)
         allow create, update: if doc == 'current' && isMaster(slug)
           && request.resource.data.keys().hasOnly(['code', 'expiresAt'])
           && request.resource.data.code is string && request.resource.data.code.size() >= 20
@@ -132,10 +134,12 @@ service cloud.firestore {
 
     // ---------- 내 동아리 목록 ----------
     match /masters/{uid} {
-      allow read, delete: if signedIn() && request.auth.uid == uid;
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow delete: if false;   // 지워서 10개 제한을 다시 쓰지 못하게
       allow create, update: if signedIn() && request.auth.uid == uid
         && request.resource.data.keys().hasOnly(['slugs']) && request.resource.data.slugs is list
-        && request.resource.data.slugs.size() <= 10;
+        && request.resource.data.slugs.size() <= 10
+        && (resource == null || request.resource.data.slugs.hasAll(resource.data.slugs));   // 늘리기만
     }
 
     // ---------- 시스템 마스터 ----------

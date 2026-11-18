@@ -110,6 +110,14 @@ async function createClub(db, uid, slug, name) {
   await t('사용 현황 숫자는 넣는다', () => assertSucceeds(updateDoc(doc(user('sup-m'), 'clubs', 'sup-club', 'private', 'info'), { 'stats.members': 5, 'stats.lastEdit': '2026-11-18', 'stats.backupErr': false })));
   await t('마스터는 새 키를 먼저 pendingKey 로 저장한다', () => assertSucceeds(setDoc(doc(user('sup-m'), 'clubs', 'sup-club', 'secret', 'key'), { masterKey: 'k'.repeat(30), pendingKey: 'p'.repeat(40) })));
   await t('키 칸에 다른 이름은 못 넣는다', () => assertFails(setDoc(doc(user('sup-m'), 'clubs', 'sup-club', 'secret', 'key'), { masterKey: 'k'.repeat(30), other: 'x'.repeat(30) })));
+
+  // ---------- 세 번째 점검 뒤 ----------
+  await t('시스템 마스터는 넘기기 코드를 못 읽는다', async () => { await env.withSecurityRulesDisabled(async (c) => { await setDoc(doc(c.firestore(), 'clubs/sup-club/handover/current'), { code: 'c'.repeat(28), expiresAt: Timestamp.fromMillis(Date.now() + 3600e3) }); }); await assertFails(getDoc(doc(user('sys'), 'clubs', 'sup-club', 'handover', 'current'))); });
+  await t('키에 남의 keyUid 는 못 넣는다', () => assertFails(setDoc(doc(user('sup-m'), 'clubs', 'sup-club', 'secret', 'key'), { masterKey: 'k'.repeat(30), keyUid: 'someone' })));
+  await t('키에 내 keyUid 는 넣는다', () => assertSucceeds(setDoc(doc(user('sup-m'), 'clubs', 'sup-club', 'secret', 'key'), { masterKey: 'k'.repeat(30), keyUid: 'sup-m' })));
+  await t('내 동아리 목록은 지울 수 없다', () => assertFails(deleteDoc(doc(user('sup-m'), 'masters', 'sup-m'))));
+  await t('내 동아리 목록을 줄일 수 없다', () => assertFails(setDoc(doc(user('sup-m'), 'masters', 'sup-m'), { slugs: [] })));
+  await t('공개 version 칸은 짧게', () => assertFails(updateDoc(doc(user('sup-m'), 'clubs', 'sup-club'), { version: 'x'.repeat(100) })));
   await env.cleanup();
   let fail = 0; for (const [s, n] of results) { console.log((s === 'ok' ? '  ✓ ' : '  ✗ ') + n); if (s !== 'ok') fail++; }
   console.log(`\n${results.length - fail}/${results.length} passed`); process.exit(fail ? 1 : 0);
