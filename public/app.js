@@ -135,6 +135,7 @@
   function getCache() { try { const c = JSON.parse(localStorage.getItem(cacheKey()) || 'null'); return c && c.url === PF.club.connector ? c : null; } catch (e) { return null; } }
   // 내 역할: 연결된 동아리는 연결기가 알려 준 역할, 체험은 고른 사람의 역할, 연결 전 마스터 미리 보기는 마스터
   const myRole = () => PF.mode === 'live' ? (PF.me && PF.me.role) || '부원' : PF.mode === 'preview' ? '마스터' : (((typeof db !== 'undefined' && db.members) || []).find((m) => m.name === meName()) || { role: '마스터' }).role;
+  const RN = (r) => r === '관리자' ? '운영진' : r;   // 동아리 역할 '관리자'는 화면에 '운영진'으로 (시스템 관리자와 헷갈리지 않게)
   const isAdmin = () => myRole() === '관리자' || myRole() === '마스터' || myRole() === '교사';
   const demoMaster = () => ((db.members || []).find((m) => m.role === '마스터') || { name: '김기장(20301)' }).name;
   const meName = () => (PF.mode === 'live' && PF.me ? PF.me.name : (prefs.demoMe && (db.members || []).some((m) => m.name === prefs.demoMe) ? prefs.demoMe : demoMaster()));   // 예전 이름으로 저장된 체험 인물은 기장으로
@@ -254,7 +255,7 @@
     try {
       const r = await rpc('sync', { nodes: sent, links, lines });
       PF.busy = false;
-      if (r.rejected && r.rejected.length) { const rj = r.rejected.join(' '); toast(/:stage:teacher/.test(rj) ? '지도 선생님이 승인해야 준비를 시작할 수 있어요' : /:stage:plan/.test(rj) ? '계획서(목적 · 방법)를 먼저 다 써야 다음 단계로 갈 수 있어요' : /:stage:review/.test(rj) ? '다른 부원 2명이 승인해야 준비를 시작할 수 있어요' : /:stage:result/.test(rj) ? '결과와 결론을 기록해야 기록 완료가 돼요' : /:stage/.test(rj) ? '단계는 하나씩, 내용을 채운 뒤에 넘어갈 수 있어요' : /:team/.test(rj) ? '담당 · 함께하는 사람 · 기장 · 선생님만 고칠 수 있어요' : /:final/.test(rj) ? '확정된 보고서예요 · 관리자가 확정을 풀어야 고칠 수 있어요' : '결과 판정 · 취소 · 단계 되돌리기는 관리자만 할 수 있어요'); return liveLoad(); }
+      if (r.rejected && r.rejected.length) { const rj = r.rejected.join(' '); toast(/:stage:teacher/.test(rj) ? '지도 선생님이 승인해야 준비를 시작할 수 있어요' : /:stage:plan/.test(rj) ? '계획서(목적 · 방법)를 먼저 다 써야 다음 단계로 갈 수 있어요' : /:stage:review/.test(rj) ? '다른 부원 2명이 승인해야 준비를 시작할 수 있어요' : /:stage:result/.test(rj) ? '결과와 결론을 기록해야 기록 완료가 돼요' : /:stage/.test(rj) ? '단계는 하나씩, 내용을 채운 뒤에 넘어갈 수 있어요' : /:team/.test(rj) ? '담당 · 함께하는 사람 · 기장 · 선생님만 고칠 수 있어요' : /:final/.test(rj) ? '확정된 보고서예요 · 운영진가 확정을 풀어야 고칠 수 있어요' : '결과 판정 · 취소 · 단계 되돌리기는 운영진만 할 수 있어요'); return liveLoad(); }
       sent.forEach((s) => { const no = r.assigned && r.assigned[s.id]; const n = byId(s.id); if (no) { s.no = no; if (n) n.no = no; } PF.base.nodes[s.id] = JSON.stringify(s); });
       links.forEach((l) => (l.off ? PF.base.links.delete(lkey(l)) : PF.base.links.add(lkey(l)))); PF.base.lines = JSON.stringify(lines);
       render();   // rev 는 rpc 가 '내 변경만'일 때만 맞춤 (그 사이 남이 바꾼 것을 놓치지 않게)
@@ -279,7 +280,7 @@
   function demoWho() {
     const ms = db.members || [{ name: '김기장(20301)', role: '마스터', note: '기장' }];
     openSheet('<h3>누구로 체험할까요?</h3><p class="muted" style="margin:0;font-size:13px">가지고등학교 실험 동아리는 체험용 가상 동아리예요. 바꾼 내용은 이 브라우저에만 저장되고 <b>매일 처음 상태로 돌아가요.</b></p><div class="move-list">' +
-      ms.map((m) => '<button type="button" class="srow" data-act="demoMe" data-name="' + esc(m.name) + '"><span class="tx"><b>' + esc(m.name) + '</b><small>' + esc(m.note || (m.role === '부원' ? '부원' : m.role)) + '</small></span>' + (meName() === m.name ? '<span class="badge t-info">지금</span>' : '') + '</button>').join('') +
+      ms.map((m) => '<button type="button" class="srow" data-act="demoMe" data-name="' + esc(m.name) + '"><span class="tx"><b>' + esc(m.name) + '</b><small>' + esc(m.note || (m.role === '부원' ? '부원' : RN(m.role))) + '</small></span>' + (meName() === m.name ? '<span class="badge t-info">지금</span>' : '') + '</button>').join('') +
       '</div><div class="btn-row"><button type="button" class="btn" data-act="demoReset">처음 상태로 되돌리기</button><button type="button" class="btn" data-act="closeSheet">닫기</button></div>');
   }
   window.addEventListener('beforeunload', (e) => { if (PF.mode === 'live' && (PF.busy || (PF.base && dirty()))) { e.preventDefault(); e.returnValue = '아직 저장 중이에요'; return '아직 저장 중이에요'; } });
@@ -307,7 +308,7 @@
       return gateCard('<div class="card gate-box"><b>승인 기다리는 중</b><p class="muted">' + esc(p.name || d.name || '') + ' · ' + esc(d.label || deviceLabel()) + '</p>' +
         '<div class="confirm-num" aria-label="확인 숫자">' + esc(p.confirm || '').split('').map((c) => '<span>' + c + '</span>').join('') + '</div><small class="muted">확인 숫자</small>' +
         '<button type="button" class="btn primary" data-act="askApprove">기장님께 승인 요청 보내기</button>' +
-        '<p class="muted" style="font-size:13px">카톡 등으로 승인 링크를 보내요. 관리자가 승인하면 이 화면이 저절로 열려요.</p>' +
+        '<p class="muted" style="font-size:13px">카톡 등으로 승인 링크를 보내요. 운영진가 승인하면 이 화면이 저절로 열려요.</p>' +
         '<button type="button" class="chipbtn" data-act="restartJoin">다른 학번으로 다시 하기</button></div>');
     }
     // join
@@ -320,7 +321,7 @@
         '<button type="button" class="chipbtn" data-act="useCode" style="align-self:center">이미 개인 코드가 있어요</button></form>' :
       '<form class="card gate-box" id="joinForm"><b>들어가기</b>' +
       '<label class="field">학번<input name="sid" inputmode="numeric" autocomplete="username" maxlength="12" required placeholder="예: 20315"></label>' +
-      '<label class="field">개인 코드 <span class="muted" style="font-weight:400">관리자에게 받은 4자리</span><input name="code" inputmode="numeric" autocomplete="current-password" type="password" maxlength="4" pattern="[0-9]{4}" required placeholder="••••"></label>' +
+      '<label class="field">개인 코드 <span class="muted" style="font-weight:400">운영진에게 받은 4자리</span><input name="code" inputmode="numeric" autocomplete="current-password" type="password" maxlength="4" pattern="[0-9]{4}" required placeholder="••••"></label>' +
       '<button type="submit" class="btn primary">들어가기</button>' +
       '<p class="muted" style="font-size:12px;line-height:1.6">처음 쓰는 기기는 기장님 승인 뒤에 열려요. 내 코드와 기기는 다른 사람에게 빌려주지 않아요.</p></form>') +
       (mk ? '<form class="card gate-box" id="masterJoinForm"><b>동아리 마스터로 이 기기 연결</b><p class="muted" style="font-size:13px">구글로 로그인한 마스터는 승인 없이 바로 연결돼요.</p>' +
@@ -406,13 +407,13 @@
         } catch (e2) { toast(e2.message); }
         return;
       }
-      toast(er.code === 'no_code' ? '예전 판에서 만든 코드라 볼 수 없어요. 관리자에게 코드 다시 만들기를 부탁해 주세요' : er.message);
+      toast(er.code === 'no_code' ? '예전 판에서 만든 코드라 볼 수 없어요. 운영진에게 코드 다시 만들기를 부탁해 주세요' : er.message);
     }
   }
 
-  /* ---------- 승인 (관리자) ---------- */
+  /* ---------- 승인 (운영진) ---------- */
   async function openApprove(id) {
-    if (!isAdmin()) return toast('기기 승인은 관리자만 할 수 있어요');
+    if (!isAdmin()) return toast('기기 승인은 운영진만 할 수 있어요');
     openSheet('<h3>기기 승인</h3><p class="muted loading-line">' + SPIN + '불러오는 중…</p>');
     try {
       const d = await rpc('getDevice', { id });
@@ -433,13 +434,13 @@
     } catch (e) { if (!deviceLost(e)) toast(e.message); }
   }
 
-  /* ---------- 부원 · 기기 (관리자) ---------- */
+  /* ---------- 부원 · 기기 (운영진) ---------- */
   function loadPeople() {
     if (PF.peopleLoading) return; PF.peopleLoading = true;
     rpc('people').then((p) => { PF.people = p; PF.peopleErr = ''; }, (e) => { if (!deviceLost(e)) PF.peopleErr = e.message || '불러오지 못했어요'; }).finally(() => { PF.peopleLoading = false; render(); });
   }
   function viewPeople() {
-    if (!isAdmin()) return '<div class="card empty">관리자만 볼 수 있어요.</div>';
+    if (!isAdmin()) return '<div class="card empty">운영진만 볼 수 있어요.</div>';
     if (!PF.people && PF.peopleErr) return '<div class="card empty" style="display:flex;flex-direction:column;gap:10px;align-items:center"><span>부원 명단을 불러오지 못했어요 · ' + esc(PF.peopleErr) + '</span><button type="button" class="btn" data-act="refreshPeople">다시 시도</button></div>';
     if (!PF.people) { loadPeople(); return '<div class="card empty loading-line">' + SPIN + '부원 명단을 불러오는 중…</div>'; }
     const p = PF.people, wait = p.devices.filter((d) => d.status === '대기'), act = p.members.filter((m) => m.status === '활동'), off = p.members.filter((m) => m.status === '중지' || m.status === '거절');
@@ -449,19 +450,19 @@
       '<div class="card invite-card"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">초대 링크</b><span class="badge ' + (inv ? 't-ok">켜짐' : 't-neutral">꺼짐') + '</span></div>' +
         (inv ? '<span class="muted" style="font-size:13px;line-height:1.6">단톡방에 이 링크를 올리면 부원이 이름 · 학번으로 가입 신청해요. 아래 <b>승인 기다리는 기기</b>에서 승인하면 부원이 돼요.</span><div class="code invite-url">' + esc(inv) + '</div>' +
           '<div class="btn-row"><button type="button" class="btn primary" data-act="inviteShare">보내기</button><button type="button" class="btn" data-act="inviteShare" data-copy="1">복사</button><button type="button" class="btn" data-act="inviteMake">새 링크로</button><button type="button" class="btn" data-act="inviteOff">끄기</button></div>'
-          : '<span class="muted" style="font-size:13px;line-height:1.6">부원을 한 명씩 추가하는 대신, 링크 하나를 단톡방에 올려 가입 신청을 받아요. 신청은 기장 · 관리자가 승인해야 부원이 돼요.</span><div class="btn-row"><button type="button" class="btn primary" data-act="inviteMake">초대 링크 만들기</button></div>') + '</div>' +
+          : '<span class="muted" style="font-size:13px;line-height:1.6">부원을 한 명씩 추가하는 대신, 링크 하나를 단톡방에 올려 가입 신청을 받아요. 신청은 기장 · 운영진가 승인해야 부원이 돼요.</span><div class="btn-row"><button type="button" class="btn primary" data-act="inviteMake">초대 링크 만들기</button></div>') + '</div>' +
       (wait.length ? '<h2 class="sec">승인 기다리는 기기 <small>' + wait.length + '</small></h2>' + wait.map((d) => '<button type="button" class="srow" data-act="openApprove" data-id="' + esc(d.id) + '"><span class="tx"><b>' + esc(d.member) + ' · ' + esc(d.label) + '</b><small class="code">' + esc(d.studentId) + ' · 확인 숫자 ' + esc(d.confirm) + '</small></span><span class="badge t-warn">' + (d.applied ? '가입 신청' : '승인') + '</span></button>').join('') : '') +
       '<h2 class="sec">부원 <small>' + act.length + '명</small></h2>' +
-      act.map((m) => '<button type="button" class="srow" data-act="member" data-id="' + esc(m.id) + '"><span class="tx"><b>' + esc(m.name) + '</b><small class="code">' + esc(m.studentId) + ' · 기기 ' + m.devices + '대' + (m.devices >= 6 ? ' · 기기 많음' : '') + '</small></span><span class="badge ' + ROLE[m.role] + '">' + esc(m.role) + '</span></button>').join('') +
+      act.map((m) => '<button type="button" class="srow" data-act="member" data-id="' + esc(m.id) + '"><span class="tx"><b>' + esc(m.name) + '</b><small class="code">' + esc(m.studentId) + ' · 기기 ' + m.devices + '대' + (m.devices >= 6 ? ' · 기기 많음' : '') + '</small></span><span class="badge ' + ROLE[m.role] + '">' + esc(RN(m.role)) + '</span></button>').join('') +
       (off.length ? '<h2 class="sec">활동 중지 <small>' + off.length + '명</small></h2>' + off.map((m) => '<button type="button" class="srow" data-act="member" data-id="' + esc(m.id) + '"><span class="tx"><b>' + esc(m.name) + '</b><small class="code">' + esc(m.studentId) + '</small></span><span class="badge t-neutral">' + (m.status === '거절' ? '신청 거절' : '중지') + '</span></button>').join('') : '') +
       '<div class="card" style="display:flex;flex-direction:column;gap:8px;margin-top:8px"><b>긴급</b><span class="muted" style="font-size:13px">코드가 새어 나간 것 같을 때. 내 기기를 뺀 모든 기기가 다시 승인을 받아야 해요.</span><button type="button" class="btn danger" data-act="logoutAll">모든 기기 로그아웃</button></div>';
   }
   function memberSheet(id) {
     const m = PF.people && PF.people.members.find((x) => x.id === id); if (!m) return;
     const master = PF.me.role === '마스터';
-    openSheet('<h3>' + esc(m.name) + ' <span class="code muted" style="font-size:14px">' + esc(m.studentId) + '</span></h3><p class="muted">' + esc(m.role) + ' · 승인된 기기 ' + m.devices + '대</p><div style="display:flex;flex-direction:column;gap:10px">' +
+    openSheet('<h3>' + esc(m.name) + ' <span class="code muted" style="font-size:14px">' + esc(m.studentId) + '</span></h3><p class="muted">' + esc(RN(m.role)) + ' · 승인된 기기 ' + m.devices + '대</p><div style="display:flex;flex-direction:column;gap:10px">' +
       (m.status === '활동' ? '<button type="button" class="btn" data-act="resetCode" data-id="' + esc(m.id) + '">개인 코드 다시 만들기</button><small class="muted">코드를 잊었거나 새어 나갔을 때. 이 부원의 기기는 모두 다시 승인받아야 해요.</small>' : '') +
-      (master && m.role !== '마스터' && m.status === '활동' ? '<div class="field">역할<div class="seg" style="grid-template-columns:repeat(3,1fr)">' + [['부원', '부원'], ['관리자', '관리자'], ['교사', '지도 선생님']].map(([r, l]) => '<button type="button" data-act="setRole" data-id="' + esc(m.id) + '" data-role="' + r + '" aria-pressed="' + (m.role === r) + '">' + l + '</button>').join('') + '</div><small class="muted">지도 선생님이 승인해야 실험 준비를 시작할 수 있어요.</small></div>' : '') +
+      (master && m.role !== '마스터' && m.status === '활동' ? '<div class="field">역할<div class="seg" style="grid-template-columns:repeat(3,1fr)">' + [['부원', '부원'], ['관리자', '운영진'], ['교사', '지도 선생님']].map(([r, l]) => '<button type="button" data-act="setRole" data-id="' + esc(m.id) + '" data-role="' + r + '" aria-pressed="' + (m.role === r) + '">' + l + '</button>').join('') + '</div><small class="muted">지도 선생님이 승인해야 실험 준비를 시작할 수 있어요.</small></div>' : '') +
       (m.role !== '마스터' ? '<button type="button" class="btn' + (m.status === '활동' ? ' danger' : '') + '" data-act="setStatus" data-id="' + esc(m.id) + '" data-status="' + (m.status === '활동' ? '중지' : '활동') + '">' + (m.status === '활동' ? '활동 중지 (기기 모두 차단)' : '다시 활동') + '</button>' : '') +
       '<button type="button" class="btn" data-act="closeSheet">닫기</button></div>');
   }
@@ -775,13 +776,13 @@
       '<button type="button" class="hof-card" ' + (c.n ? 'data-item="' + esc(c.n.id) + '"' : 'data-act="findPerson" data-name="' + esc(c.who) + '"') + ' style="--i:' + i + '"><span class="hof-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="' + c.ic + '"/></svg></span>' +
       '<span class="hof-k">' + c.k + '</span><b class="hof-v">' + c.v + '</b>' + (c.n ? '<span class="hof-t">' + fieldTag(c.n) + esc(c.n.title) + '</span>' : '<span class="hof-t"><b>' + esc(c.who) + '</b></span>') + '<small class="muted">' + (c.n ? esc(c.s) : c.s) + '</small></button>').join('') + '</div></section>';
   }
-  /* 공지판: 하나뿐인 판 · 기장 · 관리자 · 선생님만 쓰고 고침 · 바뀌면 15초 안에 모두의 화면에 */
+  /* 공지판: 하나뿐인 판 · 기장 · 운영진 · 선생님만 쓰고 고침 · 바뀌면 15초 안에 모두의 화면에 */
   const curNotice = () => PF.mode === 'live' ? PF.board : db.notice || null;   // 공지판 (PF.notice 는 들어가기 화면 안내 문구라 따로)
   function noticeBoard() {
     const nt = curNotice(), ed = isAdmin();
     if (!nt && !ed) return '';
     if (!nt) return '<div class="notice-board empty"><span class="muted">공지판이 비어 있어요. 부원 모두에게 알릴 것이 있으면 적어 주세요.</span><button type="button" class="btn" data-act="noticeEdit">공지 쓰기</button></div>';
-    return '<div class="notice-board"><div class="nb-body"><div class="nb-head"><b>공지</b><span class="muted">' + esc(nt.by) + (nt.role && nt.role !== '부원' ? ' · ' + esc(nt.role === '마스터' ? '기장' : nt.role === '교사' ? '선생님' : nt.role) : '') + ' · ' + esc(md(nt.at)) + ' ' + esc(hm(nt.at)) + '</span>' +
+    return '<div class="notice-board"><div class="nb-body"><div class="nb-head"><b>공지</b><span class="muted">' + esc(nt.by) + (nt.role && nt.role !== '부원' ? ' · ' + esc(nt.role === '마스터' ? '기장' : nt.role === '교사' ? '선생님' : RN(nt.role)) : '') + ' · ' + esc(md(nt.at)) + ' ' + esc(hm(nt.at)) + '</span>' +
       (ed ? '<button type="button" class="chipbtn" data-act="noticeEdit">고치기</button>' : '') + '</div><p>' + para(nt.text) + '</p></div></div>';
   }
   const NB_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12"/></svg>';
@@ -797,7 +798,7 @@
     else { db.notice = text ? { text: text.slice(0, 1000), by: meName(), role: myRole(), at: nowIso() } : null; save(); }
     closeSheet(); render(); toast(text ? '공지를 올렸어요' : '공지를 지웠어요');
   }
-  // 달력 일정: 동아리 일정(관리자가 쓰고 모두 봄) · 내 일정(누구나 쓰고 나만 봄)
+  // 달력 일정: 동아리 일정(운영진가 쓰고 모두 봄) · 내 일정(누구나 쓰고 나만 봄)
   // 실험일 승인: 선생님. 설정에서 허용하면 기장(마스터)이 대행. 선생님이 아직 없으면 기장이 대신함
   const isApprover = () => myRole() === '교사' || (myRole() === '마스터' && (rules().expLeader || !teacherNames().length));
   const expNeedsOk = () => rules().expTeacher;
@@ -1020,7 +1021,7 @@
     h += '<div class="card"><div class="panel-title"><span>관련된 것</span><span>누르면 이동</span></div>' + relationSvg(n) + '</div>';
     return h;
   }
-  // 단계 되돌리기: 체험 모드는 누구나, 연결된 동아리는 관리자 또는 10분 안에 내가 옮긴 단계
+  // 단계 되돌리기: 체험 모드는 누구나, 연결된 동아리는 운영진 또는 10분 안에 내가 옮긴 단계
   function canBack(n) {
     const i = STAGES.indexOf(n.status); if (n.type !== 'exp' || i < 2) return false;
     if (!canWork(n)) return false;
@@ -1128,7 +1129,7 @@
         '<label id="unitBox" style="display:' + (kind === 'rep' ? 'flex' : 'none') + ';gap:6px;align-items:center;font-weight:400">값의 단위<input name="unit" maxlength="12" value="' + esc(r.unit || '') + '" placeholder="예: ℃" style="width:100px;min-height:36px"></label></div>' +
       '<div class="field" id="recPhotos">' + recPhotosHTML(n) + '</div>' +
       '<label class="field half">관찰한 것<textarea rows="4" name="observe" maxlength="800" placeholder="예: 농도가 높을수록 끓는점이 올라갔어요.">' + esc(r.observe || '') + '</textarea></label>' +
-      '<div class="field half">결론 <span class="muted" style="font-weight:400">최종 판정은 관리자가 해요</span><div class="seg" style="grid-template-columns:repeat(3,1fr)">' + CLAIMS.map((c) => '<button type="button" data-claim="' + c + '" aria-pressed="' + (r.claim === c) + '">' + c + '</button>').join('') + '</div><input type="hidden" name="claim" value="' + esc(r.claim || '') + '"></div>' +
+      '<div class="field half">결론 <span class="muted" style="font-weight:400">최종 판정은 운영진가 해요</span><div class="seg" style="grid-template-columns:repeat(3,1fr)">' + CLAIMS.map((c) => '<button type="button" data-claim="' + c + '" aria-pressed="' + (r.claim === c) + '">' + c + '</button>').join('') + '</div><input type="hidden" name="claim" value="' + esc(r.claim || '') + '"></div>' +
       '<label class="field">고찰 <span class="muted" style="font-weight:400">결과가 왜 이렇게 나왔는지 · 오차 원인 · 고칠 점</span><textarea name="discuss" rows="4" maxlength="2000" placeholder="예: 구리-아연 조합이 가장 높았던 것은 두 금속의 반응성 차이가 가장 크기 때문이다. 3회째 값이 낮은 것은 레몬 즙이 줄었기 때문으로 보인다.">' + esc(r.discuss || '') + '</textarea></label>' +
       '<label class="field half">결론 (한두 문장)<textarea name="conclusion" rows="2" maxlength="600" placeholder="예: 전극 금속의 반응성 차이가 클수록 레몬 전지의 전압이 높았다.">' + esc(r.conclusion || '') + '</textarea></label>' +
       '<label class="field half">다음에 해 볼 것<textarea rows="2" name="next" maxlength="400" placeholder="예: 설탕으로도 같은 실험">' + esc(r.next || '') + '</textarea></label>' +
@@ -1160,7 +1161,7 @@
     n.report = rep;
     if (done && n.status === '실험 완료') { n.status = '기록 완료'; if (isAdmin()) n.verdict = rep.claim; PF.myMoves[n.id] = Date.now(); }
     save(); closeSheet(); render();
-    toast(!done ? '임시 저장했어요' : (n.verdict ? '기록을 완료했어요' : '기록을 냈어요 · 관리자가 판정하면 확정돼요'));
+    toast(!done ? '임시 저장했어요' : (n.verdict ? '기록을 완료했어요' : '기록을 냈어요 · 운영진가 판정하면 확정돼요'));
   }
 
   function reportCard(n) {
@@ -1181,7 +1182,7 @@
     if (r.discuss) h += '<div><small class="muted">고찰</small><p>' + para(r.discuss) + '</p></div>';
     if (r.conclusion) h += '<div><small class="muted">결론</small><p><b>' + para(r.conclusion) + '</b></p></div>';
     h += '<div class="rec-claim"><span>결론 제안 <b>' + esc(r.claim || '-') + '</b></span><span>판정 ' + (n.verdict ? '<span class="badge ' + (n.verdict === '가설 기각' ? 't-bad' : n.verdict === '가설 지지' ? 't-ok' : 't-warn') + '">' + esc(n.verdict) + '</span>' : '<span class="badge t-neutral">판정 대기</span>') + '</span></div>';
-    if (n.status === '기록 완료' && isAdmin()) h += '<div class="seg" style="grid-template-columns:repeat(3,1fr)" aria-label="판정 (관리자)">' + CLAIMS.map((c) => '<button type="button" data-verdict="' + c + '" aria-pressed="' + (n.verdict === c) + '">' + c + '</button>').join('') + '</div>';
+    if (n.status === '기록 완료' && isAdmin()) h += '<div class="seg" style="grid-template-columns:repeat(3,1fr)" aria-label="판정 (운영진)">' + CLAIMS.map((c) => '<button type="button" data-verdict="' + c + '" aria-pressed="' + (n.verdict === c) + '">' + c + '</button>').join('') + '</div>';
     if (r.next) h += '<div><small class="muted">다음에 해 볼 것</small><p>' + esc(r.next) + '</p><button type="button" class="chipbtn" data-act="nextIdea">이걸로 아이디어 만들기</button></div>';
     return h + '</div>';
   }
@@ -1261,7 +1262,7 @@
    *   report += { discuss, conclusion, final: { by, at } }
    *   deleted = 'true' 이면 휴지통 */
   const isDel = (n) => !!n && (n.deleted === true || n.deleted === 'true');
-  const alive = () => db.nodes.filter((n) => !isDel(n) && !(PF.mode !== 'live' && isPriv(n) && !canWork(n)));   // 체험에서도 비공개는 팀 · 관리자만
+  const alive = () => db.nodes.filter((n) => !isDel(n) && !(PF.mode !== 'live' && isPriv(n) && !canWork(n)));   // 체험에서도 비공개는 팀 · 운영진만
   const allComments = () => db.comments || (db.comments = []);
   const commentsOf = (id, sec) => allComments().filter((c) => c.node === id && (sec === undefined || c.sec === sec));
   const approvals = (n) => commentsOf(n.id).filter((c) => c.kind === 'approve' && c.by !== n.owner && c.by !== n.createdBy);   // 담당 · 만든 사람 승인은 안 셈 (함께하는 사람은 됨)
@@ -1372,7 +1373,7 @@
     } else if (n.status === '실험 완료') {
       title = '결과를 기록해요'; body = '측정값 · 관찰 · 고찰 · 결론을 남기면 보고서가 만들어져요.'; btns = b('record', n.report ? '결과 기록 이어 쓰기' : '결과 기록하기', 'primary') + (n.run ? b('runOpen', '진행 노트 보기') : '');
     } else if (n.status === '기록 완료') {
-      title = isFinal(n) ? '보고서 확정됨' : '보고서를 다듬어요'; body = isFinal(n) ? esc(n.report.final.by) + ' · ' + md(n.report.final.at) + ' 확정. 고치려면 관리자가 확정을 풀어야 해요.' : '보고서를 보고 첨삭을 받아 고친 뒤 관리자가 확정해요.';
+      title = isFinal(n) ? '보고서 확정됨' : '보고서를 다듬어요'; body = isFinal(n) ? esc(n.report.final.by) + ' · ' + md(n.report.final.at) + ' 확정. 고치려면 운영진가 확정을 풀어야 해요.' : '보고서를 보고 첨삭을 받아 고친 뒤 운영진가 확정해요.';
       btns = b('report', '보고서 보기', 'primary') + (lock ? '' : b('record', '기록 고치기'));
     }
     return '<div class="card now-card">' + stepper(n) + '<b class="now-t">' + title + '</b><span class="muted now-b">' + body + '</span><div class="btn-row">' + btns + '</div></div>';
@@ -1478,7 +1479,7 @@
   }
   function commentHTML(c) {
     const mine = c.by === meName(), k = CKIND[c.kind] || CKIND.note, nn = byId(c.node), canRes = mine || isAdmin() || (nn && inTeam(nn));
-    return '<div class="cm' + (c.resolved ? ' done' : '') + '"><div class="cm-h"><span class="badge ' + k[1] + '">' + k[0] + '</span><b>' + esc(c.by) + '</b>' + (c.role && c.role !== '부원' ? '<small class="muted">' + esc(c.role) + '</small>' : '') + '<small class="muted">' + md(c.at) + ' ' + hm(c.at) + (c.editedAt ? ' · 고침' : '') + '</small>' + (c.sec ? '<small class="cm-sec">' + esc(secLabel(c.sec)) + '</small>' : '') + '</div>' +
+    return '<div class="cm' + (c.resolved ? ' done' : '') + '"><div class="cm-h"><span class="badge ' + k[1] + '">' + k[0] + '</span><b>' + esc(c.by) + '</b>' + (c.role && c.role !== '부원' ? '<small class="muted">' + esc(RN(c.role)) + '</small>' : '') + '<small class="muted">' + md(c.at) + ' ' + hm(c.at) + (c.editedAt ? ' · 고침' : '') + '</small>' + (c.sec ? '<small class="cm-sec">' + esc(secLabel(c.sec)) + '</small>' : '') + '</div>' +
       (c.text ? '<p>' + para(c.text) + '</p>' : '') + '<div class="cm-a">' +
       (c.kind !== 'approve' && c.kind !== 'note' && c.kind !== 'answer' && canRes ? '<button type="button" class="chipbtn" data-act="cmResolve" data-cid="' + esc(c.id) + '">' + (c.resolved ? '다시 열기' : '고쳤어요') + '</button>' : '') +
       (mine && c.kind !== 'approve' ? '<button type="button" class="chipbtn" data-act="cmEdit" data-cid="' + esc(c.id) + '">고치기</button>' : '') +
@@ -1649,7 +1650,7 @@
   }
   function viewTrash() {
     const list = db.nodes.filter(isDel);
-    return '<p class="muted" style="margin:0 2px;font-size:13px">지운 항목은 여기에 남아요. 만든 사람이나 관리자가 되살릴 수 있어요.</p>' +
+    return '<p class="muted" style="margin:0 2px;font-size:13px">지운 항목은 여기에 남아요. 만든 사람이나 운영진가 되살릴 수 있어요.</p>' +
       (list.length ? list.map((n) => '<div class="srow">' + ico(n) + '<span class="tx"><small class="code">' + esc(code(n)) + '</small><b>' + fieldTag(n) + esc(n.title) + '</b></span>' + (canDelete(n) ? '<button type="button" class="chipbtn" data-act="restore" data-id="' + esc(n.id) + '">되살리기</button>' : '') + '</div>').join('') : '<div class="card empty">휴지통이 비어 있어요.</div>');
   }
 
@@ -1730,7 +1731,7 @@
     }
     if (!n) return false;
     switch (act) {
-      case 'plan': if (!canEdit(n)) toast('확정된 보고서예요 · 관리자가 확정을 풀어야 고칠 수 있어요'); else planForm(n); return true;
+      case 'plan': if (!canEdit(n)) toast('확정된 보고서예요 · 운영진가 확정을 풀어야 고칠 수 있어요'); else planForm(n); return true;
       case 'approve': addComment(n.id, 'approve', '', '').then((ok) => { if (ok) toast(reviewDone(n) ? '승인했어요 · 이제 준비를 시작할 수 있어요' : '승인했어요'); }); return true;
       case 'fixNote': fixSheet(n); return true;
       case 'secNotes': secSheet(n, a.dataset.sec); return true;
@@ -1957,7 +1958,7 @@
       (PF.mode === 'live' && isAdmin() ? mi('people', 'var(--done)', 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v1M17 11l2 2 4-4', '부원 · 기기', '부원 추가 · 개인 코드 · 기기 승인') : '') +
       mi('settings', 'var(--club)', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z', '설정', (PF.isMaster ? '드라이브 연결 · ' : '') + '동아리 이름 · 로고 · 색 · 화면 밝기') +
       mi('hof', '#D9A400', 'M3 7l4 4 5-7 5 7 4-4-2 12H5z', '명예의 전당', '가장 많이 가지를 뻗은 실험 · 최장기 실험 · 연구왕 …') +
-      mi('board', 'var(--exp)', 'M3 4h5v16H3zM10 4h5v11h-5zM17 4h4v7h-4z', '보드', '단계별로 실험 카드 보기 (관리자용)') +
+      mi('board', 'var(--exp)', 'M3 4h5v16H3zM10 4h5v11h-5zM17 4h4v7h-4z', '보드', '단계별로 실험 카드 보기 (운영진용)') +
       mi('map', 'var(--q)', 'M12 12m-2.5 0a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0 -5 0M5 5m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M19 6m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M6 19m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M10.2 10.2L6.4 6.4M13.8 11l3.6-3.6M10.3 13.8L7.4 17.4', '전체 지도', '동아리 연구 전체를 한 장으로 (발표용)') +
       (db.nodes.some(isDel) ? mi('trash', 'var(--muted)', 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13', '휴지통', '지운 항목 ' + db.nodes.filter(isDel).length + '개 · 되살리기') : '') +
       mi('about', 'var(--idea)', 'M6 7v10M18 11c0 4-6 3-12 6', '가지 소개', '소개 영상 · 기능 · 기록을 지키는 방법') +
@@ -2083,7 +2084,7 @@
       colorFields(st, dis) +
       '<div class="field">화면 밝기<div class="seg" style="grid-template-columns:repeat(3,1fr)">' + [['system', '기기 설정'], ['light', '밝게'], ['dark', '어둡게']].map(([k, l]) => '<button type="button" data-theme="' + k + '" aria-pressed="' + (th === k) + '">' + l + '</button>').join('') + '</div></div>' +
       '</div>' +
-      (PF.mode === 'live' ? '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>내 계정</b><span class="muted" style="font-size:13px">' + esc(PF.me.name) + ' · ' + esc(PF.me.role) + ' · 이 기기: ' + esc((PF.dev && PF.dev.label) || deviceLabel()) + '<br>개인 코드는 다른 기기에서 들어갈 때 학번과 함께 써요.</span><div class="btn-row"><button type="button" class="btn primary" data-act="myCode">내 개인 코드 보기</button><button type="button" class="btn" data-act="leaveDevice">이 기기에서 나가기</button></div></div>' :
+      (PF.mode === 'live' ? '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>내 계정</b><span class="muted" style="font-size:13px">' + esc(PF.me.name) + ' · ' + esc(RN(PF.me.role)) + ' · 이 기기: ' + esc((PF.dev && PF.dev.label) || deviceLabel()) + '<br>개인 코드는 다른 기기에서 들어갈 때 학번과 함께 써요.</span><div class="btn-row"><button type="button" class="btn primary" data-act="myCode">내 개인 코드 보기</button><button type="button" class="btn" data-act="leaveDevice">이 기기에서 나가기</button></div></div>' :
       '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>체험 데이터</b><span class="muted" style="font-size:13px">' + (PF.club ? '동아리 드라이브 연결 전까지 실험 목록은 예시 데이터로 보여요. 이 기기에만 저장됩니다.' : '가지고등학교 실험 동아리(가상)로 마음껏 만들고 고쳐 보세요. 이 브라우저에만 저장되고 매일 처음 상태로 돌아가요. 지금: ' + esc(meName()) + '') + '</span><button type="button" class="btn" data-act="reset">예시로 되돌리기</button></div>');
   }
   /* 설정 맨 위: 드라이브 연결 (동아리마다 따로) */
@@ -2091,9 +2092,9 @@
     const box = (badge, body) => '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">드라이브 연결</b>' + badge + '</div>' + body + '</div>';
     if (!PF.club) return box('<span class="badge t-neutral">체험</span>', '<span class="muted" style="font-size:13px;line-height:1.7">지금은 <b>체험용 가상 동아리(가지고등학교 실험 동아리)</b>예요. 드라이브 연결 없이 바로 써 볼 수 있어요. 바꾼 내용은 이 브라우저에만 저장되고 <b>매일 처음 상태로 돌아가요.</b></span><button type="button" class="btn" data-act="demoWho" style="align-self:flex-start">누구로 체험할지 바꾸기 · 처음 상태로</button>');
     if (PF.isMaster) { fetchGs(); return renameCard() + linksCard() + backupCard() + connectCard(); }
-    return linksCard() + backupCard();   // 관리자: 바로 열기만 · 부원에게는 보이지 않음
+    return linksCard() + backupCard();   // 운영진: 바로 열기만 · 부원에게는 보이지 않음
   }
-  // 관리자: 동아리 데이터 바로 열기 (주소는 연결기가 알려 줌)
+  // 운영진: 동아리 데이터 바로 열기 (주소는 연결기가 알려 줌)
   function linksCard() {
     if (PF.mode !== 'live' || !isAdmin()) return '';
     if ((!PF.links || (PF.links.err && Date.now() - PF.links.at > 60000)) && !PF.linksLoading) {
@@ -2101,13 +2102,13 @@
       rpc('links', null, null, { quiet: true }).then((l) => { PF.links = l || {}; }, () => { PF.links = { err: true, at: Date.now() }; }).finally(() => { PF.linksLoading = false; render(); });
     }
     const L = PF.links || {}, a = (href, label) => href ? '<a class="btn" href="' + esc(href) + '" target="_blank" rel="noopener">' + label + '</a>' : '';
-    return '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">동아리 데이터 바로 열기</b><span class="badge t-info">관리자</span></div>' +
+    return '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">동아리 데이터 바로 열기</b><span class="badge t-info">운영진</span></div>' +
       (PF.links && !L.sheet ? '<span class="muted" style="font-size:13px;line-height:1.6">연결기가 아직 이 기능을 몰라요. 새 본체는 10분 안에 저절로 들어와요. 잠시 뒤 다시 열어 보세요.</span>' :
        PF.links ? '<div class="btn-row">' + a(L.sheet, '가지 데이터 시트 열기') + a(L.script, '연결기(Apps Script) 열기') + a(L.folder || L.home, L.folder ? '사진 폴더 열기' : '동아리 폴더 열기') + '</div>' +
         '<span class="muted" style="font-size:12px;line-height:1.6">구글 계정에 이 시트 · 폴더의 편집 권한이 있어야 열려요. 시트를 직접 고치면 가지가 헷갈릴 수 있으니 보기만 하세요.</span>'
         : '<span class="muted loading-line">' + SPIN + '주소를 받는 중…</span>') + '</div>';
   }
-  // 실험 승인 규칙: 학교마다 다름. 관리자는 보고, 마스터 · 지도 선생님이 바꿈
+  // 실험 승인 규칙: 학교마다 다름. 운영진는 보고, 마스터 · 지도 선생님이 바꿈
   function rulesCard() {
     if (PF.mode === 'live' ? !isAdmin() : !!PF.club) return '';
     const R = rules(), ed = ['마스터', '교사'].includes(myRole()), dis = ed ? '' : ' disabled', tn = teacherNames();
@@ -2118,7 +2119,7 @@
       '<div class="field">부원 승인<div class="seg" style="grid-template-columns:repeat(4,1fr)">' + [0, 1, 2, 3].map((k) => '<button type="button" data-rule-peers="' + k + '" aria-pressed="' + (R.peers === k) + '"' + dis + '>' + (k ? k + '명' : '없음') + '</button>').join('') + '</div></div>' +
       ck('team', R.team, '함께하는 사람(팀원)의 승인도 인정 <small class="muted">끄면 팀 밖의 부원만 승인할 수 있어요 (교차 검토)</small>') +
       ck('teacher', R.teacher === 'final', '부원 승인 뒤 <b>지도 선생님의 최종 승인</b>이 꼭 있어야 함' + (tn.length ? ' <small class="muted">선생님: ' + tn.map(esc).join(' · ') + '</small>' : ' <small class="muted" style="color:var(--warn-fg,#9A5B00)">지도 선생님이 아직 지정되지 않아 지금은 적용되지 않아요. 더 보기 → 부원 · 기기에서 역할을 ‘지도 선생님’으로 바꿔 주세요.</small>')) +
-      ck('skip', R.skip, '급할 때 기장 · 관리자 · 선생님이 검토 없이 준비를 시작할 수 있음') +
+      ck('skip', R.skip, '급할 때 기장 · 운영진 · 선생님이 검토 없이 준비를 시작할 수 있음') +
       '<b style="font-size:14px;margin-top:4px">실험일 (실험실 사용) 승인</b>' +
       ck('expTeacher', R.expTeacher, '부원이 올린 실험일은 <b>지도 선생님이 허가</b>해야 모두에게 보임 <small class="muted">끄면 올리자마자 확정돼요</small>') +
       (R.expTeacher ? ck('expLeader', R.expLeader, '기장(마스터)이 선생님 대신 허가할 수 있음' + (tn.length ? '' : ' <small class="muted">지금은 선생님이 없어서 기장이 대신 허가해요</small>')) : '') +
@@ -2130,14 +2131,14 @@
     db.rules = Object.assign({}, rules(), o.teacher ? { teacher: o.teacher } : {}, ['peers', 'team', 'skip', 'expTeacher', 'expLeader'].reduce((a, k) => (k in o ? Object.assign(a, { [k]: o[k] }) : a), {}));
     save(); render(); toast('승인 규칙을 바꿨어요');
   }
-  // 관리자: 자동 백업 (일주일에 한 번 '가지 백업' 폴더 + 메일)
+  // 운영진: 자동 백업 (일주일에 한 번 '가지 백업' 폴더 + 메일)
   function backupCard() {
     if (PF.mode !== 'live' || !isAdmin()) return '';
     if ((!PF.bk || (PF.bk.err0 && Date.now() - PF.bk.t > 60000)) && !PF.bkLoading) {
       PF.bkLoading = true;
       rpc('backupInfo', null, null, { quiet: true }).then((b) => { PF.bk = b || {}; }, () => { PF.bk = { err0: true, t: Date.now() }; }).finally(() => { PF.bkLoading = false; render(); });
     }
-    const B = PF.bk, head = '<div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">자동 백업</b><span class="badge t-info">관리자</span></div>';
+    const B = PF.bk, head = '<div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">자동 백업</b><span class="badge t-info">운영진</span></div>';
     const wrap = (b) => '<div class="card" style="display:flex;flex-direction:column;gap:10px">' + head + b + '</div>';
     if (!B) return wrap('<span class="muted loading-line">' + SPIN + '백업 상태를 보는 중…</span>');
     if (B.err0 || !('mail' in B)) return wrap('<span class="muted" style="font-size:13px;line-height:1.6">연결기가 아직 이 기능을 몰라요. 새 본체는 10분 안에 저절로 들어와요. 잠시 뒤 다시 열어 보세요.</span>');
@@ -2285,7 +2286,7 @@
     const st = brand();
     const pill = $('#demoPill');
     pill.hidden = GATE.has(PF.mode);
-    pill.textContent = PF.mode === 'live' ? (PF.busy ? '저장 중…' : PF.refreshing ? '최신으로 맞추는 중…' : PF.me.name + (PF.me.role !== '부원' ? ' · ' + PF.me.role : '')) : PF.club ? '드라이브 연결 전' : '체험 · ' + meName() + ' ▾';
+    pill.textContent = PF.mode === 'live' ? (PF.busy ? '저장 중…' : PF.refreshing ? '최신으로 맞추는 중…' : PF.me.name + (PF.me.role !== '부원' ? ' · ' + RN(PF.me.role) : '')) : PF.club ? '드라이브 연결 전' : '체험 · ' + meName() + ' ▾';
     pill.classList.toggle('live', PF.mode === 'live');
     const C = brandColors(st.color || '#C26A00', st.color2 || ''), R = document.documentElement.style, dark = isDark();
     R.setProperty('--brand', C.main); R.setProperty('--on-brand', C.on); R.setProperty('--brand-soft', dark ? C.softDark : C.soft); R.setProperty('--brand-2', C.light);
@@ -2514,7 +2515,7 @@
     if (act === 'seenAllDev') { prefs.seenDev = (prefs.seenDev || []).concat(PF.newDevices.map((x) => x.id)).slice(-40); savePrefs(); PF.newDevices = []; return render(); }
     if (act === 'seenDev' || act === 'notMe') {
       prefs.seenDev = (prefs.seenDev || []).concat(did).slice(-20); savePrefs(); PF.newDevices = PF.newDevices.filter((x) => x.id !== did);
-      if (act === 'notMe') rpc('block', { id: did }).then(() => toast('그 기기를 막았어요 · 관리자에게도 알려 주세요'), (er) => toast(er.message));
+      if (act === 'notMe') rpc('block', { id: did }).then(() => toast('그 기기를 막았어요 · 운영진에게도 알려 주세요'), (er) => toast(er.message));
       return render();
     }
     if (act === 'copyGs') return copyGs();
