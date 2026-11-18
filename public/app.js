@@ -1095,7 +1095,7 @@
   async function quickMany(nodeId, files) {
     const list = Array.from(files).slice(0, 10); let k = 0;
     for (const f of list) { toast('올리는 중 ' + (k + 1) + '/' + list.length + '…'); if (await quickUpload(nodeId, f, '', '')) k++; }
-    const box = $('#recPhotos'); const n = byId(nodeId); if (box && n) box.innerHTML = recPhotosHTML(n);
+    const box = $('#recPhotos'); const n = byId(nodeId); if (box && n) box.innerHTML = recPhotosHTML(n); else render();
     if (k) toast(k + '개 올렸어요'); loadThumbs();
   }
   function rowPhoto(btn) {
@@ -1603,7 +1603,8 @@
       (canDelete(n) ? b('trashItem', '휴지통으로', 'danger') : '') + b('closeSheet', '닫기') + '</div>');
   }
   function editForm(n) {
-    const mem = (PF.mode === 'live' ? PF.members || [] : db.members || []).map((m) => m.name), owners = mem.length ? mem : [];
+    const mem0 = (PF.mode === 'live' ? PF.members || [] : db.members || []).map((m) => m.name);
+    const mem = mem0.concat([n.owner].concat(n.team || []).filter((x) => x && !mem0.includes(x))), owners = mem.length ? mem : [];   // 활동 중지 · 예전 이름도 그대로 남김
     openSheet('<h3>고치기 · ' + esc(code(n)) + '</h3><form id="editForm" data-id="' + esc(n.id) + '" style="display:flex;flex-direction:column;gap:12px">' +
       '<label class="field">제목<input name="title" maxlength="60" required value="' + esc(n.title) + '"></label>' +
       '<label class="field">분야<select name="field">' + Object.keys(FCODE).map((f) => '<option' + (n.field === f ? ' selected' : '') + '>' + f + '</option>').join('') + '</select></label>' +
@@ -1762,7 +1763,7 @@
     if (f.classList && f.classList.contains('cm-add')) {
       e.preventDefault(); const fd = new FormData(f), kind = (e.submitter && e.submitter.value) || 'note', sec = String(fd.get('sec') || ''), inSheet = !!f.closest('#sheet'), node = f.dataset.node;
       const txt = String(fd.get('text') || ''); f.reset();
-      addComment(node, kind, sec, txt).then((ok) => { if (!ok) { const ta = document.querySelector('.cm-add[data-node="' + node + '"] [name=text]'); if (ta) ta.value = txt; return; }
+      addComment(node, kind, sec, txt).then((ok) => { if (!ok) { const ta = (f.isConnected && f.querySelector('[name=text]')) || document.querySelector((inSheet ? '#sheet ' : '') + '.cm-add[data-node="' + node + '"] [name=text]'); if (ta && !ta.value) ta.value = txt; return; }
         if (inSheet) { if (sec && kind === 'fix') secSheet(byId(node), sec); else closeSheet(); }
         toast({ fix: '첨삭을 남겼어요', change: '수정 요청을 남겼어요', answer: '답변을 남겼어요' }[kind] || '댓글을 남겼어요'); });
       return true;
@@ -1909,12 +1910,14 @@
   }
   function archSearch(q) {
     clearTimeout(archSearch.t); archSearch.t = setTimeout(() => {
-      rpc('search', { q }, null, { quiet: true }).then((r) => { PF.archHits = PF.archHits || {}; PF.archHits[q] = r.hits || []; if (cur().s === 'find' || nav[0].s === 'find') render(); }, () => {});
+      rpc('search', { q }, null, { quiet: true }).then((r) => { PF.archHits = PF.archHits || {}; PF.archHits[q] = r.hits || []; if (cur().s === 'find' || nav[0].s === 'find') findRefresh(); }, () => {});   // 결과만 다시 그림 (입력칸 그대로)
     }, 500);
   }
   function viewFind() {
     const q = (prefs.q || '').trim().toLowerCase(), ty = prefs.ty || 'all', all = alive();
     const F = { fy: prefs.fy || '', ff: prefs.ff || '', fp: prefs.fp || '', fs: prefs.fs || '' };
+    { const has = { fy: new Set(all.map(yearOf)), ff: new Set(all.map((n) => n.field)), fp: new Set(all.flatMap(peopleOf)), fs: new Set(all.map(stageOf)) };
+      Object.keys(F).forEach((k) => { if (F[k] && !has[k].has(F[k])) { F[k] = ''; prefs[k] = ''; } }); }   // 동아리를 옮기거나 이름이 바뀌어 없는 값
     const list = [];
     all.forEach((n) => {
       if (ty === 'mine' ? !(inTeam(n) || (n.type === 'q' && n.createdBy === meName())) : !(ty === 'all' || n.type === ty || (ty === 'exp' && n.type === 'idea'))) return;
@@ -2334,7 +2337,7 @@
   const rTimes = [];
   function renderWatch() {
     const now = Date.now(); rTimes.push(now); while (rTimes.length && now - rTimes[0] > 3000) rTimes.shift();
-    if (rTimes.length === 12) { const st = (new Error().stack || '').split('\n').slice(3, 6).map((l) => l.trim().replace(/^at /, '').replace(/\(.*\/([^/]+)\)/, '($1)')).join(' ← '); toast('화면 반복 그리기: ' + st); console.warn('render loop', new Error().stack); }
+    if (rTimes.length === 12 && DEBUG) { const st = (new Error().stack || '').split('\n').slice(3, 6).map((l) => l.trim().replace(/^at /, '').replace(/\(.*\/([^/]+)\)/, '($1)')).join(' ← '); toast('화면 반복 그리기: ' + st); console.warn('render loop', new Error().stack); }
   }
   // 찾기 입력: 입력칸은 그대로 두고 아래 결과만 다시 그림 (한글 조합이 끊기지 않게)
   function findRefresh() {
@@ -2600,7 +2603,7 @@
     if (['fileFull', 'fileCap', 'fileDel'].includes(act)) return fileAct(act, a.dataset.fid);
     if (flowAct(act, a, ['item', 'run', 'report'].includes(cur().s) ? byId(cur().arg) : null)) return;
     if (act === 'demoWho') return demoWho();
-    if (act === 'demoMe') { prefs.demoMe = a.dataset.name; savePrefs(); closeSheet(); render(); return toast(a.dataset.name + '(으)로 체험해요'); }
+    if (act === 'demoMe') { prefs.demoMe = a.dataset.name; savePrefs(); closeSheet(); nav = [{ s: nav[0].s === 'item' ? 'home' : nav[0].s }]; render(true); return toast(a.dataset.name + '(으)로 체험해요'); }
     if (act === 'demoReset') { if (!confirm('체험 데이터를 처음 상태로 되돌릴까요?')) return; db = freshSample(); save(); closeSheet(); nav = [{ s: 'home' }]; render(true); return toast('처음 상태로 되돌렸어요'); }
     if (act === 'shareCode') { const t = a.dataset.text; if (navigator.share) navigator.share({ text: t }).catch(() => {}); else (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('복사했어요'), () => {}); }
   });

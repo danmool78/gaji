@@ -840,3 +840,6 @@ details.sup-box[open] .sup-last { display: none; }
 #screen:has(.leg-tip) { padding-bottom: 210px; }
 @media (max-width: 767px) { #screen:has(.leg-tip) { padding-bottom: 290px; } #screen:has(.leg-tip.lift) { padding-bottom: 340px; } }
 /* 화면 안내 카드가 밝힌 칸을 가리지 않게: 칸이 화면보다 크면 카드를 화면 아래쪽에 */
+
+/* 달력 그날 목록: 버튼이 많으면 제목 아래로 내려가게 (폰에서 제목이 한 글자씩 세로로 서던 것) */
+.ev-row { flex-wrap: wrap; } .ev-row b { flex: 1 1 10em; min-width: 10em; }
