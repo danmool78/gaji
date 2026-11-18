@@ -9,4 +9,4 @@ window.GAJI_FIREBASE = {
 };
 
 // 연결기가 들어 있는 '가지 데이터' 원본 시트 (사본 만들기용). 비어 있으면 코드 붙여 넣기 방식으로 안내
-window.GAJI_TEMPLATE_ID = '';
+window.GAJI_TEMPLATE_ID = '1NK8xB3enBmpCfPxBQdpb02TAYSKrmeOhgYtj6qZ9osI';
