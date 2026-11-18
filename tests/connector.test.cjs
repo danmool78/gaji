@@ -183,7 +183,7 @@ const mc2 = call({ action: 'myCode', device: r9b.data.device });
 ok('old code renewed', mc2.ok && mc2.data.renewed && /^\d{4}$/.test(mc2.data.code), mc2);
 ok('device kept after renew', call({ action: 'load', device: r9b.data.device }).ok);
 ok('new code works', call({ action: 'register', studentId: '20399', code: mc2.data.code }).ok);
-ok('ping version', call({ action: 'ping' }).data.version === '2.20.1');
+ok('ping version', call({ action: 'ping' }).data.version === '2.21.0');
 
 // 실수 되돌리기: 내가 10분 안에 옮긴 단계는 한 단계 되돌리기 가능
 setRule('approvePeers', 0); setRule('approveTeacher', 'none');
@@ -388,8 +388,10 @@ call({ action: 'sync', device: MEM, nodes: [{ id: 'k1', type: 'exp', title: '백
 store._t.settings.forEach((x) => { if (x.key === 'tidyAt') x.value = ''; });
 tb = call({ action: 'tidy', device: OTH }); ok('backup after a week with changes', tb.data.backup && tb.data.backup.ok && BK.length === b0 + 2);
 ok('backupInfo admin only', call({ action: 'backupInfo', device: OTH }).code === 'not_admin' && call({ action: 'backupInfo', device: ADM }).data.mail === true);
-let bs = call({ action: 'backupSet', device: ADM, mail: false, to: 'kim@school.kr' }); ok('backupSet mail off + to', bs.data.mail === false && bs.data.to === 'kim@school.kr');
-ok('bad email rejected', call({ action: 'backupSet', device: ADM, to: 'not-an-email' }).code === 'bad');
+const MSTB = call({ action: 'masterRegister', masterKey: 'z'.repeat(24), studentId: '20401', label: 'backup' }).data.device;   // 지금 마스터
+ok('backupSet: admin(not master) refused', call({ action: 'backupSet', device: ADM, to: 'evil@x.kr' }).code === 'not_master');
+let bs = call({ action: 'backupSet', device: MSTB, mail: false, to: 'kim@school.kr' }); ok('backupSet mail off + to', bs.data.mail === false && bs.data.to === 'kim@school.kr');
+ok('bad email rejected', call({ action: 'backupSet', device: MSTB, to: 'not-an-email' }).code === 'bad');
 let bn = call({ action: 'backupNow', device: ADM }); ok('backupNow (no mail when off)', bn.data.ok && BK[BK.length - 1].mail === false && BK[BK.length - 1].to === 'kim@school.kr');
 BK.fail = true; bn = call({ action: 'backupNow', device: ADM }); BK.fail = false;
 ok('backup failure recorded, not thrown', bn.ok && bn.data.ok === false && call({ action: 'backupInfo', device: ADM }).data.err.includes('꽉 참'));
@@ -452,7 +454,7 @@ ok('teammate cannot approve (default)', call({ action: 'comment', device: OTH, n
 ok('owner cannot approve own', call({ action: 'comment', device: MEM, node: 'x1', kind: 'approve' }).code === 'self');
 const tc = call({ action: 'addMember', device: ADM, studentId: 'T001', name: '홍교사(T001)' });
 const sm = call({ action: 'setMember', device: MST, id: tc.data.id, role: '교사' }); ok('master sets 교사 role', sm.ok, sm);
-const tr = call({ action: 'register', studentId: 'T001', code: tc.data.code }); call({ action: 'approve', device: ADM, id: tr.data.device.id }); const TCH = tr.data.device;
+const tr = call({ action: 'register', studentId: 'T001', code: tc.data.code }); ok('admin cannot approve teacher device', call({ action: 'approve', device: ADM, id: tr.data.device.id }).code === 'not_master'); call({ action: 'approve', device: MSTB, id: tr.data.device.id }); const TCH = tr.data.device;
 ok('teacher cannot approve before peers', call({ action: 'comment', device: TCH, node: 'x1', kind: 'approve' }).code === 'order');
 call({ action: 'comment', device: ADM, node: 'x1', kind: 'approve' });
 const p3 = call({ action: 'addMember', device: ADM, studentId: '30001', name: '서지우(30001)' }); const p3r = call({ action: 'register', studentId: '30001', code: p3.data.code }); call({ action: 'approve', device: ADM, id: p3r.data.device.id });
@@ -622,7 +624,7 @@ ok('load has no self rev', !call({ action: 'load', device: ADM }).rev);
 
 // ===== 2.18.2: 시스템 현황 숫자 =====
 const sysStat = call({ action: 'stats', device: ADM });
-ok('stats: numbers only', sysStat.ok && typeof sysStat.data.done === 'number' && typeof sysStat.data.running === 'number' && typeof sysStat.data.devices === 'number' && /^\d{4}-\d\d-\d\d$|^$/.test(sysStat.data.lastEdit) && sysStat.data.core === '2.20.1', sysStat.data);
+ok('stats: numbers only', sysStat.ok && typeof sysStat.data.done === 'number' && typeof sysStat.data.running === 'number' && typeof sysStat.data.devices === 'number' && /^\d{4}-\d\d-\d\d$|^$/.test(sysStat.data.lastEdit) && sysStat.data.core === '2.21.0', sysStat.data);
 ok('stats: no names', !JSON.stringify(sysStat.data).match(/[가-힣]{2,}/));
 ok('stats: member refused', call({ action: 'stats', device: MEM }).code === 'not_admin');
 
@@ -704,6 +706,49 @@ ok('stats: member refused', call({ action: 'stats', device: MEM }).code === 'not
   ok('renameAll: history json string', store._t.history.find((x) => x.id === 'rh1').after === '["옛부원(50001)","다른사람"]');
   ok('renameAll: member renamed, dup kept', !!mm('옛부원(50001)') && store._t.members.filter((m) => m.name === '같은이름').length === 2);
   ok('renameAll: second run does nothing', call({ action: 'renameAll', device: MD }).data.renamed === 0);
+}
+
+
+// ===== 2.21.0: 두 번째 점검 =====
+{
+  const meM = call({ action: 'load', device: MEM }).data.me;
+  const MS2 = call({ action: 'masterRegister', masterKey: 'NEWKEY'.repeat(5), studentId: '20301', label: 'audit2' }).data.device;
+  // 관리자 한 명 만들기
+  const ad = call({ action: 'addMember', device: MS2, studentId: '60001', name: '관리' }); call({ action: 'setMember', device: MS2, id: ad.data.id, role: '관리자' });
+  const adr = call({ action: 'register', studentId: '60001', code: ad.data.code, label: 'x' }); call({ action: 'approve', device: MS2, id: adr.data.device.id });
+  const AD = adr.data.device;
+  const teacher = call({ action: 'people', device: MS2 }).data.members.find((m) => m.role === '교사');
+  ok('admin cannot suspend teacher', call({ action: 'setMember', device: AD, id: teacher.id, status: '중지' }).code === 'not_master');
+  ok('admin cannot set backup mail', call({ action: 'backupSet', device: AD, to: 'evil@x.kr' }).code === 'not_master');
+  // JSON 글자로 보낸 확정 보고서
+  call({ action: 'sync', device: MEM, nodes: [{ id: 'js1', type: 'exp', title: 'JSON 글자', report: JSON.stringify({ summary: 's', claim: 'c', final: { by: 'x' } }) }] });
+  ok('final via JSON string blocked', !JSON.stringify(store._t.nodes.find((n) => n.id === 'js1').report || {}).includes('final'));
+  // 비공개 아이디어: 연결도 안 보이고 고칠 수도 없음
+  store._t.nodes.push({ id: 'pv1', no: 990, type: 'idea', title: '비밀 아이디어', status: '아이디어', private: 'true', owner: '관리(60001)', createdBy: '관리(60001)', created: '2026-01-01' });
+  store._t.links.push({ id: 'lpv', s: 'js1', t: 'pv1', k: 'follow', createdBy: 'x', createdAt: '2026-01-01', off: '' });
+  ok('private node link hidden', !call({ action: 'load', device: OTH }).data.links.some((l) => l.t === 'pv1'));
+  const pv = call({ action: 'sync', device: OTH, nodes: [{ id: 'pv1', title: '비밀 아이디어', volunteer: '' }] });
+  ok('cannot touch hidden private node', pv.data.rejected.includes('pv1:team'));
+  // 실험에 질문 단계 값 막기
+  const st = call({ action: 'sync', device: MEM, nodes: [{ id: 'js1', title: 'JSON 글자', status: '해결' }] });
+  ok('exp cannot take q status', st.data.rejected.includes('js1:status') && store._t.nodes.find((n) => n.id === 'js1').status !== '해결', st.data);
+  // 명단에 없는 이름으로 담당 바꾸기 막기
+  const nm = call({ action: 'sync', device: MEM, nodes: [{ id: 'js1', title: 'JSON 글자', owner: '없는사람' }] });
+  ok('owner must be a member name', nm.data.rejected.includes('js1:name'), nm.data);
+  // sync 도 내 변경이면 rev from/to
+  const rv = call({ action: 'rev', device: MEM }).data.rev, sy = call({ action: 'sync', device: MEM, nodes: [{ id: 'js1', title: 'JSON 글자 2' }] });
+  ok('sync returns self rev', sy.rev && sy.rev.from === rv, sy.rev);
+  // 중지된 학번으로 새로 넣기 막기
+  call({ action: 'setMember', device: MS2, id: ad.data.id, status: '중지' });
+  ok('addMember: suspended sid refused', /활동 중지/.test(call({ action: 'addMember', device: MS2, studentId: '60001', name: '관리' }).message || ''));
+  // 이름 정리: 제목 · 본문은 그대로, constructor 같은 글자도 그대로
+  store._t.members.push({ id: 'mRn', studentId: '61001', name: '김민수', role: '부원', codeHash: '', status: '활동', createdAt: '2026-01-01' });
+  store._t.nodes.push({ id: 'rn1', no: 991, type: 'exp', title: '김민수', desc: 'constructor', status: '계획 작성', owner: '김민수', created: '2026-01-01' });
+  store._t.comments.push({ id: 'rnc', node: 'rn1', kind: 'fix', text: 'toString', by: '김민수', at: '2026-01-01' });
+  call({ action: 'renameAll', device: MS2 });
+  const rn = store._t.nodes.find((n) => n.id === 'rn1');
+  ok('renameAll: name fields only', rn.owner === '김민수(61001)' && rn.title === '김민수' && rn.desc === 'constructor', rn);
+  ok('renameAll: comment text kept', store._t.comments.find((c) => c.id === 'rnc').text === 'toString' && store._t.comments.find((c) => c.id === 'rnc').by === '김민수(61001)');
 }
 
 console.log(`connector: ${pass} passed, ${fail} failed`);

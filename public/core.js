@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.20.1';
+var GAJI_CONNECTOR_VERSION = '2.21.0';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
@@ -16,7 +16,8 @@ function GajiCore(store, util, drive) {
   function err(code, msg) { var e = new Error(msg || code); e.code = code; throw e; }
   function setting(k, d) { var r = store.rows('settings').filter(function (x) { return x.key === k; })[0]; return r ? r.value : d; }
   function setSetting(k, v) { var r = store.rows('settings').filter(function (x) { return x.key === k; })[0]; if (r) store.update('settings', r._row, { key: k, value: String(v) }); else store.append('settings', { key: k, value: String(v) }); }
-  var SELF_REV = { noticeSet: 1, eventSet: 1, rulesSet: 1 };   // 응답으로 화면을 바로 고치는 요청
+  var SELF_REV = { noticeSet: 1, eventSet: 1, rulesSet: 1, sync: 1 };   // 응답으로 화면을 바로 고치는 요청
+  function locked(fn) { return util.lock(function () { if (store.fresh) store.fresh(); return fn(); }); }
   function bump() { setSetting('rev', Number(setting('rev', '0')) + 1); }
   function log(me, action, detail) { store.append('log', { at: util.now(), member: me ? me.name : '', device: me ? me.deviceId : '', action: action, detail: String(detail || '').slice(0, 200) }); }
   function hash(salt, v) { return util.sha256(salt + ':' + v); }
@@ -194,7 +195,7 @@ function GajiCore(store, util, drive) {
     var notice = mine.filter(function (d) { return d.id !== me.deviceId && d.status === '승인' && days(d.approvedAt) < 7; }).map(function (d) { return { id: d.id, label: d.label, at: d.approvedAt }; });
     return {
       rev: Number(setting('rev', '0')), me: { id: me.id, name: me.name, role: me.role }, rules: rules(), notice: noticeGet(), events: eventsFor(me), nodes: nodes,
-      links: store.rows('links').filter(function (l) { return !util.bool(l.off); }).map(function (l) { return { id: l.id, s: l.s, t: l.t, k: l.k }; }),
+      links: (function () { var vis = {}; nodes.forEach(function (n) { vis[n.id] = 1; }); return store.rows('links').filter(function (l) { return !util.bool(l.off) && vis[l.s] && vis[l.t]; }); })().map(function (l) { return { id: l.id, s: l.s, t: l.t, k: l.k }; }),
       files: (function () { var seen = {}; nodes.forEach(function (n) { seen[n.id] = 1; });
         return store.rows('files').filter(function (f) { return !util.bool(f.off) && seen[f.node]; }).map(fileOut); })(),
       comments: (function () { var seen = {}; nodes.forEach(function (n) { seen[n.id] = 1; });
@@ -311,7 +312,8 @@ function GajiCore(store, util, drive) {
       else if (k === 'private' || k === 'deleted' || k === 'equip' || k === 'arch') o[k] = v === true || v === 'true' ? 'true' : v === '보관' ? '보관' : '';
       else if (k === 'signal' || k === 'review' || k === 'fans') o[k] = Math.max(0, Math.min(999, Math.round(Number(v) || 0)));
       else if (k === 'team') o.team = Array.isArray(v) ? v.slice(0, 12).map(function (x) { return plain(x, 20); }).filter(Boolean) : [];
-      else if (Object.prototype.hasOwnProperty.call(GAJI_JSON, k)) { if (v == null || v === '') o[k] = v; else { var sv = typeof v === 'string' ? v : JSON.stringify(v); if (sv.length > JSON_MAX) { if (bad) bad.push(c.id + ':big'); } else o[k] = v; } }
+      else if (Object.prototype.hasOwnProperty.call(GAJI_JSON, k)) { if (typeof v === 'string' && v !== '') { try { v = JSON.parse(v); } catch (e) { return; } if (!v || typeof v !== 'object') return; }   // 글자로 보낸 JSON도 풀어서 같은 검사
+        if (v == null || v === '') o[k] = v; else { var sv = typeof v === 'string' ? v : JSON.stringify(v); if (sv.length > JSON_MAX) { if (bad) bad.push(c.id + ':big'); } else o[k] = v; } }
     });
     return o.title === undefined ? null : o;
   }
@@ -342,7 +344,7 @@ function GajiCore(store, util, drive) {
   function expNeedsOk() { return rules().expTeacher; }
   A.eventSet = function (q) {
     var me = deviceOf(q), admin = !!ADMIN[me.role], op = q.op || 'add'; limit('ev_' + me.id, 40, 600);
-    return util.lock(function () {
+    return locked(function () {
       if (op === 'add') {
         var scope = q.scope === 'club' ? 'club' : q.scope === 'exp' ? 'exp' : 'me', node = '';
         if (scope === 'club' && !admin) err('not_admin', '동아리 일정은 기장 · 선생님만 올릴 수 있어요');
@@ -374,9 +376,13 @@ function GajiCore(store, util, drive) {
     });
   };
 
+  function namesOk(list) {
+    var ok = Object.create(null); store.rows('members').forEach(function (m) { if (m.status === '활동' || m.status === '중지') ok[m.name] = 1; });
+    return (list || []).every(function (x) { return !x || Object.prototype.hasOwnProperty.call(ok, x); });
+  }
   A.sync = function (q) {
     var me = deviceOf(q), admin = !!ADMIN[me.role]; limit('sy_' + me.id, 120, 60);
-    return util.lock(function () {
+    return locked(function () {
       var rows = store.rows('nodes'), byId = {}, assigned = {}, rejected = [];
       rows.forEach(function (r) { byId[r.id] = r; });
       (q.nodes || []).slice(0, 50).forEach(function (c0) {
@@ -391,11 +397,13 @@ function GajiCore(store, util, drive) {
           NODE_FIELDS.forEach(function (f) { if (Object.prototype.hasOwnProperty.call(c, f)) n[f] = c[f]; });
           if (!admin) { n.verdict = ''; delete n.review; if (n.report && typeof n.report === 'object' && n.report.final) { n.report = JSON.parse(JSON.stringify(n.report)); delete n.report.final; } }
           if (n.type !== 'exp' && STAGES.indexOf(n.status) > 0) n.status = '';   // 아이디어 · 질문 · 자료는 실험 단계를 가질 수 없음
-          if (n.type === 'exp' && !admin && STAGES.indexOf(n.status) > 2) { n.status = '검토 중'; rejected.push(n.id + ':stage:review'); }   // 새로 만들 때 검토를 건너뛸 수 없음
+          if (n.type === 'exp' && !admin && STAGES.indexOf(n.status) > 2) { n.status = '검토 중'; rejected.push(n.id + ':stage:review'); }   // 관리자는 지난 기록 옮겨 오기(끝난 실험)를 위해 그대로   // 새로 만들 때 검토를 건너뛸 수 없음
+          if (n.type === 'exp' && n.status && STAGES.indexOf(n.status) < 0 && n.status !== '취소') n.status = '계획 작성';
           if (n.type === 'exp' && STAGES.indexOf(n.status) > 1 && stageBlock({ id: n.id, status: '계획 작성' }, n, true, true)) { n.status = '계획 작성'; rejected.push(n.id + ':stage'); }
           store.append('nodes', n); assigned[n.id] = no; log(me, '새로 만듦', n.title);
           return;
         }
+        if (util.bool(old.private) && !admin && !inTeam(old, me)) { rejected.push(old.id + ':team'); return; }   // 볼 수 없는 비공개 항목
         var u = cleanNode(old), changed = false, team = admin || inTeam(old, me);
         NODE_FIELDS.forEach(function (f) {
           if (!Object.prototype.hasOwnProperty.call(c, f) || val(c[f]) === val(old[f])) return;
@@ -407,6 +415,7 @@ function GajiCore(store, util, drive) {
           if ((f === 'team' || f === 'owner' || f === 'private') && !admin && !mineNode(old, me)) { rejected.push(old.id + ':team'); return; }   // 보관 내용을 아직 안 받은 기기: 무거운 칸은 건드리지 않음
           if (!admin && f === 'verdict') { rejected.push(old.id + ':verdict'); return; }
           if (!admin && f === 'review') return;   // 승인 수는 승인 댓글로만 셈
+          if ((f === 'owner' || f === 'volunteer' || f === 'team') && !namesOk(f === 'team' ? c.team : [c[f]])) { rejected.push(old.id + ':name'); return; }   // 명단에 없는 이름 (예전 이름 등)
           if (f === 'volunteer' && !admin && old.volunteer && old.volunteer !== me.name) { rejected.push(old.id + ':team'); return; }   // 남의 담당 지원을 지울 수 없음
           if (!admin && f === 'status' && STAGES.indexOf(c.status) >= 0 && STAGES.indexOf(c.status) < STAGES.indexOf(old.status)) {
             // 부원: 내가 방금(10분 안) 옮긴 단계는 한 단계만 되돌릴 수 있음 (실수 되돌리기)
@@ -414,6 +423,7 @@ function GajiCore(store, util, drive) {
             if (!mine) { rejected.push(old.id + ':status'); return; }
           }
           if (!admin && f === 'status' && c.status === '취소') { rejected.push(old.id + ':cancel'); return; }
+          if (f === 'status' && (c.type || old.type) === 'exp' && STAGES.indexOf(c.status) < 0 && c.status !== '취소') { rejected.push(old.id + ':status'); return; }   // 실험에 질문 단계 같은 값 막기
           if (f === 'type' && !((old.type === 'idea' && c.type === 'exp') || old.type === c.type)) return;
 
           if (f === 'deleted' && !admin && !mineNode(old, me)) { rejected.push(old.id + ':delete'); return; }
@@ -510,9 +520,10 @@ function GajiCore(store, util, drive) {
     var me = deviceOf(q); needAdmin(me);
     return { at: setting('backupAt', ''), folder: setting('backupFolder', ''), mail: setting('backupMail', 'on') !== 'off', to: setting('backupTo', ''), err: setting('backupErr', ''), due: backupDue() };
   };
-  A.backupNow = function (q) { var me = deviceOf(q); needAdmin(me); limit('bk', 4, 3600); return util.lock(function () { return doBackup(me, '지금 백업'); }); };
+  A.backupNow = function (q) { var me = deviceOf(q); needAdmin(me); limit('bk', 4, 3600); return locked(function () { return doBackup(me, '지금 백업'); }); };
   A.backupSet = function (q) {
     var me = deviceOf(q); needAdmin(me);
+    if (('mail' in q || 'to' in q) && me.role !== '마스터') err('not_master', '백업 메일은 마스터만 바꿀 수 있어요');
     if ('mail' in q) setSetting('backupMail', q.mail ? 'on' : 'off');
     if ('to' in q) { var to = String(q.to || '').trim(); if (to && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) err('bad', '메일 주소를 확인해 주세요'); setSetting('backupTo', to.slice(0, 120)); }
     log(me, '백업 설정', ''); return A.backupInfo(q);
@@ -545,7 +556,7 @@ function GajiCore(store, util, drive) {
   };
   A.restore = function (q) {
     var me = deviceOf(q); needAdmin(me);
-    return util.lock(function () {
+    return locked(function () {
       var p = null; try { p = JSON.parse(setting('restorePending', '') || 'null'); } catch (e) {}
       if (!p || p.id !== q.id || p.by !== me.id) err('no_pending', '확인 코드를 먼저 받아 주세요');
       if (Date.parse(util.now()) > p.until) { setSetting('restorePending', ''); err('expired', '확인 코드 시간이 지났어요 (10분). 다시 받아 주세요'); }
@@ -582,7 +593,7 @@ function GajiCore(store, util, drive) {
     var me = deviceOf(q); var today = util.today();
     if (q.force && !ADMIN[me.role]) q.force = false;   // 강제 정리는 관리자만
     if (setting('tidyAt', '') === today && !q.force) return { done: false, reason: 'today' };
-    return util.lock(function () {
+    return locked(function () {
       setSetting('tidyAt', today);
       var bk = backupDue() ? doBackup(me, '주간 자동') : null;
       var limit = Number(setting('archLimit', 300000)), size = heavySize(), moved = 0, logs = 0;
@@ -651,7 +662,7 @@ function GajiCore(store, util, drive) {
   var KINDS = { note: 1, fix: 1, approve: 1, change: 1, answer: 1 };
   A.comment = function (q) {
     var me = deviceOf(q), admin = !!ADMIN[me.role], op = q.op || 'add'; limit('cm_' + me.id, 40, 300);
-    return util.lock(function () {
+    return locked(function () {
       var rows = store.rows('comments');
       if (op === 'add') {
         var n = store.rows('nodes').filter(function (x) { return x.id === q.node; })[0]; if (!n) err('bad', '항목을 찾을 수 없어요');
@@ -757,35 +768,48 @@ function GajiCore(store, util, drive) {
      같은 이름이 두 명 이상이면 기록 속 이름이 누구 것인지 알 수 없어 그 이름은 건너뛰고 알려 줌. 기록 탭(로그)은 그대로 둠. */
   A.renameAll = function (q) {
     var me = deviceOf(q); if (me.role !== '마스터') err('not_master', '마스터만 할 수 있어요');
-    return util.lock(function () {
-      var ms = store.rows('members').filter(function (m) { return m.status === '활동' || m.status === '중지'; }), cnt = {}, map = {}, skipped = [];
+    return locked(function () {
+      var ms = store.rows('members').filter(function (m) { return m.status === '활동' || m.status === '중지'; }), cnt = Object.create(null), map = Object.create(null), skipped = [];
       ms.forEach(function (m) { cnt[m.name] = (cnt[m.name] || 0) + 1; });
       ms.forEach(function (m) {
         if (/\([^)]*\)$/.test(m.name) || !m.studentId) return;   // 이미 정리됨
+        setSetting('renamedAt', util.now());
         if (cnt[m.name] > 1) { if (skipped.indexOf(m.name) < 0) skipped.push(m.name); return; }
         map[m.name] = uniqName(m.name, m.studentId, m.id);
       });
       var olds = Object.keys(map); if (!olds.length) return { renamed: 0, skipped: skipped, changedRows: 0 };
-      var deep = function (v) {
-        if (typeof v === 'string') {
-          if (map[v]) return map[v];
-          if (/^\s*[\[{]/.test(v)) { try { var o = JSON.parse(v), o2 = deep(o); var t = JSON.stringify(o2); return t !== JSON.stringify(o) ? t : v; } catch (e) { return v; } }
-          return v;
-        }
-        if (Array.isArray(v)) return v.map(deep);
-        if (v && typeof v === 'object') { var r = {}; Object.keys(v).forEach(function (k) { r[k] = deep(v[k]); }); return r; }
+      // 이름 칸만 바꿈 (제목 · 본문에 같은 글자가 있어도 그대로)
+      var NAMEK = { owner: 1, createdBy: 1, updatedBy: 1, volunteer: 1, by: 1, okBy: 1, approvedBy: 1, team: 1, member: 1 };
+      var has = function (k) { return typeof k === 'string' && Object.prototype.hasOwnProperty.call(map, k); };
+      var deep = function (v, key) {
+        if (typeof v === 'string') return NAMEK[key] && has(v) ? map[v] : v;
+        if (Array.isArray(v)) return v.map(function (x) { return deep(x, key); });
+        if (v && typeof v === 'object') { var r = {}; Object.keys(v).forEach(function (k) { r[k] = deep(v[k], k); }); return r; }
         return v;
+      };
+      var rowDeep = function (tab, row) {
+        var u = {};
+        Object.keys(row).forEach(function (k) {
+          if (k === '_row') return;
+          var v = row[k];
+          if (tab === 'history' && (k === 'before' || k === 'after')) {   // 변경 기록: 이름 칸의 전 · 후만
+            if (!NAMEK[row.field]) { u[k] = v; return; }
+            if (typeof v === 'string' && /^\s*\[/.test(v)) { try { u[k] = JSON.stringify(deep(JSON.parse(v), row.field)); } catch (e) { u[k] = v; } return; }
+            u[k] = deep(v, row.field); return;
+          }
+          u[k] = deep(v, k);
+        });
+        return u;
       };
       var rows = 0;
       ['nodes', 'comments', 'links', 'files', 'events', 'history', 'archive'].forEach(function (tab) {
         store.rows(tab).forEach(function (row) {
-          var u = {}, ch = false;
-          Object.keys(row).forEach(function (k) { if (k === '_row') return; var nv = deep(row[k]); if (JSON.stringify(nv) !== JSON.stringify(row[k])) ch = true; u[k] = nv; });
+          var u = rowDeep(tab, row), ch = Object.keys(u).some(function (k) { return JSON.stringify(u[k]) !== JSON.stringify(row[k]); });
           if (ch) { store.update(tab, row._row, u); rows++; }
         });
       });
-      var nt = setting('notice', ''); if (nt) { var nn = deep(nt); if (nn !== nt) setSetting('notice', nn); }
-      store.rows('members').forEach(function (m) { if (map[m.name] && (m.status === '활동' || m.status === '중지')) { m.name = map[m.name]; store.update('members', m._row, m); } });
+      var nt = setting('notice', ''); if (nt) { try { var no = JSON.parse(nt), nn = JSON.stringify(deep(no, '')); if (nn !== nt) setSetting('notice', nn); } catch (e) {} }
+      store.rows('members').forEach(function (m) { if (has(m.name) && (m.status === '활동' || m.status === '중지')) { m.name = map[m.name]; store.update('members', m._row, m); } });
       bump(); log(me, '부원 이름 정리', olds.length + '명 · 기록 ' + rows + '줄');
       return { renamed: olds.length, skipped: skipped, changedRows: rows };
     });
@@ -795,7 +819,7 @@ function GajiCore(store, util, drive) {
     var sid = String(q.studentId || '').trim(), name = String(q.name || '').trim().slice(0, 20);
     if (!sid || !name) err('bad', '학번과 이름을 넣어 주세요');
     var all = store.rows('members');
-    var dupm = all.filter(function (m) { return m.studentId === sid && m.status === '활동'; })[0]; if (dupm) err('dup', '이미 가입된 부원이에요: ' + dupm.name);
+    var dupm = all.filter(function (m) { return m.studentId === sid && (m.status === '활동' || m.status === '중지'); })[0]; if (dupm) err('dup', dupm.status === '중지' ? '활동 중지된 부원이에요: ' + dupm.name + '. 부원 명단에서 활동으로 되돌려 주세요' : '이미 가입된 부원이에요: ' + dupm.name);
     if (all.some(function (m) { return m.studentId === sid && m.status === '신청'; })) err('dup', '초대 링크로 가입 신청한 학번이에요. 부원 · 기기의 승인 기다리는 기기에서 승인해 주세요');
     name = uniqName(name, sid);
     var id = newId('m'), code = digits(4);
@@ -818,6 +842,7 @@ function GajiCore(store, util, drive) {
     var m = store.rows('members').filter(function (x) { return x.id === q.id; })[0]; if (!m) err('bad');
     if (m.role === '마스터') err('bad', '마스터는 바꿀 수 없어요');
     if (q.role && q.role !== m.role) { if (me.role !== '마스터') err('not_master', '역할은 마스터만 바꿀 수 있어요'); if (['부원', '관리자', '교사'].indexOf(q.role) < 0) err('bad'); m.role = q.role; }
+    if (q.status && q.status !== m.status && (m.role === '관리자' || m.role === '교사') && me.role !== '마스터') err('not_master', '관리자 · 선생님의 활동은 마스터만 바꿀 수 있어요');
     if (q.status && q.status !== m.status) { m.status = q.status === '중지' ? '중지' : '활동';
       if (m.status === '중지') store.rows('devices').forEach(function (d) { if (d.memberId === m.id && d.status !== '차단') { d.status = '차단'; store.update('devices', d._row, d); } }); }
     store.update('members', m._row, m); bump(); log(me, '부원 변경', m.name + ' ' + m.role + ' ' + m.status);
@@ -831,6 +856,8 @@ function GajiCore(store, util, drive) {
     var me = deviceOf(q); needAdmin(me);
     var d = store.rows('devices').filter(function (x) { return x.id === q.id; })[0]; if (!d) err('bad', '요청을 찾을 수 없어요');
     if (q.confirm && d.confirm && String(q.confirm) !== String(d.confirm)) err('confirm', '확인 숫자가 달라요');
+    var dm = store.rows('members').filter(function (x) { return x.id === d.memberId; })[0] || {};
+    if ((dm.role === '마스터' || dm.role === '교사' || dm.role === '관리자') && me.role !== '마스터' && dm.id !== me.id) err('not_master', '마스터 · 관리자 · 선생님의 새 기기는 마스터만 승인할 수 있어요');
     d.status = '승인'; d.shared = q.shared ? 'true' : 'false'; d.approvedAt = util.now(); d.approvedBy = me.name; d.confirm = ''; d.lastSeen = util.now();
     var nm0 = store.rows('members').filter(function (x) { return x.id === d.memberId && x.status === '신청'; })[0];
     if (nm0 && store.rows('members').some(function (x) { return x.status === '활동' && x.studentId === nm0.studentId; })) err('dup', '같은 학번의 부원이 이미 있어요. 이 신청은 거절해 주세요');
@@ -921,7 +948,8 @@ function GajiSheetStore(ss) {
     },
     append: function (t, obj) { var def = GAJI_TABS[t]; sheet(t).appendRow(def.cols.map(function (c) { return enc(c, obj[c]); })); delete cache[t]; },
     remove: function (t, rows) { var sh = sheet(t); rows.slice().sort(function (a, b) { return b - a; }).forEach(function (r) { sh.deleteRow(r); }); delete cache[t]; },
-    update: function (t, row, obj) { var def = GAJI_TABS[t]; sheet(t).getRange(row, 1, 1, def.cols.length).setValues([def.cols.map(function (c) { return enc(c, obj[c]); })]); delete cache[t]; }
+    update: function (t, row, obj) { var def = GAJI_TABS[t]; sheet(t).getRange(row, 1, 1, def.cols.length).setValues([def.cols.map(function (c) { return enc(c, obj[c]); })]); delete cache[t]; },
+    fresh: function () { cache = {}; }   // 잠근 뒤 다시 읽기
   };
 }
 
