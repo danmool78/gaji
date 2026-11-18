@@ -835,3 +835,8 @@ textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3p
 details.sup-box > summary { cursor: pointer; list-style: none; } details.sup-box > summary::-webkit-details-marker { display: none; }
 .sup-last { font-size: 12.5px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 details.sup-box[open] .sup-last { display: none; }
+
+/* 색 설명 카드가 떠 있으면 맨 아래 내용이 카드 위로 올라오게 */
+#screen:has(.leg-tip) { padding-bottom: 210px; }
+@media (max-width: 767px) { #screen:has(.leg-tip) { padding-bottom: 290px; } #screen:has(.leg-tip.lift) { padding-bottom: 340px; } }
+/* 화면 안내 카드가 밝힌 칸을 가리지 않게: 칸이 화면보다 크면 카드를 화면 아래쪽에 */

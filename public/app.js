@@ -434,10 +434,11 @@
   /* ---------- 부원 · 기기 (관리자) ---------- */
   function loadPeople() {
     if (PF.peopleLoading) return; PF.peopleLoading = true;
-    rpc('people').then((p) => { PF.people = p; }, (e) => { if (!deviceLost(e)) toast(e.message); }).finally(() => { PF.peopleLoading = false; render(); });
+    rpc('people').then((p) => { PF.people = p; PF.peopleErr = ''; }, (e) => { if (!deviceLost(e)) PF.peopleErr = e.message || '불러오지 못했어요'; }).finally(() => { PF.peopleLoading = false; render(); });
   }
   function viewPeople() {
     if (!isAdmin()) return '<div class="card empty">관리자만 볼 수 있어요.</div>';
+    if (!PF.people && PF.peopleErr) return '<div class="card empty" style="display:flex;flex-direction:column;gap:10px;align-items:center"><span>부원 명단을 불러오지 못했어요 · ' + esc(PF.peopleErr) + '</span><button type="button" class="btn" data-act="refreshPeople">다시 시도</button></div>';
     if (!PF.people) { loadPeople(); return '<div class="card empty loading-line">' + SPIN + '부원 명단을 불러오는 중…</div>'; }
     const p = PF.people, wait = p.devices.filter((d) => d.status === '대기'), act = p.members.filter((m) => m.status === '활동'), off = p.members.filter((m) => m.status === '중지' || m.status === '거절');
     const ROLE = { '마스터': 't-info', '관리자': 't-ok', '교사': 't-warn', '부원': 't-neutral' };
@@ -2291,9 +2292,11 @@
   }
   const supNew = () => { const l = PF.sup || [], last = l[l.length - 1]; return !!(last && last.from === 'system' && last.at && last.at > (prefs.supSeen || '')); };
   async function supSend(f) {
-    const t = String(new FormData(f).get('text') || '').trim(); if (!t) return;
-    const b = f.querySelector('[type=submit]'); b.disabled = true;
-    try { await PF.api.supportSend(t); f.reset(); b.disabled = false; toast('보냈어요 · 답장은 이 화면에 바로 와요'); } catch (e) { b.disabled = false; toast('보내지 못했어요: ' + (e.message || e)); }
+    const t = String(new FormData(f).get('text') || '').trim(); if (!t || PF.supBusy) return;
+    PF.supBusy = true; f.querySelector('textarea').value = '';   // 먼저 비움 (보내는 사이 화면이 다시 그려져도 글이 남지 않게)
+    try { await PF.api.supportSend(t); toast('보냈어요 · 답장은 이 화면에 바로 와요'); }
+    catch (e) { const ta = $('#supForm textarea'); if (ta && !ta.value) ta.value = t; toast('보내지 못했어요: ' + (e.message || e)); }
+    finally { PF.supBusy = false; }
   }
   function viewFor(e) { return ({ support: viewSupport, home: viewHome, tree: viewTree, find: viewFind, more: viewMore, line: () => viewLine(e.arg), item: () => viewItem(e.arg), board: viewBoard, map: viewMap, settings: viewSettings, about: viewAbout, hof: () => hallOfFame() || '<div class="card empty">기록이 더 쌓이면 명예의 전당이 채워져요.</div>', club: viewClub, people: viewPeople, run: () => viewRun(e.arg), report: () => viewReport(e.arg), trash: viewTrash }[e.s] || (() => ''))(); }
   /* 내용이 같으면 화면을 건드리지 않음 (입력 칸 · 버튼이 바뀌지 않게).
@@ -2302,11 +2305,12 @@
   function setHTML(sel, html) {
     const el = $(sel); if (lastHTML[sel] === html && el.innerHTML) return;
     const keep = [], act = document.activeElement;
-    el.querySelectorAll('input:not([type=file]):not([type=checkbox]):not([type=hidden]),textarea').forEach((f) => { const k = (f.form ? f.form.id : '') + '|' + (f.id || f.name); if (f.value && !f.readOnly) keep.push([k, f.value]); });
-    const focusKey = act && el.contains(act) && /INPUT|TEXTAREA|SELECT/.test(act.tagName) ? [(act.form ? act.form.id : '') + '|' + (act.id || act.name), act.selectionStart, act.selectionEnd] : null;
+    const keyOf = (f) => { const nd = f.closest && f.closest('[data-node]'); return (f.form ? f.form.id : '') + '|' + (f.id || f.name) + '|' + (nd ? nd.dataset.node : ''); };   // 어느 실험의 칸인지까지
+    el.querySelectorAll('input:not([type=file]):not([type=checkbox]):not([type=hidden]),textarea').forEach((f) => { if (f.value && !f.readOnly) keep.push([keyOf(f), f.value]); });
+    const focusKey = act && el.contains(act) && /INPUT|TEXTAREA|SELECT/.test(act.tagName) ? [keyOf(act), act.selectionStart, act.selectionEnd] : null;
     el.innerHTML = html; lastHTML[sel] = html; dbg('바뀜');
     if (DEBUG) dbg('바뀐이유', sel + ' ' + PF.mode + '/' + (nav[nav.length - 1] || {}).s + ' ' + ((new Error().stack || '').split('\n').slice(3, 6).map((l) => (l.match(/at (\S+)/) || [])[1] || '').join('←')) + ' @' + new Date().toLocaleTimeString());
-    const find = (k) => Array.from(el.querySelectorAll('input,textarea,select')).find((f) => (f.form ? f.form.id : '') + '|' + (f.id || f.name) === k);
+    const find = (k) => Array.from(el.querySelectorAll('input,textarea,select')).find((f) => keyOf(f) === k);
     keep.forEach(([k, v]) => { const f = find(k); if (f && !f.value && f.id !== 'q') f.value = v; });
     if (focusKey) { const f = find(focusKey[0]); if (f) { f.focus(); try { f.setSelectionRange(focusKey[1], focusKey[2]); } catch (e) {} } }
   }
@@ -2484,7 +2488,7 @@
     if (act === 'inviteShare') { const url = location.origin + '/c/' + PF.slug + '?join=' + encodeURIComponent(PF.people.invite), t = (PF.club.name || '우리 동아리') + ' 가지 가입 링크예요. 이름과 학번을 넣고 가입 신청해 주세요.\n' + url;
       if (a.dataset.copy || !navigator.share) return (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(() => toast('링크를 복사했어요'), () => prompt('링크를 복사해 주세요', url));
       return navigator.share({ text: t }).catch(() => {}); }
-    if (act === 'refreshPeople') { PF.people = null; return render(); }
+    if (act === 'refreshPeople') { PF.people = null; PF.peopleErr = ''; return render(); }
     if (act === 'member') return memberSheet(did);
     if (['resetCode', 'setRole', 'setStatus', 'logoutAll'].includes(act)) return peopleAction(a);
     if (act === 'seenAllDev') { prefs.seenDev = (prefs.seenDev || []).concat(PF.newDevices.map((x) => x.id)).slice(-40); savePrefs(); PF.newDevices = []; return render(); }
@@ -2615,8 +2619,9 @@
       rpc('addMember', { studentId: String(fd.get('sid')).trim(), name }).then((r) => { PF.people = null; showCode(name, r.code); render(); }, (er) => { btn.disabled = false; if (!deviceLost(er)) toast(er.message); });
       return;
     }
-    e.preventDefault(); const fm = e.target, fd = new FormData(fm), type = fm.dataset.type, parent = fm.dataset.parent ? byId(fm.dataset.parent) : null;
-    const title = String(fd.get('title') || '').trim(); if (!title) return;
+    e.preventDefault(); if (e.target.dataset.sent) return; e.target.dataset.sent = '1';   // 두 번 눌러도 하나만
+    const fm = e.target, fd = new FormData(fm), type = fm.dataset.type, parent = fm.dataset.parent ? byId(fm.dataset.parent) : null;
+    const title = String(fd.get('title') || '').trim(); if (!title) { delete fm.dataset.sent; return; }
     const f = { type, title, field: fd.get('field'), date: fd.get('date') || dstr(TODAY) };
     if (type !== 'q') f.line = parent ? parent.line : pickLine(fd, title);
     if (type === 'exp') Object.assign(f, { status: '계획 작성', owner: meName(), signal: 0, review: 0 });
