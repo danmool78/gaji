@@ -39,17 +39,23 @@ const head = (sub) => '<header class="p-head"><a class="p-brand" href="/"><span 
   (user ? '<button type="button" class="chipbtn" data-p="logout">로그아웃</button>' : '<button type="button" class="chipbtn" data-p="login" title="동아리 마스터 · 시스템 관리용 구글 로그인 (부원은 동아리 주소에서 학번 · 코드로 들어가요)">마스터 로그인</button>') + '</header>';
 
 /* ---------- 첫 화면 ---------- */
+/* 마스터로 있는 동아리 (없으면 빈 배열) */
+async function myClubs() {
+  if (!user) return [];
+  const m = await getDoc(doc(db, 'masters', user.uid)).catch(() => null);
+  const slugs = (m && m.exists() && m.data().slugs) || [];
+  return (await Promise.all(slugs.map((s) => getDoc(doc(db, 'clubs', s)).catch(() => null)))).filter((d) => d && d.exists());
+}
+const clubList = (clubs) => clubs.map((d) => '<a class="menu-item" href="/c/' + esc(d.id) + '"><span class="logo" style="background:' + esc(d.data().color) + '">' + (d.data().logo ? '<img src="' + esc(d.data().logo) + '" alt="">' : LOGO) + '</span><span class="tx"><b>' + esc(d.data().name) + '</b><small class="code">/c/' + esc(d.id) + '</small></span></a>').join('');
 async function landing() {
   let mine = '';
   if (user) {
-    const m = await getDoc(doc(db, 'masters', user.uid)).catch(() => null);
-    const slugs = (m && m.exists() && m.data().slugs) || [];
-    const clubs = (await Promise.all(slugs.map((s) => getDoc(doc(db, 'clubs', s)).catch(() => null)))).filter((d) => d && d.exists());
-    mine = '<h2 class="sec">내 동아리 <small>마스터로 있는 동아리</small></h2>' + (clubs.length ? clubs.map((d) => '<a class="menu-item" href="/c/' + esc(d.id) + '"><span class="logo" style="background:' + esc(d.data().color) + '">' + (d.data().logo ? '<img src="' + esc(d.data().logo) + '" alt="">' : LOGO) + '</span><span class="tx"><b>' + esc(d.data().name) + '</b><small class="code">/c/' + esc(d.id) + '</small></span></a>').join('') : '<div class="card muted" style="font-size:14px">아직 마스터로 있는 동아리가 없어요.</div>');
+    const clubs = await myClubs();
+    mine = '<h2 class="sec">내 동아리 <small>마스터로 있는 동아리</small></h2>' + (clubs.length ? clubList(clubs) : '<div class="card muted" style="font-size:14px">아직 마스터로 있는 동아리가 없어요.</div>');
   }
   portal(head() +
     '<section class="p-hero"><h1>실험이 가지를 치며<br>이어지는 곳</h1><p>계획서 · 준비 · 측정 · 결과, 그리고 다음 실험까지. 실패한 실험도 다음 실험의 씨앗으로 남는 고등학교 실험 동아리 연구 관리 도구입니다.</p></section>' +
-    '<div class="p-video"><div class="vimeo"><iframe src="https://player.vimeo.com/video/1247842965?title=0&amp;byline=0&amp;portrait=0&amp;dnt=1" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" referrerpolicy="strict-origin-when-cross-origin" title="가지 소개 영상" loading="lazy"></iframe></div><span class="muted">가지 소개 영상 · 1분 24초</span></div>' +
+    '<div class="p-video"><div class="vimeo"><iframe src="https://player.vimeo.com/video/1247842965?title=0&amp;byline=0&amp;portrait=0&amp;dnt=1" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" referrerpolicy="strict-origin-when-cross-origin" title="가지 소개 영상" loading="lazy"></iframe></div><span class="muted">가지 소개 영상 · 1분 34초</span></div>' +
     '<div class="p-actions"><a class="btn primary" href="/c/demo">체험해 보기</a><button type="button" class="btn" data-p="create">우리 동아리 만들기</button></div>' +
     mine +
     '<div class="card p-note p-note-drive"><svg class="p-drive" viewBox="0 0 87.3 78" aria-label="구글 드라이브" role="img"><path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/><path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/><path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg><div><b>데이터는 각 동아리 구글 드라이브에만</b><span>가지 서버에는 동아리 이름 · 로고와 마스터 한 명의 계정 ID, 사용 현황 숫자만 저장돼요. 제작자도 동아리 기록을 볼 수 없습니다.</span></div></div>' +
@@ -57,12 +63,14 @@ async function landing() {
 }
 
 /* ---------- 동아리 만들기 (마스터) ---------- */
-function createPage() {
+async function createPage() {
   if (!user) return portal(head('우리 동아리 만들기') + '<div class="card p-form"><b style="font-size:18px">동아리 마스터로 시작하기</b><p class="muted">동아리를 만드는 사람이 마스터가 됩니다. 구글 계정으로 로그인해 주세요. 학교 계정을 권장해요.</p><button type="button" class="btn primary" data-p="login">구글로 로그인</button></div>');
+  const clubs = await myClubs();
   portal(head('우리 동아리 만들기') +
+    (clubs.length ? '<h2 class="sec">내 동아리 <small>이미 마스터로 있는 동아리예요 · 누르면 들어가요</small></h2>' + clubList(clubs) + '<h2 class="sec">새 동아리 만들기 <small>다른 동아리를 하나 더 만들 때만</small></h2>' : '') +
     '<form class="card p-form" id="createForm"><b style="font-size:18px">새 동아리</b>' +
     '<label class="field">동아리 이름<input name="name" maxlength="30" required placeholder="예: ○○고 과학탐구반"></label>' +
-    '<label class="field">동아리 주소 <span class="muted" style="font-weight:400">영문 소문자 · 숫자 · - (3~30자)</span><input name="slug" maxlength="30" required placeholder="예: bukil-sci" autocapitalize="off" autocomplete="off" spellcheck="false"></label>' +
+    '<label class="field">동아리 주소 <span class="muted" style="font-weight:400">영문 소문자 · 숫자 · - (3~30자)</span><input name="slug" maxlength="30" required placeholder="예: gaji-sci" autocapitalize="off" autocomplete="off" spellcheck="false"></label>' +
     '<span class="code muted" id="slugPreview" style="font-size:13px">' + esc(location.origin) + '/c/…</span>' +
     '<div class="field">대표 색<div class="swatches">' + COLORS.map((c, i) => '<button type="button" data-pc="' + c + '" aria-label="색 ' + c + '" aria-pressed="' + (i === 0) + '" style="background:' + c + '"></button>').join('') + '</div></div>' +
     '<label class="field">학교 계정 도메인 (선택)<input name="domain" maxlength="60" placeholder="예: school.hs.kr" autocapitalize="off"></label>' +
