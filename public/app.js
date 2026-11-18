@@ -1054,11 +1054,11 @@
       h += '<div class="grid2 wide3">' + live.map(lineCard).join('') + '</div>' || '<div class="card empty">아직 가지가 없어요. 홈에서 새 실험이나 아이디어를 올려 보세요.</div>';
       if (done.length) h += '<button type="button" class="fold" data-fold>' + (prefs.showDone ? '▾' : '▸') + ' 끝난 줄기 ' + done.length + '개</button>' + (prefs.showDone ? '<div class="grid2 wide3">' + done.map(lineCard).join('') + '</div>' : '');
     } else {
-      const items = alive().filter(isExpLike).filter((n) => n.status !== '취소').sort((a, b) => a.date.localeCompare(b.date));
+      const items = alive().filter(isExpLike).filter((n) => n.status !== '취소').sort((a, b) => b.date.localeCompare(a.date));   // 최근(늦은) 날짜가 위
       let m = '', t = false; h += '<div class="day-list">';
       items.forEach((n) => { const d = new Date(n.date), mk = d.getFullYear() + '-' + d.getMonth();
         if (mk !== m) { m = mk; h += '<div class="month">' + (d.getFullYear() !== TODAY.getFullYear() ? d.getFullYear() + '년 ' : '') + (d.getMonth() + 1) + '월</div>'; }
-        if (!t && d >= TODAY) { t = true; h += '<div class="todayline">오늘 ' + fmt(TODAY) + '</div>'; }
+        if (!t && d < TODAY) { t = true; h += '<div class="todayline">오늘 ' + fmt(TODAY) + '</div>'; }   // 앞으로 할 실험 아래, 지난 실험 위
         const g = lineage(n).length, a = after(n);
         h += '<button type="button" class="srow' + (d < TODAY && n.status === '기록 완료' ? ' past' : '') + '" data-item="' + n.id + '"><span class="sdate"><b>' + d.getDate() + '</b><small>' + WD[d.getDay()] + '</small></span>' + ico(n) +
           '<span class="tx"><small class="code">' + esc(code(n)) + (g > 1 || a ? ' · ' + (g > 1 ? g + '세대' : '') + (g > 1 && a ? ' · ' : '') + (a ? '후속 ' + a : '') : '') + '</small><b>' + fieldTag(n) + esc(n.title) + '</b></span>' + badge(n) + '</button>'; });
