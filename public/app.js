@@ -573,6 +573,11 @@
       '<div class="btn-row"><button type="button" class="btn primary" data-act="copyGs">코드 전체 복사</button><a class="btn" href="/connector.gs?v=6" target="_blank" rel="noopener">새 창에서 보기</a></div>';
     return '<div class="card" style="display:flex;flex-direction:column;gap:12px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg);display:inline-flex;align-items:center;gap:8px">' + GDRIVE + '드라이브 연결</b><span class="badge t-warn">● 연결 전</span></div>' +
       '<span class="muted" style="font-size:13px;line-height:1.6">동아리 기록은 우리 드라이브의 시트에 저장돼요. <b>동아리마다 한 번만</b> 하면 되고, 부원들은 할 일이 없어요. 한 번 연결하면 새 기능은 자동으로 들어와요. 컴퓨터에서 하는 게 편해요 (5분).</span>' +
+      '<div class="why-drive"><b>왜 가지 서버가 아니라 우리 구글 드라이브에 저장하나요?</b><ul>' +
+        '<li><b>학생 정보가 학교 밖으로 나가지 않아요.</b> 부원 이름 · 학번 · 실험 기록 · 사진이 외부 업체 서버가 아니라 선생님(동아리) 드라이브에만 있어요.</li>' +
+        '<li><b>기록의 주인은 동아리예요.</b> 가지를 그만 써도 기록은 시트와 사진 폴더로 그대로 남고, 엑셀로 내려받아 볼 수 있어요.</li>' +
+        '<li><b>선배에서 후배로 이어져요.</b> 해마다 기장 · 부원이 바뀌어도 기록은 동아리 시트에 계속 쌓여서, 후배가 선배의 실험을 이어 볼 수 있어요.</li>' +
+        '<li><b>서버 비용이 들지 않아요.</b> 구글 드라이브 공간을 쓰니 동아리마다 따로 서버를 빌릴 필요가 없어요.</li></ul></div>' +
       '<div class="warn-pre"><b>시작 전에: 구글 경고 화면이 2~3번 나와요. 정상이에요.</b>' +
         '<ul><li><b>왜 나오나요?</b> 사본을 만들면 그 시트에 붙은 연결기는 <b>내 계정이 만든 앱</b>이 돼요. 구글이 따로 검사하지 않은 앱이라 ‘Google에서 인증하지 않은 앱’ 경고가 떠요. 경고 속 <b>개발자 이메일이 내 이메일</b>이면 맞게 하고 있는 거예요.</li>' +
         '<li><b>언제 나오나요?</b> 권한허용을 실행할 때, 배포 뒤 액세스 승인할 때, 그리고 가끔 한 번 더. <b>몇 번이 나와도 매번 같은 방법</b>으로 넘어가요.</li>' +
