@@ -1941,7 +1941,7 @@
       mi('map', 'var(--q)', 'M12 12m-2.5 0a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0 -5 0M5 5m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M19 6m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M6 19m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M10.2 10.2L6.4 6.4M13.8 11l3.6-3.6M10.3 13.8L7.4 17.4', '전체 지도', '동아리 연구 전체를 한 장으로 (발표용)') +
       (db.nodes.some(isDel) ? mi('trash', 'var(--muted)', 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13', '휴지통', '지운 항목 ' + db.nodes.filter(isDel).length + '개 · 되살리기') : '') +
       mi('about', 'var(--idea)', 'M6 7v10M18 11c0 4-6 3-12 6', '가지 소개', '소개 영상 · 기능 · 기록을 지키는 방법') +
-      (PF.isMaster && PF.api && PF.api.supportList ? mi('support', 'var(--exp)', 'M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z', '가지에 문의하기', '오류 · 궁금한 점 · 바라는 기능을 가지 운영자에게') : '') +
+      (PF.isMaster && PF.api && PF.api.supportList ? mi('support', 'var(--exp)', 'M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z', '가지에 문의하기' + (supNew() ? ' <span class="badge t-bad">새 답장</span>' : ''), '오류 · 궁금한 점 · 바라는 기능을 가지 운영자에게') : '') +
       (PF.mode === 'demo' ? '<button type="button" class="menu-item" data-tour-again><span class="mi" style="background:var(--exp)"><svg viewBox="0 0 24 24"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg></span><span class="tx"><b>화면 안내 다시 보기</b><small>화면 구성 안내 · 색 설명 카드</small></span></button>' : '') +
       '</div>';
   }
@@ -2276,16 +2276,24 @@
   /* 가지에 문의하기 (마스터만): 운영자와 주고받는 대화 */
   function viewSupport() {
     if (!(PF.isMaster && PF.api && PF.api.supportList)) return '<div class="card empty">동아리 마스터만 문의할 수 있어요. 구글로 로그인한 마스터 계정으로 열어 주세요.</div>';
-    if (!PF.sup) { PF.api.supportList().then((l) => { PF.sup = l; render(); }, (e) => { PF.sup = []; toast('불러오지 못했어요: ' + (e.message || e)); render(); }); return '<div class="card empty loading-line">' + SPIN + '불러오는 중…</div>'; }
+    supWatch();
+    if (!PF.sup) return '<div class="card empty loading-line">' + SPIN + '불러오는 중…</div>';
+    const last = PF.sup[PF.sup.length - 1]; if (last && last.at && last.at > (prefs.supSeen || '')) { prefs.supSeen = last.at; savePrefs(); }
     const when = (iso) => iso ? md(iso) + ' ' + hm(iso) : '보내는 중';
     return '<div class="card" style="display:flex;flex-direction:column;gap:6px"><b>가지 운영자에게 문의</b><span class="muted" style="font-size:13px;line-height:1.6">오류 · 궁금한 점 · 바라는 기능을 남겨 주세요. 답장은 이 화면에 와요. 운영자는 동아리 이름과 이 대화만 볼 수 있고, 부원 · 실험 기록은 볼 수 없어요.</span></div>' +
       '<div class="sup-thread">' + (PF.sup.length ? PF.sup.map((m) => '<div class="sup-msg ' + (m.from === 'system' ? 'system' : 'master') + '"><p>' + esc(m.text).replace(/\n/g, '<br>') + '</p><small>' + (m.from === 'system' ? '가지 운영자' : '나') + ' · ' + when(m.at) + '</small></div>').join('') : '<div class="card empty">아직 주고받은 문의가 없어요.</div>') + '</div>' +
-      '<form id="supForm" class="card" style="display:flex;flex-direction:column;gap:10px"><textarea name="text" rows="4" maxlength="2000" required placeholder="예: 백업 메일이 오지 않아요 / 보고서에 표를 하나 더 넣고 싶어요"></textarea><div class="btn-row"><button type="button" class="btn" data-act="supReload">새로 고침</button><button type="submit" class="btn primary">보내기</button></div></form>';
+      '<form id="supForm" class="card" style="display:flex;flex-direction:column;gap:10px"><textarea name="text" rows="4" maxlength="2000" required placeholder="예: 백업 메일이 오지 않아요 / 보고서에 표를 하나 더 넣고 싶어요"></textarea><div class="btn-row"><button type="submit" class="btn primary">보내기</button></div></form>';
   }
+  // 문의 실시간 구독 (마스터로 동아리를 열면 한 번 시작): 답장이 오면 바로 보이고, 다른 화면이면 '새 답장' 표시
+  function supWatch() {
+    if (PF.supOn || !(PF.isMaster && PF.api && PF.api.supportWatch)) return; PF.supOn = true;
+    PF.api.supportWatch((l) => { PF.sup = l; const c = cur(); if (c.s === 'support' || c.s === 'more') render(); });
+  }
+  const supNew = () => { const l = PF.sup || [], last = l[l.length - 1]; return !!(last && last.from === 'system' && last.at && last.at > (prefs.supSeen || '')); };
   async function supSend(f) {
     const t = String(new FormData(f).get('text') || '').trim(); if (!t) return;
     const b = f.querySelector('[type=submit]'); b.disabled = true;
-    try { await PF.api.supportSend(t); PF.sup = null; toast('보냈어요 · 답장은 이 화면에 와요'); render(); } catch (e) { b.disabled = false; toast('보내지 못했어요: ' + (e.message || e)); }
+    try { await PF.api.supportSend(t); f.reset(); b.disabled = false; toast('보냈어요 · 답장은 이 화면에 바로 와요'); } catch (e) { b.disabled = false; toast('보내지 못했어요: ' + (e.message || e)); }
   }
   function viewFor(e) { return ({ support: viewSupport, home: viewHome, tree: viewTree, find: viewFind, more: viewMore, line: () => viewLine(e.arg), item: () => viewItem(e.arg), board: viewBoard, map: viewMap, settings: viewSettings, about: viewAbout, hof: () => hallOfFame() || '<div class="card empty">기록이 더 쌓이면 명예의 전당이 채워져요.</div>', club: viewClub, people: viewPeople, run: () => viewRun(e.arg), report: () => viewReport(e.arg), trash: viewTrash }[e.s] || (() => ''))(); }
   /* 내용이 같으면 화면을 건드리지 않음 (입력 칸 · 버튼이 바뀌지 않게).
@@ -2388,6 +2396,7 @@
     $('#backBtn').hidden = root; $('#brand').hidden = !root; $('#screenTitle').hidden = root;
     if (!root) $('#screenTitle').textContent = titleOf(main);
     document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === nav[0].s ? 'page' : 'false'));
+    { const mb = $('.tabs [data-tab="more"]'); if (mb) mb.classList.toggle('has-new', PF.mode === 'live' && supNew()); }   // 새 답장이면 더 보기에 점
     setHTML('#screen', viewFor(main));
     $('#pane').hidden = !paneOn;
     if (!paneOn) document.querySelectorAll('#screen .sel-ring').forEach((el) => el.classList.remove('sel-ring'));
@@ -2399,7 +2408,8 @@
       document.querySelectorAll('#screen ' + sel).forEach((el) => el.classList.add('sel-ring'));
     }
     if (scrollTop) window.scrollTo(0, 0);
-    if (PF.mode === 'live') setTimeout(loadThumbs, 0);
+    if (PF.mode === 'live') { setTimeout(loadThumbs, 0); if (PF.isMaster) supWatch(); }
+    if (nav[nav.length - 1].s === 'support') { const th = $('#screen .sup-thread') || $('#paneBody .sup-thread'); if (th) th.scrollTop = th.scrollHeight; }
     tourMaybe();
   }
 
@@ -2468,7 +2478,6 @@
     if (act === 'approveDev' || act === 'denyDev') return devAction(act, did);
     if (act === 'addMember') return openSheet('<h3>부원 추가</h3><form id="addMemberForm" style="display:flex;flex-direction:column;gap:12px"><label class="field">학번<input name="sid" inputmode="numeric" maxlength="12" required></label><label class="field">이름<input name="name" maxlength="20" required></label><p class="muted" style="font-size:13px;margin:0">추가하면 4자리 개인 코드가 만들어져요.</p><div class="btn-row"><button type="button" class="btn" data-act="closeSheet">취소</button><button type="submit" class="btn primary">추가</button></div></form>');
     if (act === 'authGuide') return openSheet('<h3>구글 권한 허용하는 법</h3>' + authGuide() + '<div class="btn-row"><button type="button" class="btn primary" data-act="closeSheet">알겠어요</button></div>', true);
-    if (act === 'supReload') { PF.sup = null; return render(); }
     if (act === 'useCode') { PF.useCode = true; return render(); }
     if (act === 'inviteMake' || act === 'inviteOff') { if (act === 'inviteOff' && !confirm('초대 링크를 끌까요? 이미 보낸 링크로는 더 신청할 수 없어요.')) return; if (act === 'inviteMake' && PF.people && PF.people.invite && !confirm('새 링크로 바꿀까요? 전에 보낸 링크는 더 쓸 수 없어요.')) return;
       return rpc('invite', { op: act === 'inviteMake' ? 'make' : 'off' }).then((r) => { if (PF.people) PF.people.invite = r.invite; render(); toast(r.invite ? '초대 링크를 만들었어요' : '초대 링크를 껐어요'); }, (e2) => { if (!deviceLost(e2)) toast(e2.message); }); }

@@ -828,3 +828,10 @@ textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3p
 .sup-box { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
 .sup-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .sup-form { display: flex; gap: 8px; align-items: flex-end; } .sup-form textarea { flex: 1; }
+
+.tabs button.has-new { position: relative; } .tabs button.has-new::after { content: ''; position: absolute; top: 10px; right: calc(50% - 18px); width: 9px; height: 9px; border-radius: 50%; background: #E5383B; box-shadow: 0 0 0 2px var(--brand); }
+.sup-thread { max-height: 420px; overflow-y: auto; }
+
+details.sup-box > summary { cursor: pointer; list-style: none; } details.sup-box > summary::-webkit-details-marker { display: none; }
+.sup-last { font-size: 12.5px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+details.sup-box[open] .sup-last { display: none; }

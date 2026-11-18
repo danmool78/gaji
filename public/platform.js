@@ -1,7 +1,7 @@
 // 가지 · 플랫폼 (Firebase): 첫 화면 · 동아리 만들기 · 동아리 주소 · 마스터 넘기기 · 시스템 사용 현황
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
-import { getFirestore, doc, getDoc, getDocs, collection, writeBatch, updateDoc, setDoc, deleteDoc, serverTimestamp, Timestamp, arrayUnion, addDoc, query, orderBy, limit, collectionGroup } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { getFirestore, doc, getDoc, getDocs, collection, writeBatch, updateDoc, setDoc, deleteDoc, serverTimestamp, Timestamp, arrayUnion, addDoc, query, orderBy, limit, collectionGroup, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
 const fb = initializeApp(window.GAJI_FIREBASE);
 const auth = getAuth(fb);
@@ -126,6 +126,7 @@ async function clubPage(slug) {
     login: () => login(),
     // 가지에 문의하기 (마스터 ↔ 시스템)
     supportList: async () => (await getDocs(query(collection(db, 'clubs', slug, 'support'), orderBy('at', 'asc'), limit(200)))).docs.map((d) => ({ id: d.id, from: d.data().from, text: d.data().text, at: d.data().at && d.data().at.toDate ? d.data().at.toDate().toISOString() : '' })),
+    supportWatch: (cb) => onSnapshot(query(collection(db, 'clubs', slug, 'support'), orderBy('at', 'desc'), limit(50)), (q) => cb(q.docs.slice().reverse().map((d) => ({ id: d.id, from: d.data().from, text: d.data().text, at: d.data({ serverTimestamps: 'estimate' }).at && d.data({ serverTimestamps: 'estimate' }).at.toDate ? d.data({ serverTimestamps: 'estimate' }).at.toDate().toISOString() : '' }))), () => {}),
     supportSend: (text) => addDoc(collection(db, 'clubs', slug, 'support'), { from: 'master', text: String(text).slice(0, 2000), at: serverTimestamp(), uid: user.uid }),
     createHandover: async () => {
       const code = randomCode(28), until = new Date(Date.now() + 24 * 3600e3);
@@ -195,22 +196,38 @@ async function systemPage() {
     '</tbody></table></div><p class="p-foot">숫자는 각 동아리 마스터가 가지를 열 때 새로 받아요. 사람 이름 · 이메일 · 학번 · 실험 내용은 보이지 않아요.</p>' + await supportAdmin(rows));
 }
 /* 시스템: 마스터 문의 (동아리별 대화 · 답장) */
+let SUP_UNSUBS = [];
+const supWhen = (t) => t ? t.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+const supThread = (list) => list.slice(0, 30).reverse().map((m) => '<div class="sup-msg ' + m.from + '"><p>' + esc(m.text).replace(/\n/g, '<br>') + '</p><small>' + (m.from === 'system' ? '가지' : '마스터') + ' · ' + supWhen(m.at) + '</small></div>').join('');
+const supDocs = (q) => q.docs.map((d) => { const x = d.data({ serverTimestamps: 'estimate' }); return { from: x.from, text: x.text, at: x.at && x.at.toDate ? x.at.toDate() : null }; });
 async function supportAdmin(rows) {
+  SUP_UNSUBS.forEach((u) => u()); SUP_UNSUBS = [];
   // 동아리마다 따로 읽음 (모아 읽기 색인이 없어도 됨)
   const by = {}, errs = [];
   await Promise.all(rows.map(async (r) => {
-    try { const q = await getDocs(query(collection(db, 'clubs', r.id, 'support'), orderBy('at', 'desc'), limit(30)));
-      if (q.size) by[r.id] = q.docs.map((d) => ({ from: d.data().from, text: d.data().text, at: d.data().at && d.data().at.toDate ? d.data().at.toDate() : null })); }
+    try { const q = await getDocs(query(collection(db, 'clubs', r.id, 'support'), orderBy('at', 'desc'), limit(30))); by[r.id] = supDocs(q); }
     catch (e) { errs.push(r.id + ': ' + (e.code || e.message || e)); }
   }));
   const name = (slug) => ((rows.find((r) => r.id === slug) || {}).pub || {}).name || slug;
-  const slugs = Object.keys(by).sort((a, b) => (by[b][0].at || 0) - (by[a][0].at || 0));
-  const when = (t) => t ? t.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-  return '<h2 class="sec">마스터 문의 <small>' + (slugs.filter((s) => by[s][0].from === 'master').length ? '답장 기다리는 동아리 ' + slugs.filter((s) => by[s][0].from === 'master').length + '곳' : '모두 답했어요') + '</small></h2>' +
-    (slugs.length ? slugs.map((s) => '<div class="card sup-box"><div class="sup-h"><b>' + esc(name(s)) + '</b><span class="code muted">/c/' + esc(s) + '</span>' + (by[s][0].from === 'master' ? '<span class="badge t-warn">답장 필요</span>' : '') + '</div>' +
-      '<div class="sup-thread">' + by[s].slice(0, 20).reverse().map((m) => '<div class="sup-msg ' + m.from + '"><p>' + esc(m.text).replace(/\n/g, '<br>') + '</p><small>' + (m.from === 'system' ? '가지' : '마스터') + ' · ' + when(m.at) + '</small></div>').join('') + '</div>' +
-      '<form class="sup-form" data-sup="' + esc(s) + '"><textarea name="text" rows="2" maxlength="2000" required placeholder="답장 쓰기"></textarea><button type="submit" class="btn primary">답장</button></form></div>').join('')
-      : '<div class="card muted" style="font-size:14px">아직 문의가 없어요.</div>') +
+  const has = Object.keys(by).filter((k) => by[k].length).sort((a, b) => (by[b][0].at || 0) - (by[a][0].at || 0));
+  const others = Object.keys(by).filter((k) => !by[k].length);
+  // 그린 뒤 실시간 구독: 새 문의 · 답장이 오면 그 동아리 칸만 바꿈
+  setTimeout(() => Object.keys(by).forEach((slug) => {
+    SUP_UNSUBS.push(onSnapshot(query(collection(db, 'clubs', slug, 'support'), orderBy('at', 'desc'), limit(30)), (q) => {
+      const list = supDocs(q), box = document.querySelector('[data-sup-box="' + slug + '"]');
+      if (!box) { if (list.length && document.querySelector('.sup-list')) systemPage(); return; }
+      box.querySelector('.sup-thread').innerHTML = supThread(list);
+      const need = list.length && list[0].from === 'master', badge = box.querySelector('.sup-need'); if (badge) badge.hidden = !need; if (need) box.open = true; const ls = box.querySelector('.sup-last'); if (ls && list.length) ls.textContent = String(list[0].text).slice(0, 40);
+      const th = box.querySelector('.sup-thread'); th.scrollTop = th.scrollHeight;
+      const n = document.querySelectorAll('.sup-need:not([hidden])').length, c = document.querySelector('.sup-count'); if (c) c.textContent = n ? '답장 기다리는 동아리 ' + n + '곳' : '모두 답했어요';
+    }, () => {}));
+  }), 0);
+  const need = has.filter((s) => by[s][0].from === 'master').length;
+  return '<h2 class="sec">마스터 문의 <small class="sup-count">' + (need ? '답장 기다리는 동아리 ' + need + '곳' : '모두 답했어요') + '</small></h2><div class="sup-list">' +
+    (has.length ? has.map((s) => '<details class="card sup-box" data-sup-box="' + esc(s) + '"' + (by[s][0].from === 'master' ? ' open' : '') + '><summary class="sup-h"><b>' + esc(name(s)) + '</b><span class="code muted">/c/' + esc(s) + '</span><span class="badge t-warn sup-need"' + (by[s][0].from === 'master' ? '' : ' hidden') + '>답장 필요</span><span class="muted sup-last">' + esc(String(by[s][0].text).slice(0, 40)) + '</span></summary>' +
+      '<div class="sup-thread">' + supThread(by[s]) + '</div>' +
+      '<form class="sup-form" data-sup="' + esc(s) + '"><textarea name="text" rows="2" maxlength="2000" required placeholder="답장 쓰기"></textarea><button type="submit" class="btn primary">답장</button></form></details>').join('')
+      : '<div class="card muted" style="font-size:14px">아직 문의가 없어요. 새 문의는 이 화면에 바로 떠요.</div>') + '</div>' +
     (errs.length ? '<div class="card" style="font-size:13px;color:var(--bad)">읽지 못한 동아리 ' + errs.length + '곳: ' + esc(errs.slice(0, 5).join(' / ')) + '</div>' : '');
 }
 
@@ -218,7 +235,7 @@ document.addEventListener('submit', async (e) => {
   const f = e.target.closest && e.target.closest('form[data-sup]'); if (!f) return;
   e.preventDefault(); const t = String(new FormData(f).get('text') || '').trim(); if (!t) return;
   f.querySelector('button').disabled = true;
-  try { await addDoc(collection(db, 'clubs', f.dataset.sup, 'support'), { from: 'system', text: t.slice(0, 2000), at: serverTimestamp(), uid: user.uid }); toast('답장했어요'); systemPage(); }
+  try { await addDoc(collection(db, 'clubs', f.dataset.sup, 'support'), { from: 'system', text: t.slice(0, 2000), at: serverTimestamp(), uid: user.uid }); toast('답장했어요'); f.reset(); f.querySelector('button').disabled = false; }
   catch (x) { f.querySelector('button').disabled = false; toast('보내지 못했어요: ' + (x.message || x)); }
 });
 /* ---------- 그리기 · 이벤트 ---------- */
