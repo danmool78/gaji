@@ -36,13 +36,20 @@ service cloud.firestore {
             && d.connector.matches('^https://script[.]google[.]com/.*')))
         && d.createdAt is timestamp;
     }
+    function numOk(s, k) { return !(k in s) || (s[k] is int && s[k] >= 0 && s[k] <= 100000); }
+    function strOk(s, k, n) { return !(k in s) || (s[k] is string && s[k].size() <= n); }
+    function validStats(s) {
+      return numOk(s, 'members') && numOk(s, 'experiments') && numOk(s, 'ideas') && numOk(s, 'done') && numOk(s, 'running') && numOk(s, 'devices') && numOk(s, 'waiting')
+        && strOk(s, 'lastEdit', 10) && strOk(s, 'backupAt', 10) && strOk(s, 'core', 12) && strOk(s, 'version', 20)
+        && (!('backupErr' in s) || s.backupErr is bool) && (!('lastActive' in s) || s.lastActive is timestamp);
+    }
     function validInfo(d) {
       return d.keys().hasOnly(['masterUid', 'domain', 'connectorUrl', 'sheetId', 'stats', 'createdAt'])
         && d.masterUid is string
         && (!('domain' in d) || (d.domain is string && d.domain.size() <= 60))
         && (!('connectorUrl' in d) || (d.connectorUrl is string && d.connectorUrl.size() <= 300))
         && (!('sheetId' in d) || (d.sheetId is string && d.sheetId.size() <= 100))
-        && (!('stats' in d) || (d.stats is map && d.stats.size() <= 16));
+        && (!('stats' in d) || (d.stats is map && d.stats.size() <= 16 && validStats(d.stats)));
     }
 
     // ---------- 동아리 공개 정보 ----------
@@ -52,7 +59,8 @@ service cloud.firestore {
       // 새 동아리: 같은 묶음 쓰기에서 private/info 의 마스터가 나 자신이어야 한다
       allow create: if signedIn() && validSlug(slug) && validPublic(request.resource.data)
         && request.resource.data.createdAt == request.time
-        && getAfter(infoPath(slug)).data.masterUid == request.auth.uid;
+        && getAfter(infoPath(slug)).data.masterUid == request.auth.uid
+        && slug in getAfter(/databases/$(database)/documents/masters/$(request.auth.uid)).data.slugs;   // 한 사람 10개까지 (masters 규칙)
       allow update: if (isMaster(slug) || (isSystem() && request.resource.data.get('connector', '') == resource.data.get('connector', '')))
         && validPublic(request.resource.data)
         && request.resource.data.createdAt == resource.data.createdAt;
@@ -62,9 +70,11 @@ service cloud.firestore {
       match /secret/{doc} {
         allow read, delete: if doc == 'key' && isMaster(slug);
         allow create, update: if doc == 'key' && isMaster(slug)
-          && request.resource.data.keys().hasOnly(['masterKey'])
+          && request.resource.data.keys().hasOnly(['masterKey', 'pendingKey'])
           && request.resource.data.masterKey is string
-          && request.resource.data.masterKey.size() >= 20 && request.resource.data.masterKey.size() <= 100;
+          && request.resource.data.masterKey.size() >= 20 && request.resource.data.masterKey.size() <= 100
+          && (!('pendingKey' in request.resource.data) || (request.resource.data.pendingKey is string
+              && request.resource.data.pendingKey.size() >= 20 && request.resource.data.pendingKey.size() <= 100));
       }
 
       // ---------- 마스터 · 연결 정보 · 사용 현황 ----------
@@ -94,8 +104,9 @@ service cloud.firestore {
               && getAfter(/databases/$(database)/documents/clubs/$(slug)/claims/$(request.auth.uid)).data.code
                  == get(/databases/$(database)/documents/clubs/$(slug)/handover/current).data.code
               && !existsAfter(/databases/$(database)/documents/clubs/$(slug)/handover/current))   // 코드는 한 번만 (같은 묶음에서 지움)
-          // 복구: 시스템 마스터는 마스터를 바꿀 수 있다 (선생님 요청 시)
-          || isSystem());
+          // 복구: 시스템 마스터는 마스터를 다른 사람으로만 바꿀 수 있다 (선생님 요청 시 · 자기 자신은 안 됨 → 연결기 키를 못 읽음)
+          || (isSystem() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['masterUid'])
+              && request.resource.data.masterUid != request.auth.uid));
         allow delete: if false;
       }
 
@@ -113,7 +124,8 @@ service cloud.firestore {
       match /claims/{uid} {
         allow read: if false;
         allow create, update: if signedIn() && request.auth.uid == uid
-          && request.resource.data.keys().hasOnly(['code']) && request.resource.data.code is string;
+          && request.resource.data.keys().hasOnly(['code']) && request.resource.data.code is string && request.resource.data.code.size() <= 64
+          && exists(/databases/$(database)/documents/clubs/$(slug)/handover/current);
         allow delete: if signedIn() && request.auth.uid == uid;
       }
     }

@@ -100,6 +100,16 @@ async function createClub(db, uid, slug, name) {
   await t('시스템 마스터는 연결기 주소를 못 바꾼다', () => assertFails(updateDoc(doc(user('sys'), 'clubs', 'sup-club'), { connector: 'https://script.google.com/macros/s/EVIL/exec' })));
   await t('시스템 마스터는 이름은 고칠 수 있다(복구)', () => assertSucceeds(updateDoc(doc(user('sys'), 'clubs', 'sup-club'), { name: '문의 동아리 (고침)' })));
   await t('사용 현황 칸은 16개까지', () => assertFails(updateDoc(doc(user('sup-m'), 'clubs', 'sup-club', 'private', 'info'), { stats: Object.fromEntries(Array.from({ length: 20 }, (_, i) => ['k' + i, i])) })));
+
+  // ---------- 두 번째 점검 뒤 ----------
+  await t('동아리를 만들 때 내 목록에 안 넣으면 못 만든다', async () => { const db = user('zed'); const b = writeBatch(db); b.set(doc(db, 'clubs', 'zed-club'), pub('z')); b.set(doc(db, 'clubs', 'zed-club', 'private', 'info'), { masterUid: 'zed', createdAt: serverTimestamp() }); await assertFails(b.commit()); });
+  await t('시스템 마스터는 자기 자신을 마스터로 못 바꾼다', () => assertFails(updateDoc(doc(user('sys'), 'clubs', 'sup-club', 'private', 'info'), { masterUid: 'sys' })));
+  await t('시스템 마스터는 마스터 외 칸은 못 바꾼다', () => assertFails(updateDoc(doc(user('sys'), 'clubs', 'sup-club', 'private', 'info'), { masterUid: 'other', stats: {} })));
+  await t('넘기기 코드가 없는 동아리에는 넘겨받기 칸을 못 쓴다', () => assertFails(setDoc(doc(user('eve'), 'clubs', 'nope-nope', 'claims', 'eve'), { code: 'x'.repeat(30) })));
+  await t('사용 현황 숫자 칸에 글자를 못 넣는다', () => assertFails(updateDoc(doc(user('sup-m'), 'clubs', 'sup-club', 'private', 'info'), { 'stats.members': '<img>' })));
+  await t('사용 현황 숫자는 넣는다', () => assertSucceeds(updateDoc(doc(user('sup-m'), 'clubs', 'sup-club', 'private', 'info'), { 'stats.members': 5, 'stats.lastEdit': '2026-11-18', 'stats.backupErr': false })));
+  await t('마스터는 새 키를 먼저 pendingKey 로 저장한다', () => assertSucceeds(setDoc(doc(user('sup-m'), 'clubs', 'sup-club', 'secret', 'key'), { masterKey: 'k'.repeat(30), pendingKey: 'p'.repeat(40) })));
+  await t('키 칸에 다른 이름은 못 넣는다', () => assertFails(setDoc(doc(user('sup-m'), 'clubs', 'sup-club', 'secret', 'key'), { masterKey: 'k'.repeat(30), other: 'x'.repeat(30) })));
   await env.cleanup();
   let fail = 0; for (const [s, n] of results) { console.log((s === 'ok' ? '  ✓ ' : '  ✗ ') + n); if (s !== 'ok') fail++; }
   console.log(`\n${results.length - fail}/${results.length} passed`); process.exit(fail ? 1 : 0);

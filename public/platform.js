@@ -27,7 +27,8 @@ function randomCode(n) { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstu
 
 /* ---------- 경로 ---------- */
 const parts = location.pathname.replace(/\/+$/, '').split('/').filter(Boolean);
-const route = parts[0] === 'c' && parts[1] ? { page: 'club', slug: decodeURIComponent(parts[1]).toLowerCase() } : parts[0] === 'new' ? { page: 'new' } : parts[0] === 'system' ? { page: 'system' } : { page: 'landing' };
+const safeSlug = (s) => { try { s = decodeURIComponent(s).toLowerCase(); } catch (e) { return ''; } return /^[a-z0-9][a-z0-9-]{1,29}$/.test(s) ? s : ''; };
+const route = parts[0] === 'c' && parts[1] ? { page: 'club', slug: safeSlug(parts[1]) } : parts[0] === 'new' ? { page: 'new' } : parts[0] === 'system' ? { page: 'system' } : { page: 'landing' };
 const params = new URLSearchParams(location.search);
 
 /* 포털(첫 화면 · 만들기 · 시스템) ↔ 동아리 앱 전환 */
@@ -44,7 +45,8 @@ async function myClubs() {
   if (!user) return [];
   const m = await getDoc(doc(db, 'masters', user.uid)).catch(() => null);
   const slugs = (m && m.exists() && m.data().slugs) || [];
-  return (await Promise.all(slugs.map((s) => getDoc(doc(db, 'clubs', s)).catch(() => null)))).filter((d) => d && d.exists());
+  const ok = await Promise.all(slugs.map((s) => getDoc(doc(db, 'clubs', s, 'private', 'info')).then((i) => i.exists() && i.data().masterUid === user.uid, () => false)));   // 넘긴 동아리는 빼기
+  return (await Promise.all(slugs.filter((s, i) => ok[i]).map((s) => getDoc(doc(db, 'clubs', s)).catch(() => null)))).filter((d) => d && d.exists());
 }
 const clubList = (clubs) => clubs.map((d) => '<a class="menu-item" href="/c/' + esc(d.id) + '"><span class="logo" style="background:' + esc(d.data().color) + '">' + (d.data().logo ? '<img src="' + esc(d.data().logo) + '" alt="">' : LOGO) + '</span><span class="tx"><b>' + esc(d.data().name) + '</b><small class="code">/c/' + esc(d.id) + '</small></span></a>').join('');
 async function landing() {
@@ -108,7 +110,8 @@ async function clubPage(slug) {
     if (info && info.exists() && info.data().masterUid === user.uid) { isMaster = true; club.domain = info.data().domain || '';   // 시스템 마스터도 info 를 읽을 수 있으니 ID로 확인
       updateDoc(info.ref, { 'stats.lastActive': serverTimestamp(), 'stats.version': VERSION }).catch(() => {});
       const k = await getDoc(doc(db, 'clubs', slug, 'secret', 'key')).catch(() => null);
-      club.masterKey = k && k.exists() ? k.data().masterKey : ''; }
+      club.masterKey = k && k.exists() ? k.data().masterKey : '';
+      if (k && k.exists() && k.data().pendingKey) { try { club.masterKey = await rekey(slug); } catch (e) { club.rekeyErr = e.message; setTimeout(() => window.GAJI_APP && window.GAJI_APP.toast('마스터 키: ' + e.message), 1500); } } }
   }
   const api = {
     savePublic: (patch) => { const p = {}; if ('name' in patch) p.name = patch.name; if ('color' in patch) p.color = patch.color; if ('color2' in patch) p.color2 = patch.color2; if ('logo' in patch) p.logo = patch.logo; return updateDoc(doc(db, 'clubs', slug), p); },
@@ -152,12 +155,13 @@ function handoverPage(slug, club, code) {
 // 넘겨받은 뒤 연결기 마스터 키를 새로 바꿈: 예전 마스터가 가진 키로는 더 이상 마스터가 될 수 없게
 async function rekey(slug) {
   const [pub, sec] = await Promise.all([getDoc(doc(db, 'clubs', slug)), getDoc(doc(db, 'clubs', slug, 'secret', 'key'))]);
-  const url = pub.exists() && pub.data().connector, old = sec.exists() && sec.data().masterKey, key = randomCode(40);
-  if (url && old) {
-    const r = await fetch(url, { method: 'POST', body: JSON.stringify({ action: 'rekey', masterKey: old, newKey: key }) }).then((x) => x.json());
-    if (!r || !r.ok) throw new Error((r && r.message) || '연결기 키를 바꾸지 못했어요');   // 예전 판 연결기면 다음에 마스터가 열 때 다시
-  }
-  await setDoc(doc(db, 'clubs', slug, 'secret', 'key'), { masterKey: key });
+  const url = pub.exists() && pub.data().connector, old = sec.exists() ? sec.data().masterKey : '', key = (sec.exists() && sec.data().pendingKey) || randomCode(40);
+  if (!url || !old) return old;   // 아직 드라이브 연결 전: 연결할 때 새 키가 정해짐
+  if (!sec.data().pendingKey) await setDoc(doc(db, 'clubs', slug, 'secret', 'key'), { masterKey: old, pendingKey: key });   // 1) 새 키를 먼저 저장 (끊겨도 잃지 않게)
+  const r = await fetch(url, { method: 'POST', body: JSON.stringify({ action: 'rekey', masterKey: old, newKey: key }) }).then((x) => x.json());   // 2) 연결기를 새 키로
+  if (!r || !r.ok) { const e = new Error(r && r.code === 'wrong_key' ? '연결기 마스터 키가 이미 다른 키로 바뀌었어요. 시트 주인이 가지 데이터 시트의 설정 탭에서 masterKeyHash 값을 지우고 다시 열면 맞춰져요' : (r && r.message) || '연결기 키를 바꾸지 못했어요'); e.code = r && r.code; throw e; }
+  await setDoc(doc(db, 'clubs', slug, 'secret', 'key'), { masterKey: key });   // 3) 확정
+  return key;
 }
 async function claim(slug, code) {
   try {
@@ -167,9 +171,9 @@ async function claim(slug, code) {
     b.delete(doc(db, 'clubs', slug, 'handover', 'current'));   // 코드는 한 번만
     await b.commit();
     await Promise.all([
-      setDoc(doc(db, 'masters', user.uid), { slugs: arrayUnion(slug) }, { merge: true }),
+      setDoc(doc(db, 'masters', user.uid), { slugs: arrayUnion(slug) }, { merge: true }).catch((e) => console.error('masters', e)),   // 넘겨받기는 이미 끝남 (목록은 10개까지)
       deleteDoc(doc(db, 'clubs', slug, 'claims', user.uid)).catch(() => {}),
-      rekey(slug).catch((e) => console.error('rekey', e))
+      rekey(slug).catch((e) => console.error('rekey', e))   // 실패하면 동아리를 열 때 다시
     ]);
     location.href = '/c/' + slug + '?welcome=1';
   } catch (e) { console.error(e); toast('넘겨받지 못했어요 · 링크가 만료됐거나 이미 쓰였어요'); }
@@ -227,7 +231,7 @@ async function supportAdmin(rows) {
   setTimeout(() => Object.keys(by).forEach((slug) => {
     SUP_UNSUBS.push(onSnapshot(query(collection(db, 'clubs', slug, 'support'), orderBy('at', 'desc'), limit(30)), (q) => {
       const list = supDocs(q), box = document.querySelector('[data-sup-box="' + slug + '"]');
-      if (!box) { if (list.length && document.querySelector('.sup-list')) systemPage(); return; }
+      if (!box) { if (list.length && !document.querySelector('.sup-new')) { const n = document.createElement('div'); n.className = 'card sup-new'; n.innerHTML = '<b>새 문의가 왔어요</b> · <a class="chipbtn" href="/system">새로 보기</a>'; const l = document.querySelector('.sup-list'); if (l) l.prepend(n); } return; }
       box.querySelector('.sup-thread').innerHTML = supThread(list);
       const need = list.length && list[0].from === 'master', badge = box.querySelector('.sup-need'); if (badge) badge.hidden = !need; if (need) box.open = true; const ls = box.querySelector('.sup-last'); if (ls && list.length) ls.textContent = String(list[0].text).slice(0, 40);
       const th = box.querySelector('.sup-thread'); th.scrollTop = th.scrollHeight;

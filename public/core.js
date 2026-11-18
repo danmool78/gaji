@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.20.0';
+var GAJI_CONNECTOR_VERSION = '2.20.1';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
@@ -130,10 +130,10 @@ function GajiCore(store, util, drive) {
   /* 마스터를 넘겨받은 사람이 연결기 마스터 키를 새로 바꿈 (예전 키를 아는 사람만) */
   A.rekey = function (q) {
     if (!initialized()) err('not_initialized', '연결기가 아직 준비되지 않았어요');
-    limit('rekey', 10, 600);
     var kh = setting('masterKeyHash', ''), old = String(q.masterKey || ''), nk = String(q.newKey || '');
     if (nk.length < 20 || nk.length > 100) err('bad', '새 키가 짧아요');
-    if (!kh || kh !== hash('master', old)) err('wrong_key', '이 동아리의 연결기가 아니에요');
+    if (kh && kh === hash('master', nk)) return { ok: true, already: true };   // 이미 바뀜 (다시 시도)
+    if (!kh || kh !== hash('master', old)) { limit('rekey_bad', 20, 600); err('wrong_key', '이 동아리의 연결기가 아니에요'); }   // 틀린 키만 횟수 제한 (남이 막을 수 없게)
     setSetting('masterKeyHash', hash('master', nk)); log(null, '마스터 키 바꿈', '');
     return { ok: true };
   };
