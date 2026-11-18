@@ -2182,7 +2182,7 @@
     return '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>동아리 주소</b><span class="code" style="font-size:15px;word-break:break-all;user-select:all">' + esc(url) + '</span>' +
       '<div class="btn-row"><button type="button" class="btn" data-act="copyAddr">주소 복사</button><button type="button" class="btn" data-act="shareAddr">부원에게 보내기</button></div>' +
       '<span class="muted" style="font-size:13px">부원은 이 주소로 들어와 학번과 개인 코드로 씁니다. 개인 코드는 더 보기 → 부원 · 기기에서 만들어요.</span></div>' +
-      '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>학교 계정 제한 (선택)</b><label class="field">관리자 구글 로그인에 허용할 도메인<input id="domainInput" placeholder="예: school.hs.kr" value="' + esc(PF.club.domain || '') + '"></label><span class="muted" style="font-size:12px">비워 두면 제한하지 않아요.</span></div>' +
+
       '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>마스터 넘기기</b><span class="muted" style="font-size:13px;line-height:1.6">새 마스터에게 보낼 일회용 링크를 만듭니다. 24시간 동안만 쓸 수 있고, 새 마스터가 구글로 로그인하면 바로 넘어갑니다. 넘긴 뒤 나는 이 화면을 볼 수 없어요.</span>' +
       (h ? '<span class="code" style="font-size:13px;word-break:break-all;user-select:all;background:var(--surface-2);padding:10px;border-radius:10px">' + esc(h.link) + '</span><span class="muted" style="font-size:12px">' + esc(h.until) + '까지 유효</span><div class="btn-row"><button type="button" class="btn" data-act="copyHandover">링크 복사</button><button type="button" class="btn primary" data-act="shareHandover">새 마스터에게 보내기</button></div>'
          : '<button type="button" class="btn primary" data-act="handover">넘기기 링크 만들기</button>') + '</div>' +
@@ -2528,7 +2528,6 @@
   $('#screen').addEventListener('change', (e) => {
     if (['fy', 'ff', 'fp', 'fs'].includes(e.target.id)) { prefs[e.target.id] = e.target.value; savePrefs(); return render(); }
     if (e.target.id === 'clubInput' && PF.club) return saveBrand({ name: e.target.value.trim().slice(0, 30) || PF.club.name });
-    if (e.target.id === 'domainInput' && PF.club) { const d = e.target.value.trim().toLowerCase().replace(/^@/, '').slice(0, 60); PF.club.domain = d; PF.api.saveInfo({ domain: d }).then(() => toast('저장했어요'), () => toast('저장하지 못했어요')); return; }
     if (e.target.id !== 'logoFile' || !e.target.files[0]) return;
     const f = e.target.files[0]; if (f.size > 2e6) return toast('2MB 이하 이미지를 골라 주세요');
     const img = new Image(), r = new FileReader();
