@@ -293,7 +293,7 @@
       const core = PF.connAuth === 'core';
       return gateCard('<div class="card gate-box"><b>연결하지 못했어요</b><p class="muted">' + esc(PF.error) + '</p>' +
         (core ? (PF.isMaster
-          ? '<div class="gate-note card" style="text-align:left;line-height:1.8;font-weight:400"><b>연결기 권한 허용이 필요해요 (마스터)</b><br>① 가지 데이터 시트 → 확장 프로그램 → <b>Apps Script</b><br>② 아래 <b>연결기 코드 복사</b> → 코드 전체 지우고 붙여 넣기 → <b>저장</b><br>③ 위쪽 <b>▷ 실행</b> 왼쪽 함수 목록에서 <b>권한허용</b> → <b>▷ 실행</b> → 권한 검토 → 고급 → 이동 → <b>허용</b><br>④ 아래 <b>실행 로그</b>에 ‘준비 완료’가 보이면 여기서 <b>다시 시도</b><br>빨간 오류가 보이면 그 화면을 캡처해 주세요.</div>' +
+          ? '<div class="gate-note card" style="text-align:left;line-height:1.8;font-weight:400"><b>연결기 권한 허용이 필요해요 (마스터)</b><br>① 가지 데이터 시트 → 확장 프로그램 → <b>Apps Script</b><br>② 아래 <b>연결기 코드 복사</b> → 코드 전체 지우고 붙여 넣기 → <b>저장</b><br>③ 위쪽 <b>▷ 실행</b> 왼쪽 함수 목록에서 <b>권한허용</b> → <b>▷ 실행</b> → 권한 검토 → <b>고급 → …(으)로 이동 → 허용</b> <button type="button" class="chipbtn" data-act="authGuide">그림으로 보기</button><br>④ 아래 <b>실행 로그</b>에 ‘준비 완료’가 보이면 여기서 <b>다시 시도</b><br>빨간 오류가 보이면 그 화면을 캡처해 주세요.</div>' +
             '<button type="button" class="btn" data-act="copyGs">연결기 코드 복사</button><textarea id="gsCode" class="gs-code" readonly spellcheck="false" style="height:90px">' + esc(PF.gs || '불러오는 중…') + '</textarea>'
           : '<p class="muted" style="font-size:13px">동아리 마스터가 연결기를 손보는 중이에요. 잠시 뒤 다시 열어 주세요.</p>') : '') +
         '<button type="button" class="btn primary" data-act="retry">다시 시도</button></div>');
@@ -325,6 +325,32 @@
         '<label class="field">내 이름 <span class="muted" style="font-weight:400">처음 쓰는 학번일 때만</span><input name="name" maxlength="20"></label>' +
         '<button type="submit" class="btn">마스터로 연결</button></form>'
         : (PF.api && !PF.isMaster ? '<button type="button" class="chipbtn" data-act="pfLogin">동아리 마스터라면 구글로 로그인</button>' : '')));
+  }
+
+  /* 구글 '확인하지 않은 앱' 경고 넘기는 그림 안내 (직접 만든 연결기라 꼭 나오는 화면) */
+  function authGuide() {
+    const frame = (inner) => '<svg viewBox="0 0 300 200" class="ag-svg" aria-hidden="true"><rect x="1" y="1" width="298" height="198" rx="12" fill="#fff" stroke="#D0D5DD"/>' + inner + '</svg>';
+    const line = (x, y, w) => '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="7" rx="3.5" fill="#E4E7EC"/>';
+    const ring = (x, y, w, h) => '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="9" fill="none" stroke="#E5383B" stroke-width="3.5"/>';
+    const t = (x, y, txt, o) => '<text x="' + x + '" y="' + y + '" font-size="' + ((o && o.s) || 12) + '" font-weight="' + ((o && o.w) || 700) + '" fill="' + ((o && o.c) || '#1D2939') + '"' + (o && o.end ? ' text-anchor="end"' : '') + '>' + txt + '</text>';
+    const p1 = frame('<path d="M24 22l9 16H15z" fill="#F79009"/>' + t(44, 36, '확인되지 않은 앱이에요') + line(24, 54, 250) + line(24, 68, 220) + line(24, 82, 236) +
+      t(24, 168, '고급', { s: 12, c: '#475467', w: 600 }) + ring(14, 152, 52, 26) +
+      '<rect x="150" y="150" width="128" height="30" rx="15" fill="#1A73E8"/>' + t(214, 170, '안전한 페이지로 돌아가기', { s: 9.5, c: '#fff', end: false }).replace('x="214"', 'x="214" text-anchor="middle"') +
+      '<path d="M156 136l116 52M272 136l-116 52" stroke="#E5383B" stroke-width="4" stroke-linecap="round" opacity=".85"/>');
+    const p2 = frame('<path d="M24 22l9 16H15z" fill="#F79009"/>' + t(44, 36, '확인되지 않은 앱이에요') + line(24, 54, 250) + line(24, 68, 220) +
+      t(24, 98, '고급 ▴', { s: 11, c: '#475467', w: 600 }) + line(24, 110, 240) + line(24, 124, 200) +
+      t(24, 152, '가지 연결기(으)로 이동(안전하지 않음)', { s: 10.5, c: '#475467', w: 600 }) + '<line x1="24" y1="155" x2="208" y2="155" stroke="#98A2B3"/>' + ring(14, 136, 202, 28));
+    const p3 = frame('<circle cx="30" cy="30" r="10" fill="#E4E7EC"/>' + t(48, 35, '권한 요청') + line(24, 56, 240) + line(24, 72, 200) + line(24, 88, 230) + line(24, 104, 180) +
+      '<path d="M150 114v26M140 130l10 10 10-10" stroke="#98A2B3" stroke-width="3" fill="none" stroke-linecap="round"/>' +
+      '<rect x="24" y="152" width="96" height="30" rx="15" fill="#fff" stroke="#D0D5DD"/>' + t(72, 171, '취소', { s: 11, c: '#475467' }).replace('x="72"', 'x="72" text-anchor="middle"') +
+      '<rect x="180" y="152" width="96" height="30" rx="15" fill="#1A73E8"/>' + t(228, 171, '허용', { s: 11, c: '#fff' }).replace('x="228"', 'x="228" text-anchor="middle"') + ring(172, 145, 112, 44));
+    const card = (n, img, b, d) => '<div class="ag-step"><span class="ag-n">' + n + '</span>' + img + '<b>' + b + '</b><span>' + d + '</span></div>';
+    return '<div class="auth-guide"><div class="ag-warn"><b>큰 파란 버튼(‘안전한 페이지로 돌아가기’)은 누르지 마세요.</b> 누르면 허용되지 않고 창이 닫혀요.</div>' +
+      '<div class="ag-steps">' +
+      card(1, p1, '왼쪽 아래 작은 ‘고급’', '‘확인되지 않은 앱’ 경고가 나오면 아래쪽의 작은 글씨 <b>고급</b>을 눌러요.') +
+      card(2, p2, '‘…(으)로 이동(안전하지 않음)’', '펼쳐진 글 맨 아래 밑줄 친 링크를 눌러요. 우리 동아리가 직접 만든 연결기라 나오는 정상 경고예요.') +
+      card(3, p3, '아래로 내려서 ‘허용’', '권한 목록을 끝까지 내려 <b>허용</b>(또는 <b>계속</b>)을 눌러요. 체크 칸이 있으면 모두 체크해요.') +
+      '</div><p class="ag-tip">잘못 눌러 창이 닫혔으면 괜찮아요. <b>▷ 실행</b>을 한 번 더 누르면 같은 창이 다시 떠요.</p></div>';
   }
   async function submitJoin(f) {
     const fd = new FormData(f), sid = String(fd.get('sid')).trim(), code = String(fd.get('code')).trim(), btn = f.querySelector('[type=submit]');
@@ -480,13 +506,13 @@
         ? step(1, '가지 데이터 시트 만들기', '버튼을 누르면 구글이 ‘사본을 만드시겠어요?’라고 물어요. <b>사본 만들기</b>를 눌러요. 연결기가 이미 들어 있는 시트가 내 드라이브에 생겨요.',
             '<a class="btn primary" href="https://docs.google.com/spreadsheets/d/' + esc(tpl) + '/copy?title=' + encodeURIComponent('가지 데이터') + '" target="_blank" rel="noopener">가지 데이터 시트 만들기</a>' +
             '<span class="muted" style="font-size:12px">학교 공유 드라이브에 두고 싶으면, 만든 뒤 드라이브에서 그 공유 드라이브로 옮기면 돼요.</span>') +
-          step(2, 'Apps Script 열기', '방금 만든 시트에서 메뉴 <b>확장 프로그램 → Apps Script</b>. 코드가 이미 들어 있으니 <b>아무것도 고치지 않아요.</b> 그다음 위쪽 <b>▷ 실행</b> 왼쪽 함수 목록에서 <b>권한허용</b>을 고르고 <b>▷ 실행</b> → 권한 검토 → 고급 → 이동 → <b>허용</b>.')
+          step(2, 'Apps Script 열기', '방금 만든 시트에서 메뉴 <b>확장 프로그램 → Apps Script</b>. 코드가 이미 들어 있으니 <b>아무것도 고치지 않아요.</b> 그다음 위쪽 <b>▷ 실행</b> 왼쪽 함수 목록에서 <b>권한허용</b>을 고르고 <b>▷ 실행</b> → <b>권한 검토</b> → 내 계정 → 아래 그림처럼 허용해요.', authGuide())
         : step(1, '가지 데이터 시트 만들기', '새 구글 시트를 만들고 이름을 <b>가지 데이터</b>로 바꿔요.', '<a class="btn" href="https://docs.google.com/spreadsheets/create" target="_blank" rel="noopener">새 시트 열기</a>') +
-          step(2, '연결기 코드 붙여 넣기', '시트 메뉴 <b>확장 프로그램 → Apps Script</b>. 원래 있던 코드를 모두 지우고 붙여 넣은 뒤 <b>저장</b>(Ctrl+S)해요. 그다음 위쪽 <b>▷ 실행</b> 왼쪽 함수 목록에서 <b>권한허용</b>을 고르고 <b>▷ 실행</b> → 권한 검토 → 고급 → 이동 → <b>허용</b>.', codeBox)) +
+          step(2, '연결기 코드 붙여 넣기', '시트 메뉴 <b>확장 프로그램 → Apps Script</b>. 원래 있던 코드를 모두 지우고 붙여 넣은 뒤 <b>저장</b>(Ctrl+S)해요. 그다음 위쪽 <b>▷ 실행</b> 왼쪽 함수 목록에서 <b>권한허용</b>을 고르고 <b>▷ 실행</b> → <b>권한 검토</b> → 내 계정 → 아래 그림처럼 허용해요.', codeBox + authGuide())) +
       step(3, '배포 → 새 배포', 'Apps Script 화면 오른쪽 위 파란 <b>배포</b> 버튼 → <b>새 배포</b>.') +
       step(4, '유형: 웹 앱', '‘유형 선택’ 옆 <b>톱니바퀴</b> → <b>웹 앱</b>.') +
       step(5, '실행: 나 · 액세스: 모든 사용자', '두 칸을 그림처럼 고르고 <b>배포</b>. ‘모든 사용자’여야 부원 기기가 연결돼요 (로그인 없이 부원 기기용 · 코드와 승인으로 보호돼요).') +
-      step(6, '권한 허용', '<b>액세스 승인</b>이 나오면 → 내 계정 → ‘확인하지 않은 앱’이 나오면 <b>고급</b> → <b>…(으)로 이동</b> → <b>허용</b>. 직접 만든 연결기라 나오는 정상 경고예요.') +
+      step(6, '권한 허용', '<b>액세스 승인</b>이 나오면 → 내 계정 → 2단계와 같은 경고가 또 나오면 그때처럼 <b>고급 → …(으)로 이동 → 허용</b>. 큰 파란 버튼은 누르지 않아요.', '<button type="button" class="chipbtn" data-act="authGuide">그림 안내 다시 보기</button>') +
       step(7, '웹 앱 URL 복사해서 붙여 넣기', '마지막 창의 <b>웹 앱 URL</b> 옆 <b>복사</b>를 누르고 아래에 붙여 넣어요.',
         '<form id="connectForm" style="display:flex;flex-direction:column;gap:10px;margin-top:6px"><label class="field">웹 앱 URL<input name="url" required placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" spellcheck="false"></label>' +
         '<div class="grid2"><label class="field">내 학번<input name="sid" inputmode="numeric" maxlength="12" required></label><label class="field">내 이름<input name="name" maxlength="20" required></label></div>' +
@@ -2425,6 +2451,7 @@
     if (act === 'openApprove') return openApprove(did);
     if (act === 'approveDev' || act === 'denyDev') return devAction(act, did);
     if (act === 'addMember') return openSheet('<h3>부원 추가</h3><form id="addMemberForm" style="display:flex;flex-direction:column;gap:12px"><label class="field">학번<input name="sid" inputmode="numeric" maxlength="12" required></label><label class="field">이름<input name="name" maxlength="20" required></label><p class="muted" style="font-size:13px;margin:0">추가하면 4자리 개인 코드가 만들어져요.</p><div class="btn-row"><button type="button" class="btn" data-act="closeSheet">취소</button><button type="submit" class="btn primary">추가</button></div></form>');
+    if (act === 'authGuide') return openSheet('<h3>구글 권한 허용하는 법</h3>' + authGuide() + '<div class="btn-row"><button type="button" class="btn primary" data-act="closeSheet">알겠어요</button></div>', true);
     if (act === 'useCode') { PF.useCode = true; return render(); }
     if (act === 'inviteMake' || act === 'inviteOff') { if (act === 'inviteOff' && !confirm('초대 링크를 끌까요? 이미 보낸 링크로는 더 신청할 수 없어요.')) return; if (act === 'inviteMake' && PF.people && PF.people.invite && !confirm('새 링크로 바꿀까요? 전에 보낸 링크는 더 쓸 수 없어요.')) return;
       return rpc('invite', { op: act === 'inviteMake' ? 'make' : 'off' }).then((r) => { if (PF.people) PF.people.invite = r.invite; render(); toast(r.invite ? '초대 링크를 만들었어요' : '초대 링크를 껐어요'); }, (e2) => { if (!deviceLost(e2)) toast(e2.message); }); }
