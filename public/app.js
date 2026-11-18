@@ -303,7 +303,7 @@
       const core = PF.connAuth === 'core';
       return gateCard('<div class="card gate-box"><b>연결하지 못했어요</b><p class="muted">' + esc(PF.error) + '</p>' +
         (core ? (PF.isMaster
-          ? '<div class="gate-note card" style="text-align:left;line-height:1.8;font-weight:400"><b>연결기 권한 허용이 필요해요 (마스터)</b><br>① 가지 데이터 시트 → 확장 프로그램 → <b>Apps Script</b><br>② 아래 <b>연결기 코드 복사</b> → 코드 전체 지우고 붙여 넣기 → <b>저장</b><br>③ 위쪽 도구 줄 <b>디버그</b> 오른쪽 함수 칸에서 <b>권한허용</b>을 골라요<br>④ <b>▷ 실행</b>을 눌러요<br>⑤ <b>권한 검토</b> → 내 계정<br>⑥ <b>고급 → …(으)로 이동 → 허용</b> <button type="button" class="chipbtn" data-act="authGuide">그림으로 보기</button><br>⑦ 아래 <b>실행 로그</b>에 ‘준비 완료’가 보이면 여기서 <b>다시 시도</b><br>빨간 오류가 보이면 그 화면을 캡처해 주세요.</div>' +
+          ? '<div class="gate-note card" style="text-align:left;line-height:1.8;font-weight:400"><b>연결기 권한 허용이 필요해요 (마스터)</b><br>① 가지 데이터 시트 → 확장 프로그램 → <b>Apps Script</b><br>② 아래 <b>연결기 코드 복사</b> → 코드 전체 지우고 붙여 넣기 → <b>저장</b><br>③ 위쪽 도구 줄 <b>디버그</b> 오른쪽 함수 칸에서 <b>권한허용</b>을 골라요<br>④ <b>▷ 실행</b>을 눌러요<br>⑤ <b>권한 검토</b> → 내 계정<br>⑥ 경고 창의 <b>가지 연결기(안전하지 않음) 앱으로 이동</b>(또는 고급 → 이동) → <b>허용</b> <button type="button" class="chipbtn" data-act="authGuide">그림으로 보기</button><br>⑦ 아래 <b>실행 로그</b>에 ‘준비 완료’가 보이면 여기서 <b>다시 시도</b><br>빨간 오류가 보이면 그 화면을 캡처해 주세요.</div>' +
             '<button type="button" class="btn" data-act="copyGs">연결기 코드 복사</button><textarea id="gsCode" class="gs-code" readonly spellcheck="false" style="height:90px">' + esc(PF.gs || '불러오는 중…') + '</textarea>'
           : '<p class="muted" style="font-size:13px">동아리 마스터가 연결기를 손보는 중이에요. 잠시 뒤 다시 열어 주세요.</p>') : '') +
         '<button type="button" class="btn primary" data-act="retry">다시 시도</button></div>');
@@ -367,17 +367,23 @@
     const p2 = frame('<path d="M24 22l9 16H15z" fill="#F79009"/>' + t(44, 36, '확인되지 않은 앱이에요') + line(24, 54, 250) + line(24, 68, 220) +
       t(24, 98, '고급 ▴', { s: 11, c: '#475467', w: 600 }) + line(24, 110, 240) + line(24, 124, 200) +
       t(24, 152, '가지 연결기(으)로 이동(안전하지 않음)', { s: 10.5, c: '#475467', w: 600 }) + '<line x1="24" y1="155" x2="208" y2="155" stroke="#98A2B3"/>' + ring(14, 136, 202, 28));
+    const p0 = frame('<path d="M24 20l10 18H14z" fill="#F4B4B0"/>' + t(24, 60, 'Google에서 인증하지 않은 앱', { s: 13 }) + line(24, 72, 250) + line(24, 84, 200) +
+      '<rect x="18" y="96" width="264" height="50" rx="9" fill="#8C1D18"/>' + t(30, 114, '발생할 수 있는 위험을 인지하고 …', { s: 9.5, c: '#fff', w: 500 }) + t(30, 133, '가지 연결기(안전하지 않음) 앱으로 이동', { s: 10, c: '#fff' }) + '<line x1="30" y1="136" x2="226" y2="136" stroke="#fff"/>' + ring(24, 120, 208, 22) +
+      '<rect x="160" y="160" width="118" height="28" rx="14" fill="#A8C7FA"/>' + t(219, 178, '안전한 환경으로 돌아가기', { s: 9, c: '#0B2E66' }).replace('x="219"', 'x="219" text-anchor="middle"') +
+      '<path d="M166 152l106 44M272 152l-106 44" stroke="#E5383B" stroke-width="4" stroke-linecap="round" opacity=".85"/>');
     const p3 = frame('<circle cx="30" cy="30" r="10" fill="#E4E7EC"/>' + t(48, 35, '권한 요청') + line(24, 56, 240) + line(24, 72, 200) + line(24, 88, 230) + line(24, 104, 180) +
       '<path d="M150 114v26M140 130l10 10 10-10" stroke="#98A2B3" stroke-width="3" fill="none" stroke-linecap="round"/>' +
       '<rect x="24" y="152" width="96" height="30" rx="15" fill="#fff" stroke="#D0D5DD"/>' + t(72, 171, '취소', { s: 11, c: '#475467' }).replace('x="72"', 'x="72" text-anchor="middle"') +
       '<rect x="180" y="152" width="96" height="30" rx="15" fill="#1A73E8"/>' + t(228, 171, '허용', { s: 11, c: '#fff' }).replace('x="228"', 'x="228" text-anchor="middle"') + ring(172, 145, 112, 44));
     const card = (n, img, b, d) => '<div class="ag-step"><span class="ag-n">' + n + '</span>' + img + '<b>' + b + '</b><span>' + d + '</span></div>';
-    return '<div class="auth-guide"><div class="ag-warn"><b>큰 파란 버튼(‘안전한 페이지로 돌아가기’)은 누르지 마세요.</b> 누르면 허용되지 않고 창이 닫혀요.</div>' +
+    return '<div class="auth-guide"><div class="ag-warn"><b>파란 단추(‘안전한 환경으로 돌아가기’)는 누르지 마세요.</b> 누르면 허용되지 않고 창이 닫혀요.</div>' +
       '<div class="ag-steps">' +
-      card(1, p1, '왼쪽 아래 작은 ‘고급’', '‘확인되지 않은 앱’ 경고가 나오면 아래쪽의 작은 글씨 <b>고급</b>을 눌러요.') +
-      card(2, p2, '‘…(으)로 이동(안전하지 않음)’', '펼쳐진 글 맨 아래 밑줄 친 링크를 눌러요. 우리 동아리가 직접 만든 연결기라 나오는 정상 경고예요.') +
-      card(3, p3, '아래로 내려서 ‘허용’', '권한 목록을 끝까지 내려 <b>허용</b>(또는 <b>계속</b>)을 눌러요. 체크 칸이 있으면 모두 체크해요.') +
-      '</div><p class="ag-tip">잘못 눌러 창이 닫혔으면 괜찮아요. <b>▷ 실행</b>을 한 번 더 누르면 같은 창이 다시 떠요.</p></div>';
+      card(1, p0, '빨간 상자 안 밑줄 링크', '‘Google에서 인증하지 않은 앱’이 나오면 빨간 상자 안의 밑줄 친 <b>가지 연결기(안전하지 않음) 앱으로 이동</b>을 눌러요.<br>우리 동아리가 직접 만든 연결기라 나오는 정상 경고예요. 개발자 칸에는 시트를 만든 내 계정이 보여요.') +
+      card(2, p3, '아래로 내려서 ‘허용’', '권한 목록을 끝까지 내려 <b>허용</b>(또는 <b>계속</b>)을 눌러요.<br>체크 칸이 있으면 모두 체크해요.') +
+      '</div><details class="wmore" style="margin-top:8px"><summary>화면이 다르게 ‘고급’이 보여요</summary><div class="ag-steps" style="margin-top:8px">' +
+      card('A', p1, '왼쪽 아래 작은 ‘고급’', '아래쪽의 작은 글씨 <b>고급</b>을 눌러요.') +
+      card('B', p2, '‘…(으)로 이동(안전하지 않음)’', '펼쳐진 글 맨 아래 밑줄 친 링크를 눌러요. 그다음 위의 2번처럼 허용해요.') +
+      '</div></details><p class="ag-tip">잘못 눌러 창이 닫혔으면 괜찮아요. <b>▷ 실행</b>을 한 번 더 누르면 같은 창이 다시 떠요.</p></div>';
   }
   async function submitJoin(f) {
     const fd = new FormData(f), sid = String(fd.get('sid')).trim(), code = String(fd.get('code')).trim(), btn = f.querySelector('[type=submit]');
@@ -554,7 +560,7 @@
       step(3, '함수 칸에서 ‘권한허용’ 고르기', '위쪽 도구 줄에서 <b>디버그</b> 오른쪽 함수 칸을 눌러요.<br>목록에서 <b>권한허용</b>을 골라요.', toolPic('fn')) +
       step(4, '▷ 실행 누르기', '같은 줄의 <b>▷ 실행</b>을 눌러요.', toolPic('run')) +
       step(5, '권한 검토 → 내 계정', '‘승인 필요’ 창이 뜨면 <b>권한 검토</b>를 눌러요.<br>그다음 <b>시트를 만든 내 구글 계정</b>을 골라요.', toolPic('review')) +
-      step(6, '경고 넘기고 허용', '‘확인되지 않은 앱’ 경고가 나와요. 그림 순서대로 눌러요.', authGuide()) +
+      step(6, '경고 넘기고 허용', '‘Google에서 인증하지 않은 앱’ 경고가 나와요.<br>그림 순서대로 눌러요.', authGuide()) +
       step(7, '실행 로그 확인', '아래쪽 <b>실행 로그</b>에 <b>가지 연결기 준비 완료</b>가 보이면 성공이에요.<br>빨간 오류가 보이면 그 화면을 캡처해서 문의해 주세요.', toolPic('log')) +
       step(8, '배포 → 새 배포', 'Apps Script 화면 오른쪽 위 파란 <b>배포</b> 버튼을 눌러요.<br>그다음 <b>새 배포</b>를 눌러요.') +
       step(9, '유형: 웹 앱', '‘유형 선택’ 옆 <b>톱니바퀴</b>를 눌러요.<br>목록에서 <b>웹 앱</b>을 골라요.') +
