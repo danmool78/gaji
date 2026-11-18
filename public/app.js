@@ -322,16 +322,16 @@
     return gateCard((PF.notice ? '<div class="card gate-note">' + esc(PF.notice) + '</div>' : '') +
       (PF.invite && !PF.useCode ? '<form class="card gate-box" id="applyForm"><b>가입 신청</b><p class="muted" style="font-size:13px;margin:0">기장님이 보낸 초대 링크로 왔어요. 이름과 학번을 넣으면 기장님이 승인한 뒤 바로 들어가요.</p>' +
         '<label class="field">이름<input name="name" maxlength="20" required autocomplete="name" placeholder="예: 김가지"></label>' +
-        '<label class="field">학번<input name="sid" inputmode="numeric" autocomplete="username" maxlength="12" required placeholder="예: 20315"></label>' +
+        '<label class="field">학번<input name="sid" autocapitalize="characters" autocomplete="username" maxlength="12" required placeholder="예: 20315 · 선생님은 T01"></label>' +
         '<button type="submit" class="btn primary">가입 신청</button>' +
         '<button type="button" class="chipbtn" data-act="useCode" style="align-self:center">이미 개인 코드가 있어요</button></form>' :
       '<form class="card gate-box" id="joinForm"><b>들어가기</b>' +
-      '<label class="field">학번<input name="sid" inputmode="numeric" autocomplete="username" maxlength="12" required placeholder="예: 20315"></label>' +
+      '<label class="field">학번<input name="sid" autocapitalize="characters" autocomplete="username" maxlength="12" required placeholder="예: 20315 · 선생님은 T01"></label>' +
       '<label class="field">개인 코드 <span class="muted" style="font-weight:400">운영진에게 받은 4자리</span><input name="code" inputmode="numeric" autocomplete="current-password" type="password" maxlength="4" pattern="[0-9]{4}" required placeholder="••••"></label>' +
       '<button type="submit" class="btn primary">들어가기</button>' +
       '<p class="muted" style="font-size:12px;line-height:1.6">처음 쓰는 기기는 기장님 승인 뒤에 열려요. 내 코드와 기기는 다른 사람에게 빌려주지 않아요.</p></form>') +
       (mk ? '<form class="card gate-box" id="masterJoinForm"><b>동아리 마스터로 이 기기 연결</b><p class="muted" style="font-size:13px">구글로 로그인한 마스터는 승인 없이 바로 연결돼요.</p>' +
-        '<label class="field">내 학번<input name="sid" inputmode="numeric" maxlength="12" required></label>' +
+        '<label class="field">내 학번<input name="sid" autocapitalize="characters" maxlength="12" required></label>' +
         '<label class="field">내 이름 <span class="muted" style="font-weight:400">처음 쓰는 학번일 때만</span><input name="name" maxlength="20"></label>' +
         '<button type="submit" class="btn">마스터로 연결</button></form>'
         : (PF.api && !PF.isMaster ? '<button type="button" class="chipbtn" data-act="pfLogin">동아리 마스터라면 구글로 로그인</button>' : '')));
@@ -540,7 +540,7 @@
       step(6, '권한 허용', '<b>액세스 승인</b>이 나오면 → 내 계정 → 2단계와 같은 경고가 또 나오면 그때처럼 <b>고급 → …(으)로 이동 → 허용</b>. 큰 파란 버튼은 누르지 않아요.', '<button type="button" class="chipbtn" data-act="authGuide">그림 안내 다시 보기</button>') +
       step(7, '웹 앱 URL 복사해서 붙여 넣기', '마지막 창의 <b>웹 앱 URL</b> 옆 <b>복사</b>를 누르고 아래에 붙여 넣어요.',
         '<form id="connectForm" style="display:flex;flex-direction:column;gap:10px;margin-top:6px"><label class="field">웹 앱 URL<input name="url" required placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" spellcheck="false"></label>' +
-        '<div class="grid2"><label class="field">내 학번<input name="sid" inputmode="numeric" maxlength="12" required></label><label class="field">내 이름<input name="name" maxlength="20" required></label></div>' +
+        '<div class="grid2"><label class="field">내 학번<input name="sid" autocapitalize="characters" maxlength="12" required></label><label class="field">내 이름<input name="name" maxlength="20" required></label></div>' +
         '<button type="submit" class="btn primary">연결하기</button>' + (PF.rewire ? '<button type="button" class="chipbtn" data-act="rewireCancel">취소</button>' : '') + '</form>') +
       '</ol>' + (tpl ? '<details class="wmore"><summary>코드를 직접 붙여 넣을래요 (원본 시트를 쓸 수 없을 때)</summary><span class="muted" style="font-size:13px">새 구글 시트 → 확장 프로그램 → Apps Script → 원래 코드를 지우고 붙여 넣기 → 저장. 그다음 3단계부터 똑같아요.</span>' + codeBox + '</details>' : '') + '</div>';
   }
@@ -2508,7 +2508,7 @@
     if (act === 'leaveDevice') { if (!confirm('이 기기에서 나갈까요? 다시 들어오려면 학번 · 개인 코드와 승인이 필요해요.')) return; rpc('block', { id: PF.dev.id }).catch(() => {}); dropDev(); PF.mode = 'join'; nav = [{ s: 'home' }]; return render(true); }
     if (act === 'openApprove') return openApprove(did);
     if (act === 'approveDev' || act === 'denyDev') return devAction(act, did);
-    if (act === 'addMember') return openSheet('<h3>부원 추가</h3><form id="addMemberForm" style="display:flex;flex-direction:column;gap:12px"><label class="field">학번<input name="sid" inputmode="numeric" maxlength="12" required></label><label class="field">이름<input name="name" maxlength="20" required></label><p class="muted" style="font-size:13px;margin:0">추가하면 4자리 개인 코드가 만들어져요.</p><div class="btn-row"><button type="button" class="btn" data-act="closeSheet">취소</button><button type="submit" class="btn primary">추가</button></div></form>');
+    if (act === 'addMember') return openSheet('<h3>부원 추가</h3><form id="addMemberForm" style="display:flex;flex-direction:column;gap:12px"><label class="field">학번 <span class="muted" style="font-weight:400">선생님은 T01 · 교사01처럼</span><input name="sid" autocapitalize="characters" maxlength="12" required></label><label class="field">이름<input name="name" maxlength="20" required></label><p class="muted" style="font-size:13px;margin:0">추가하면 4자리 개인 코드가 만들어져요.</p><div class="btn-row"><button type="button" class="btn" data-act="closeSheet">취소</button><button type="submit" class="btn primary">추가</button></div></form>');
     if (act === 'authGuide') return openSheet('<h3>구글 권한 허용하는 법</h3>' + authGuide() + '<div class="btn-row"><button type="button" class="btn primary" data-act="closeSheet">알겠어요</button></div>', true);
     if (act === 'useCode') { PF.useCode = true; return render(); }
     if (act === 'inviteMake' || act === 'inviteOff') { if (act === 'inviteOff' && !confirm('초대 링크를 끌까요? 이미 보낸 링크로는 더 신청할 수 없어요.')) return; if (act === 'inviteMake' && PF.people && PF.people.invite && !confirm('새 링크로 바꿀까요? 전에 보낸 링크는 더 쓸 수 없어요.')) return;

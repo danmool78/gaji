@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.23.1';
+var GAJI_CONNECTOR_VERSION = '2.23.2';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
@@ -82,7 +82,7 @@ function GajiCore(store, util, drive) {
   A.register = function (q) {
     if (!initialized()) err('not_initialized', '연결기가 아직 준비되지 않았어요');
     var sid = String(q.studentId || '').trim().slice(0, 12); limit('reg', 60, 600); limit('reg_' + sid, 8, 600);
-    if (!/^[0-9A-Za-z-]{2,12}$/.test(sid)) err('wrong', '학번 또는 개인 코드가 맞지 않아요');
+    if (!/^[0-9A-Za-z가-힣-]{2,12}$/.test(sid)) err('wrong', '학번 또는 개인 코드가 맞지 않아요');
     var lockKey = 'lock_' + sid, lk = setting(lockKey, '');
     var fails = 0;
     if (lk) { var p = lk.split('|'); fails = days(p[1]) * 1440 < LOCK_MIN ? Number(p[0]) : 0; if (fails >= LOCK_FAILS) err('locked', '여러 번 틀려서 30분 동안 잠겼어요'); }
@@ -111,7 +111,7 @@ function GajiCore(store, util, drive) {
     var tok = setting('invite', '');
     if (!tok || String(q.invite || '') !== tok) err('invite_off', '초대 링크가 바뀌었거나 꺼졌어요. 기장님께 새 링크를 받아 주세요');
     var sid = String(q.studentId || '').trim().slice(0, 12), name = String(q.name || '').replace(/[<>"'`]/g, '').trim().slice(0, 20);
-    if (!/^[0-9A-Za-z-]{2,12}$/.test(sid)) err('bad', '학번을 확인해 주세요');
+    if (!/^[0-9A-Za-z가-힣-]{2,12}$/.test(sid)) err('bad', '학번을 확인해 주세요');
     if (!name) err('bad', '이름을 넣어 주세요');
     limit('apply_' + sid, 5, 600);
     var ms = store.rows('members');
@@ -154,7 +154,7 @@ function GajiCore(store, util, drive) {
     if (q.slug) setSetting('slug', q.slug);
     var sid = String(q.studentId || '').trim(), code = '';
     if (!sid) err('bad', '학번을 넣어 주세요');
-    if (!/^[0-9A-Za-z-]{2,12}$/.test(sid)) err('bad', '학번은 숫자 · 영문 · - 로 2~12자예요');
+    if (!/^[0-9A-Za-z가-힣-]{2,12}$/.test(sid)) err('bad', '학번은 숫자 · 영문 · 한글 · - 로 2~12자예요 (선생님은 T01 · 교사01처럼)');
     var mem = store.rows('members').filter(function (m) { return m.studentId === sid && m.status === '활동'; })[0];
     var ap0 = !mem && store.rows('members').filter(function (m) { return m.studentId === sid && m.status === '신청'; })[0];
     if (ap0) { code = digits(4); ap0.status = '활동'; ap0.codeHash = hash(ap0.id, code); ap0.codeEnc = seal(ap0.id, code); if (q.name) ap0.name = uniqName(q.name, sid, ap0.id); store.update('members', ap0._row, ap0); mem = store.rows('members').filter(function (m) { return m.id === ap0.id; })[0]; }
@@ -849,7 +849,7 @@ function GajiCore(store, util, drive) {
     var me = deviceOf(q); needAdmin(me);
     var sid = String(q.studentId || '').trim(), name = String(q.name || '').trim().slice(0, 20);
     if (!sid || !name) err('bad', '학번과 이름을 넣어 주세요');
-    if (!/^[0-9A-Za-z-]{2,12}$/.test(sid)) err('bad', '학번은 숫자 · 영문 · - 로 2~12자예요');
+    if (!/^[0-9A-Za-z가-힣-]{2,12}$/.test(sid)) err('bad', '학번은 숫자 · 영문 · 한글 · - 로 2~12자예요 (선생님은 T01 · 교사01처럼)');
     var all = store.rows('members');
     var dupm = all.filter(function (m) { return m.studentId === sid && (m.status === '활동' || m.status === '중지'); })[0]; if (dupm) err('dup', dupm.status === '중지' ? '활동 중지된 부원이에요: ' + dupm.name + '. 부원 명단에서 활동으로 되돌려 주세요' : '이미 가입된 부원이에요: ' + dupm.name);
     if (all.some(function (m) { return m.studentId === sid && m.status === '신청'; })) err('dup', '초대 링크로 가입 신청한 학번이에요. 부원 · 기기의 승인 기다리는 기기에서 승인해 주세요');

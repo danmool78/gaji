@@ -183,7 +183,7 @@ const mc2 = call({ action: 'myCode', device: r9b.data.device });
 ok('old code renewed', mc2.ok && mc2.data.renewed && /^\d{4}$/.test(mc2.data.code), mc2);
 ok('device kept after renew', call({ action: 'load', device: r9b.data.device }).ok);
 ok('new code works', call({ action: 'register', studentId: '20399', code: mc2.data.code }).ok);
-ok('ping version', call({ action: 'ping' }).data.version === '2.23.1');
+ok('ping version', call({ action: 'ping' }).data.version === '2.23.2');
 
 // 실수 되돌리기: 내가 10분 안에 옮긴 단계는 한 단계 되돌리기 가능
 setRule('approvePeers', 0); setRule('approveTeacher', 'none');
@@ -624,7 +624,7 @@ ok('load has no self rev', !call({ action: 'load', device: ADM }).rev);
 
 // ===== 2.18.2: 시스템 현황 숫자 =====
 const sysStat = call({ action: 'stats', device: ADM });
-ok('stats: numbers only', sysStat.ok && typeof sysStat.data.done === 'number' && typeof sysStat.data.running === 'number' && typeof sysStat.data.devices === 'number' && /^\d{4}-\d\d-\d\d$|^$/.test(sysStat.data.lastEdit) && sysStat.data.core === '2.23.1', sysStat.data);
+ok('stats: numbers only', sysStat.ok && typeof sysStat.data.done === 'number' && typeof sysStat.data.running === 'number' && typeof sysStat.data.devices === 'number' && /^\d{4}-\d\d-\d\d$|^$/.test(sysStat.data.lastEdit) && sysStat.data.core === '2.23.2', sysStat.data);
 ok('stats: no names', !JSON.stringify(sysStat.data).match(/[가-힣]{2,}/));
 ok('stats: member refused', call({ action: 'stats', device: MEM }).code === 'not_admin');
 
