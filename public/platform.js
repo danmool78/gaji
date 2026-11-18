@@ -50,8 +50,9 @@ const clubList = (clubs) => clubs.map((d) => '<a class="menu-item" href="/c/' + 
 async function landing() {
   let mine = '';
   if (user) {
-    const clubs = await myClubs();
-    mine = '<h2 class="sec">내 동아리 <small>마스터로 있는 동아리</small></h2>' + (clubs.length ? clubList(clubs) : '<div class="card muted" style="font-size:14px">아직 마스터로 있는 동아리가 없어요.</div>');
+    const [clubs, sys] = await Promise.all([myClubs(), getDoc(doc(db, 'system', 'config')).then((d) => d.exists(), () => false)]);   // 시스템 마스터만 읽을 수 있음
+    mine = (sys ? '<a class="menu-item sys-link" href="/system"><span class="logo" style="background:#344054">' + LOGO + '</span><span class="tx"><b>시스템 관리</b><small class="code">' + esc(location.origin) + '/system · 동아리 현황 · 마스터 문의</small></span></a>' : '') +
+      '<h2 class="sec">내 동아리 <small>마스터로 있는 동아리</small></h2>' + (clubs.length ? clubList(clubs) : '<div class="card muted" style="font-size:14px">아직 마스터로 있는 동아리가 없어요.</div>');
   }
   portal(head() +
     '<section class="p-hero"><h1>실험이 가지를 치며<br>이어지는 곳</h1><p>계획서 · 준비 · 측정 · 결과, 그리고 다음 실험까지. 실패한 실험도 다음 실험의 씨앗으로 남는 고등학교 실험 동아리 연구 관리 도구입니다.</p></section>' +
