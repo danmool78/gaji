@@ -180,7 +180,7 @@ const mc2 = call({ action: 'myCode', device: r9b.data.device });
 ok('old code renewed', mc2.ok && mc2.data.renewed && /^\d{4}$/.test(mc2.data.code), mc2);
 ok('device kept after renew', call({ action: 'load', device: r9b.data.device }).ok);
 ok('new code works', call({ action: 'register', studentId: '20399', code: mc2.data.code }).ok);
-ok('ping version', call({ action: 'ping' }).data.version === '2.17.0');
+ok('ping version', call({ action: 'ping' }).data.version === '2.18.0');
 
 // 실수 되돌리기: 내가 10분 안에 옮긴 단계는 한 단계 되돌리기 가능
 call({ action: 'sync', device: M, nodes: [{ id: 'u1', type: 'exp', title: '되돌리기 시험', status: '검토 중', owner: '정다온', plan: PL, review: 2 }] });
@@ -576,6 +576,36 @@ const xp3 = call({ action: 'eventSet', device: MEM, scope: 'exp', node: 'ed1', d
 ok('member post is ok immediately', xp3 && xp3.state === 'ok');
 ok('member cannot change exp rules', call({ action: 'rulesSet', device: MEM, expTeacher: true }).code === 'not_master');
 call({ action: 'rulesSet', device: MST, expTeacher: true, expLeader: true });
+
+
+// ===== 2.18.0: 초대 링크로 가입 신청 =====
+ok('invite: member cannot make link', call({ action: 'invite', device: MEM, op: 'make' }).code === 'not_admin');
+let iv = call({ action: 'invite', device: ADM, op: 'make' });
+ok('invite: admin makes link', iv.ok && iv.data.invite.length >= 12, iv);
+const INV = iv.data.invite;
+ok('apply: wrong link refused', call({ action: 'apply', invite: 'nope', studentId: '30101', name: '새부원' }).code === 'invite_off');
+let ap = call({ action: 'apply', invite: INV, studentId: '30101', name: '새부원', label: '폰' });
+ok('apply: creates pending device', ap.ok && ap.data.device.id && ap.data.confirm.length === 4, ap);
+const NEW = ap.data.device;
+ok('apply: status shows pending', call({ action: 'status', device: NEW }).data.status === '대기');
+const pl = call({ action: 'load', device: NEW }); ok('apply: pending cannot load', !pl.ok, pl.code);
+ok('apply: not in member list before approval', !call({ action: 'load', device: MEM }).data.members.some((m) => m.name === '새부원'));
+let pp = call({ action: 'people', device: ADM }).data;
+ok('people: shows invite + applied flag', pp.invite === INV && pp.devices.some((d) => d.id === NEW.id && d.applied));
+ok('apply: active student id refused', call({ action: 'apply', invite: INV, studentId: pp.members.find((m) => m.status === '활동' && m.role === '부원').studentId, name: 'x' }).code === 'dup');
+let av = call({ action: 'approve', device: ADM, id: NEW.id });
+ok('approve: applicant becomes member with code', av.ok && av.data.joined && /^\d{4}$/.test(av.data.code), av);
+ok('approve: new member can load', call({ action: 'load', device: NEW }).ok);
+ok('approve: in member list', call({ action: 'load', device: MEM }).data.members.some((m) => m.name === '새부원'));
+// 거절
+let ap2 = call({ action: 'apply', invite: INV, studentId: '30102', name: '거절될사람', label: '폰' });
+ok('reject: block pending applicant', call({ action: 'block', device: ADM, id: ap2.data.device.id }).ok);
+ok('reject: applicant status rejected', call({ action: 'status', device: ap2.data.device }).code === 'member_off');
+ok('reject: shows in people as 거절', call({ action: 'people', device: ADM }).data.members.some((m) => m.name === '거절될사람' && m.status === '거절'));
+// 끄기
+ok('invite: off', call({ action: 'invite', device: ADM, op: 'off' }).data.invite === '');
+ok('apply: refused after off', call({ action: 'apply', invite: INV, studentId: '30103', name: '늦은사람' }).code === 'invite_off');
+ok('invite: new link differs', call({ action: 'invite', device: ADM, op: 'make' }).data.invite !== INV);
 
 console.log(`connector: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

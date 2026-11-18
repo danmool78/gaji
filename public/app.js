@@ -94,7 +94,7 @@
   let db = load();
   /* 실제 동아리 주소(/c/주소)로 열렸을 때 platform.js 가 채워 줌 */
   const PF = { club: null, isMaster: false, api: null, slug: null, handover: null, mode: 'demo', me: null, dev: null, rev: 0, base: null, busy: false, newDevices: [], people: null, myMoves: {},
-    approveId: new URLSearchParams(location.search).get('approve') };
+    approveId: new URLSearchParams(location.search).get('approve'), invite: new URLSearchParams(location.search).get('join') || '' };
   if (!db.histSnap) setTimeout(() => { if (PF.mode !== 'live' && !db.histSnap) demoHistory(); }, 0);   // 체험: 처음 상태를 기억해 두어야 첫 수정부터 기록됨
   window.GAJI_APP = {
     setClub(club, isMaster, api, slug) {
@@ -310,11 +310,16 @@
     // join
     const mk = PF.isMaster && PF.club.masterKey;
     return gateCard((PF.notice ? '<div class="card gate-note">' + esc(PF.notice) + '</div>' : '') +
+      (PF.invite && !PF.useCode ? '<form class="card gate-box" id="applyForm"><b>가입 신청</b><p class="muted" style="font-size:13px;margin:0">기장님이 보낸 초대 링크로 왔어요. 이름과 학번을 넣으면 기장님이 승인한 뒤 바로 들어가요.</p>' +
+        '<label class="field">이름<input name="name" maxlength="20" required autocomplete="name" placeholder="예: 김가지"></label>' +
+        '<label class="field">학번<input name="sid" inputmode="numeric" autocomplete="username" maxlength="12" required placeholder="예: 20315"></label>' +
+        '<button type="submit" class="btn primary">가입 신청</button>' +
+        '<button type="button" class="chipbtn" data-act="useCode" style="align-self:center">이미 개인 코드가 있어요</button></form>' :
       '<form class="card gate-box" id="joinForm"><b>들어가기</b>' +
       '<label class="field">학번<input name="sid" inputmode="numeric" autocomplete="username" maxlength="12" required placeholder="예: 20315"></label>' +
       '<label class="field">개인 코드 <span class="muted" style="font-weight:400">관리자에게 받은 4자리</span><input name="code" inputmode="numeric" autocomplete="current-password" type="password" maxlength="4" pattern="[0-9]{4}" required placeholder="••••"></label>' +
       '<button type="submit" class="btn primary">들어가기</button>' +
-      '<p class="muted" style="font-size:12px;line-height:1.6">처음 쓰는 기기는 기장님 승인 뒤에 열려요. 내 코드와 기기는 다른 사람에게 빌려주지 않아요.</p></form>' +
+      '<p class="muted" style="font-size:12px;line-height:1.6">처음 쓰는 기기는 기장님 승인 뒤에 열려요. 내 코드와 기기는 다른 사람에게 빌려주지 않아요.</p></form>') +
       (mk ? '<form class="card gate-box" id="masterJoinForm"><b>동아리 마스터로 이 기기 연결</b><p class="muted" style="font-size:13px">구글로 로그인한 마스터는 승인 없이 바로 연결돼요.</p>' +
         '<label class="field">내 학번<input name="sid" inputmode="numeric" maxlength="12" required></label>' +
         '<label class="field">내 이름 <span class="muted" style="font-weight:400">처음 쓰는 학번일 때만</span><input name="name" maxlength="20"></label>' +
@@ -328,6 +333,15 @@
       const label = deviceLabel(), r = await rpc('register', { studentId: sid, code, label });
       putDev({ id: r.device.id, secret: r.device.secret, url: PF.club.connector, name: r.name, studentId: sid, label });
       PF.pending = { status: '대기', name: r.name, confirm: r.confirm }; PF.mode = 'pending'; PF.notice = ''; render(); pollPending();
+    } catch (e) { btn.disabled = false; toast(e.message); }
+  }
+  async function submitApply(f) {
+    const fd = new FormData(f), sid = String(fd.get('sid')).trim(), name = String(fd.get('name')).trim(), btn = f.querySelector('[type=submit]');
+    btn.disabled = true;
+    try {
+      const label = deviceLabel(), r = await rpc('apply', { invite: PF.invite, studentId: sid, name, label });
+      putDev({ id: r.device.id, secret: r.device.secret, url: PF.club.connector, name: r.name, studentId: sid, label });
+      PF.pending = { status: '대기', name: r.name, confirm: r.confirm, applied: true }; PF.mode = 'pending'; PF.notice = ''; render(); pollPending();
     } catch (e) { btn.disabled = false; toast(e.message); }
   }
   async function submitMasterJoin(f) {
@@ -384,7 +398,7 @@
   }
   async function devAction(act, id) {
     try {
-      if (act === 'approveDev') { await rpc('approve', { id, shared: !!($('#sharedDev') && $('#sharedDev').checked) }); toast('승인했어요'); }
+      if (act === 'approveDev') { const r = await rpc('approve', { id, shared: !!($('#sharedDev') && $('#sharedDev').checked) }); toast(r && r.joined ? '가입을 승인했어요 · 이제 부원이에요' : '승인했어요'); }
       else { await rpc('block', { id }); toast('막았어요'); }
       closeSheet(); PF.people = null; render();
     } catch (e) { if (!deviceLost(e)) toast(e.message); }
@@ -398,13 +412,18 @@
   function viewPeople() {
     if (!isAdmin()) return '<div class="card empty">관리자만 볼 수 있어요.</div>';
     if (!PF.people) { loadPeople(); return '<div class="card empty loading-line">' + SPIN + '부원 명단을 불러오는 중…</div>'; }
-    const p = PF.people, wait = p.devices.filter((d) => d.status === '대기'), act = p.members.filter((m) => m.status === '활동'), off = p.members.filter((m) => m.status !== '활동');
+    const p = PF.people, wait = p.devices.filter((d) => d.status === '대기'), act = p.members.filter((m) => m.status === '활동'), off = p.members.filter((m) => m.status === '중지' || m.status === '거절');
     const ROLE = { '마스터': 't-info', '관리자': 't-ok', '교사': 't-warn', '부원': 't-neutral' };
+    const inv = p.invite ? location.origin + '/c/' + PF.slug + '?join=' + encodeURIComponent(p.invite) : '';
     return '<div class="btn-row"><button type="button" class="btn primary" data-act="addMember">부원 추가</button><button type="button" class="btn" data-act="refreshPeople">새로 고침</button></div>' +
-      (wait.length ? '<h2 class="sec">승인 기다리는 기기 <small>' + wait.length + '</small></h2>' + wait.map((d) => '<button type="button" class="srow" data-act="openApprove" data-id="' + esc(d.id) + '"><span class="tx"><b>' + esc(d.member) + ' · ' + esc(d.label) + '</b><small class="code">' + esc(d.studentId) + ' · 확인 숫자 ' + esc(d.confirm) + '</small></span><span class="badge t-warn">승인</span></button>').join('') : '') +
+      '<div class="card invite-card"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">초대 링크</b><span class="badge ' + (inv ? 't-ok">켜짐' : 't-neutral">꺼짐') + '</span></div>' +
+        (inv ? '<span class="muted" style="font-size:13px;line-height:1.6">단톡방에 이 링크를 올리면 부원이 이름 · 학번으로 가입 신청해요. 아래 <b>승인 기다리는 기기</b>에서 승인하면 부원이 돼요.</span><div class="code invite-url">' + esc(inv) + '</div>' +
+          '<div class="btn-row"><button type="button" class="btn primary" data-act="inviteShare">보내기</button><button type="button" class="btn" data-act="inviteShare" data-copy="1">복사</button><button type="button" class="btn" data-act="inviteMake">새 링크로</button><button type="button" class="btn" data-act="inviteOff">끄기</button></div>'
+          : '<span class="muted" style="font-size:13px;line-height:1.6">부원을 한 명씩 추가하는 대신, 링크 하나를 단톡방에 올려 가입 신청을 받아요. 신청은 기장 · 관리자가 승인해야 부원이 돼요.</span><div class="btn-row"><button type="button" class="btn primary" data-act="inviteMake">초대 링크 만들기</button></div>') + '</div>' +
+      (wait.length ? '<h2 class="sec">승인 기다리는 기기 <small>' + wait.length + '</small></h2>' + wait.map((d) => '<button type="button" class="srow" data-act="openApprove" data-id="' + esc(d.id) + '"><span class="tx"><b>' + esc(d.member) + ' · ' + esc(d.label) + '</b><small class="code">' + esc(d.studentId) + ' · 확인 숫자 ' + esc(d.confirm) + '</small></span><span class="badge t-warn">' + (d.applied ? '가입 신청' : '승인') + '</span></button>').join('') : '') +
       '<h2 class="sec">부원 <small>' + act.length + '명</small></h2>' +
       act.map((m) => '<button type="button" class="srow" data-act="member" data-id="' + esc(m.id) + '"><span class="tx"><b>' + esc(m.name) + '</b><small class="code">' + esc(m.studentId) + ' · 기기 ' + m.devices + '대' + (m.devices >= 6 ? ' · 기기 많음' : '') + '</small></span><span class="badge ' + ROLE[m.role] + '">' + esc(m.role) + '</span></button>').join('') +
-      (off.length ? '<h2 class="sec">활동 중지 <small>' + off.length + '명</small></h2>' + off.map((m) => '<button type="button" class="srow" data-act="member" data-id="' + esc(m.id) + '"><span class="tx"><b>' + esc(m.name) + '</b><small class="code">' + esc(m.studentId) + '</small></span><span class="badge t-neutral">중지</span></button>').join('') : '') +
+      (off.length ? '<h2 class="sec">활동 중지 <small>' + off.length + '명</small></h2>' + off.map((m) => '<button type="button" class="srow" data-act="member" data-id="' + esc(m.id) + '"><span class="tx"><b>' + esc(m.name) + '</b><small class="code">' + esc(m.studentId) + '</small></span><span class="badge t-neutral">' + (m.status === '거절' ? '신청 거절' : '중지') + '</span></button>').join('') : '') +
       '<div class="card" style="display:flex;flex-direction:column;gap:8px;margin-top:8px"><b>긴급</b><span class="muted" style="font-size:13px">코드가 새어 나간 것 같을 때. 내 기기를 뺀 모든 기기가 다시 승인을 받아야 해요.</span><button type="button" class="btn danger" data-act="logoutAll">모든 기기 로그아웃</button></div>';
   }
   function memberSheet(id) {
@@ -2502,12 +2521,18 @@
     if (flowAct(act, a, ['item', 'run', 'report'].includes(cur().s) ? byId(cur().arg) : null)) return;
     if (act === 'demoWho') return demoWho();
     if (act === 'demoMe') { prefs.demoMe = a.dataset.name; savePrefs(); closeSheet(); render(); return toast(a.dataset.name + '(으)로 체험해요'); }
+    if (act === 'useCode') { PF.useCode = true; return render(); }
+    if (act === 'inviteMake' || act === 'inviteOff') { if (act === 'inviteOff' && !confirm('초대 링크를 끌까요? 이미 보낸 링크로는 더 신청할 수 없어요.')) return; if (act === 'inviteMake' && PF.people && PF.people.invite && !confirm('새 링크로 바꿀까요? 전에 보낸 링크는 더 쓸 수 없어요.')) return;
+      return rpc('invite', { op: act === 'inviteMake' ? 'make' : 'off' }).then((r) => { if (PF.people) PF.people.invite = r.invite; render(); toast(r.invite ? '초대 링크를 만들었어요' : '초대 링크를 껐어요'); }, (e2) => { if (!deviceLost(e2)) toast(e2.message); }); }
+    if (act === 'inviteShare') { const url = location.origin + '/c/' + PF.slug + '?join=' + encodeURIComponent(PF.people.invite), t = (PF.club.name || '우리 동아리') + ' 가지 가입 링크예요. 이름과 학번을 넣고 가입 신청해 주세요.\n' + url;
+      if (a.dataset.copy || !navigator.share) return (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(() => toast('링크를 복사했어요'), () => prompt('링크를 복사해 주세요', url));
+      return navigator.share({ text: t }).catch(() => {}); }
     if (act === 'demoReset') { if (!confirm('체험 데이터를 처음 상태로 되돌릴까요?')) return; db = freshSample(); save(); closeSheet(); nav = [{ s: 'home' }]; render(true); return toast('처음 상태로 되돌렸어요'); }
     if (act === 'shareCode') { const t = a.dataset.text; if (navigator.share) navigator.share({ text: t }).catch(() => {}); else (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('복사했어요'), () => {}); }
   });
   $('#screen').addEventListener('submit', (e) => { if (flowSubmit(e)) return;
-    const id = e.target.id; if (!['joinForm', 'masterJoinForm', 'connectForm'].includes(id)) return;
-    e.preventDefault(); if (id === 'joinForm') submitJoin(e.target); else if (id === 'masterJoinForm') submitMasterJoin(e.target); else submitConnect(e.target);
+    const id = e.target.id; if (!['joinForm', 'applyForm', 'masterJoinForm', 'connectForm'].includes(id)) return;
+    e.preventDefault(); if (id === 'applyForm') submitApply(e.target); else if (id === 'joinForm') submitJoin(e.target); else if (id === 'masterJoinForm') submitMasterJoin(e.target); else submitConnect(e.target);
   });
   document.addEventListener('change', (e) => { if (e.target.matches && e.target.matches('[data-bk-mail]')) return backupSet({ mail: e.target.checked });
     if (e.target.matches && e.target.matches('[data-color-input]')) return saveBrand({ [e.target.dataset.colorInput]: e.target.value.toUpperCase() });

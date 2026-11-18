@@ -804,3 +804,7 @@ textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3p
 
 .leg-tip.lift { bottom: 84px; }   /* 아래 가로 스크롤 막대 위로 */
 @media (max-width: 767px) { .leg-tip.lift { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); } }
+
+/* 초대 링크 */
+.invite-card { display: flex; flex-direction: column; gap: 10px; }
+.invite-url { font-size: 13px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); overflow-wrap: anywhere; user-select: all; }

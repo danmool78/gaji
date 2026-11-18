@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.17.0';
+var GAJI_CONNECTOR_VERSION = '2.18.0';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
@@ -35,7 +35,7 @@ function GajiCore(store, util, drive) {
     var d = req.device || {}, dev = store.rows('devices').filter(function (x) { return x.id === d.id; })[0];
     if (!dev || dev.secretHash !== hash(dev.id, d.secret || '')) err('no_device', '이 기기는 등록되지 않았어요');
     var mem = store.rows('members').filter(function (m) { return m.id === dev.memberId; })[0];
-    if (!mem || mem.status !== '활동') err('member_off', '부원 명단에서 빠졌어요. 관리자에게 문의해 주세요');
+    if (!mem || (mem.status !== '활동' && !(allowPending && mem.status === '신청'))) err('member_off', mem && mem.status === '거절' ? '가입 신청이 거절됐어요. 기장님께 문의해 주세요' : '부원 명단에서 빠졌어요. 관리자에게 문의해 주세요');
     if (dev.status === '차단') err('blocked', '이 기기는 사용이 막혔어요');
     if (dev.status === '승인' && !util.bool(dev.shared) && days(dev.lastSeen || dev.approvedAt) > EXPIRE_DAYS) { dev.status = '만료'; store.update('devices', dev._row, dev); }
     if (!allowPending && dev.status !== '승인') err(dev.status === '만료' ? 'expired' : 'pending', dev.status === '만료' ? '오래 안 써서 다시 승인이 필요해요' : '아직 승인 전이에요');
@@ -81,6 +81,34 @@ function GajiCore(store, util, drive) {
     store.append('devices', { id: did, memberId: mem.id, label: String(q.label || '').slice(0, 40), secretHash: hash(did, secret), status: '대기', confirm: confirm, shared: 'false', createdAt: util.now(), approvedAt: '', approvedBy: '', lastSeen: '' });
     bump(); log({ name: mem.name, deviceId: did }, '기기 승인 요청', q.label);
     return { device: { id: did, secret: secret }, confirm: confirm, name: mem.name };
+  };
+
+  /* 초대 링크: 기장이 링크 하나를 단톡방에 올리면 부원이 이름 · 학번으로 가입 신청 → 기장이 기기 승인하면 부원이 됨 */
+  A.invite = function (q) {
+    var me = deviceOf(q); needAdmin(me);
+    if (q.op === 'make') { setSetting('invite', util.token(16)); setSetting('inviteAt', util.now()); log(me, '초대 링크 만듦', ''); }
+    else if (q.op === 'off') { setSetting('invite', ''); log(me, '초대 링크 끔', ''); }
+    return { invite: setting('invite', ''), at: setting('inviteAt', '') };
+  };
+  A.apply = function (q) {
+    if (!initialized()) err('not_initialized', '연결기가 아직 준비되지 않았어요');
+    limit('apply', 40, 600);
+    var tok = setting('invite', '');
+    if (!tok || String(q.invite || '') !== tok) err('invite_off', '초대 링크가 바뀌었거나 꺼졌어요. 기장님께 새 링크를 받아 주세요');
+    var sid = String(q.studentId || '').trim().slice(0, 12), name = String(q.name || '').replace(/[<>"'`]/g, '').trim().slice(0, 20);
+    if (!/^[0-9A-Za-z-]{2,12}$/.test(sid)) err('bad', '학번을 확인해 주세요');
+    if (!name) err('bad', '이름을 넣어 주세요');
+    limit('apply_' + sid, 5, 600);
+    var ms = store.rows('members');
+    if (ms.some(function (m) { return m.studentId === sid && m.status === '활동'; })) err('dup', '이미 등록된 학번이에요. 기장님께 받은 개인 코드로 들어가 주세요');
+    if (ms.filter(function (m) { return m.status === '신청'; }).length >= 100) err('busy', '가입 신청이 너무 많이 쌓였어요. 기장님께 알려 주세요');
+    var mem = ms.filter(function (m) { return m.studentId === sid && m.status === '신청'; })[0];
+    if (mem) { mem.name = name; store.update('members', mem._row, mem); }
+    else { mem = { id: newId('m'), studentId: sid, name: name, role: '부원', codeHash: '', codeEnc: '', status: '신청', createdAt: util.now() }; store.append('members', mem); }
+    var did = newId('d'), secret = util.token(32), confirm = digits(4);
+    store.append('devices', { id: did, memberId: mem.id, label: String(q.label || '').slice(0, 40), secretHash: hash(did, secret), status: '대기', confirm: confirm, shared: 'false', createdAt: util.now(), approvedAt: '', approvedBy: '', lastSeen: '' });
+    bump(); log({ name: name, deviceId: did }, '초대 링크 가입 신청', sid + ' ' + q.label);
+    return { device: { id: did, secret: secret }, confirm: confirm, name: name };
   };
 
   A.status = function (q) { var me = deviceOf(q, true); return { status: me.device.status, name: me.name, confirm: me.device.confirm }; };
@@ -681,9 +709,10 @@ function GajiCore(store, util, drive) {
     var me = deviceOf(q); needAdmin(me);
     var devs = store.rows('devices');
     return {
+      invite: setting('invite', ''),
       members: store.rows('members').map(function (m) { return { id: m.id, studentId: m.studentId, name: m.name, role: m.role, status: m.status, devices: devs.filter(function (d) { return d.memberId === m.id && d.status === '승인'; }).length }; }),
       devices: devs.filter(function (d) { return d.status !== '차단'; }).map(function (d) { var m = store.rows('members').filter(function (x) { return x.id === d.memberId; })[0] || {};
-        return { id: d.id, member: m.name || '', studentId: m.studentId || '', label: d.label, status: d.status, confirm: d.status === '대기' ? d.confirm : '', shared: util.bool(d.shared), createdAt: d.createdAt, lastSeen: d.lastSeen,
+        return { id: d.id, member: m.name || '', studentId: m.studentId || '', applied: m.status === '신청', label: d.label, status: d.status, confirm: d.status === '대기' ? d.confirm : '', shared: util.bool(d.shared), createdAt: d.createdAt, lastSeen: d.lastSeen,
           others: devs.filter(function (x) { return x.memberId === d.memberId && x.id !== d.id && x.status === '승인'; }).length }; })
     };
   };
@@ -724,14 +753,20 @@ function GajiCore(store, util, drive) {
     var d = store.rows('devices').filter(function (x) { return x.id === q.id; })[0]; if (!d) err('bad', '요청을 찾을 수 없어요');
     if (q.confirm && d.confirm && String(q.confirm) !== String(d.confirm)) err('confirm', '확인 숫자가 달라요');
     d.status = '승인'; d.shared = q.shared ? 'true' : 'false'; d.approvedAt = util.now(); d.approvedBy = me.name; d.confirm = ''; d.lastSeen = util.now();
-    store.update('devices', d._row, d); bump(); log(me, '기기 승인', d.label);
-    return { ok: true };
+    store.update('devices', d._row, d);
+    var nm = store.rows('members').filter(function (x) { return x.id === d.memberId && x.status === '신청'; })[0], code = '';
+    if (nm) { code = digits(4); nm.codeHash = hash(nm.id, code); nm.codeEnc = seal(nm.id, code); nm.status = '활동'; store.update('members', nm._row, nm); log(me, '가입 승인', nm.name); }
+    bump(); log(me, '기기 승인', d.label);
+    return { ok: true, joined: !!nm, code: code };
   };
   A.block = function (q) {
     var me = deviceOf(q);
     var d = store.rows('devices').filter(function (x) { return x.id === q.id; })[0]; if (!d) err('bad');
     if (d.memberId !== me.id) needAdmin(me);   // 본인 기기는 본인이 끊을 수 있음 ('내가 아님')
-    d.status = '차단'; store.update('devices', d._row, d); bump(); log(me, '기기 차단', d.label);
+    d.status = '차단'; store.update('devices', d._row, d);
+    var rm = store.rows('members').filter(function (x) { return x.id === d.memberId && x.status === '신청'; })[0];
+    if (rm && !store.rows('devices').some(function (x) { return x.memberId === rm.id && x.status === '대기'; })) { rm.status = '거절'; store.update('members', rm._row, rm); }
+    bump(); log(me, '기기 차단', d.label);
     return { ok: true };
   };
   A.logoutAll = function (q) {
