@@ -119,7 +119,9 @@ async function clubPage(slug) {
       if (key) b.set(doc(db, 'clubs', slug, 'secret', 'key'), { masterKey: key });
       await b.commit(); club.connector = url; if (key) club.masterKey = key;
     },
-    saveStats: (st) => updateDoc(doc(db, 'clubs', slug, 'private', 'info'), { 'stats.members': st.members | 0, 'stats.experiments': st.experiments | 0, 'stats.lastActive': serverTimestamp() }),
+    saveStats: (st) => { const n = (k) => Math.max(0, Math.min(100000, st[k] | 0)), d = (k) => /^\d{4}-\d\d-\d\d$/.test(st[k] || '') ? st[k] : '';
+      return updateDoc(doc(db, 'clubs', slug, 'private', 'info'), { 'stats.members': n('members'), 'stats.experiments': n('experiments'), 'stats.ideas': n('ideas'), 'stats.done': n('done'), 'stats.running': n('running'),
+        'stats.devices': n('devices'), 'stats.waiting': n('waiting'), 'stats.lastEdit': d('lastEdit'), 'stats.backupAt': d('backupAt'), 'stats.backupErr': !!st.backupErr, 'stats.core': String(st.core || '').slice(0, 12), 'stats.lastActive': serverTimestamp() }); },
     login: () => login(),
     // 가지에 문의하기 (마스터 ↔ 시스템)
     supportList: async () => (await getDocs(query(collection(db, 'clubs', slug, 'support'), orderBy('at', 'asc'), limit(200)))).docs.map((d) => ({ id: d.id, from: d.data().from, text: d.data().text, at: d.data().at && d.data().at.toDate ? d.data().at.toDate().toISOString() : '' })),
@@ -167,15 +169,29 @@ async function systemPage() {
   if (!cfg || !cfg.exists()) return portal(head('시스템 관리') + '<div class="card p-form"><b style="font-size:18px">권한이 없어요</b><p class="muted">시스템 마스터로 등록되지 않은 계정입니다. 처음 설정 중이라면 아래 계정 ID를 등록해 주세요.</p><span class="code" style="user-select:all;word-break:break-all">' + esc(user.uid) + '</span></div>');
   const clubs = await getDocs(collection(db, 'clubs'));
   const rows = await Promise.all(clubs.docs.map(async (d) => { const i = await getDoc(doc(db, 'clubs', d.id, 'private', 'info')).catch(() => null); return { id: d.id, pub: d.data(), info: i && i.exists() ? i.data() : {} }; }));
-  const now = Date.now(), day = (t) => t && t.toDate ? Math.floor((now - t.toDate()) / 864e5) : null;
+  const now = Date.now(), day = (t) => t && t.toDate ? Math.floor((now - t.toDate()) / 864e5) : null, dday = (iso) => iso ? Math.floor((now - Date.parse(iso + 'T00:00:00')) / 864e5) : null;
   rows.sort((a, b) => (day(a.info.stats?.lastActive) ?? 9e9) - (day(b.info.stats?.lastActive) ?? 9e9));
-  const active = rows.filter((r) => (day(r.info.stats?.lastActive) ?? 999) <= 14).length;
-  const tot = (k) => rows.reduce((a, r) => a + (+(r.info.stats?.[k]) || 0), 0);
+  const S = (r) => r.info.stats || {}, tot = (k) => rows.reduce((a, r) => a + (+S(r)[k] || 0), 0);
+  const linked = rows.filter((r) => r.pub.connector).length, active = rows.filter((r) => (day(S(r).lastActive) ?? 999) <= 14).length;
+  const newer = rows.filter((r) => (day(r.pub.createdAt) ?? 999) <= 30).length, newest = rows.map((r) => S(r).core).filter(Boolean).sort().pop() || '';
+  const ago = (n) => n === null ? '-' : n <= 0 ? '오늘' : n + '일 전';
+  const flags = (r) => { const s = S(r), f = [];
+    if (!r.pub.connector) f.push(['t-warn', '드라이브 연결 전']);
+    if ((day(s.lastActive) ?? 999) > 30 && r.pub.connector) f.push(['t-neutral', '30일 넘게 안 씀']);
+    if (s.backupErr) f.push(['t-bad', '백업 오류']); else if (r.pub.connector && (dday(s.backupAt) ?? 999) > 10) f.push(['t-warn', '백업 오래됨']);
+    if (s.waiting) f.push(['t-info', '기기 승인 대기 ' + s.waiting]);
+    if (s.core && newest && s.core !== newest) f.push(['t-neutral', '연결기 ' + s.core]);
+    return f.map((x) => '<span class="badge ' + x[0] + '">' + esc(x[1]) + '</span>').join(' '); };
+  const tile = (k, v, sub) => '<div class="card"><small>' + k + '</small><b>' + v + '</b>' + (sub ? '<span class="muted" style="font-size:12px">' + sub + '</span>' : '') + '</div>';
   portal(head('시스템 관리 · 사용 현황') +
-    '<div class="p-stats"><div class="card"><small>동아리</small><b>' + rows.length + '</b></div><div class="card"><small>최근 2주 사용</small><b>' + active + '</b></div><div class="card"><small>부원 합계</small><b>' + tot('members') + '</b></div><div class="card"><small>실험 합계</small><b>' + tot('experiments') + '</b></div></div>' +
-    '<div class="card" style="padding:0;overflow-x:auto"><table class="p-table"><thead><tr><th>동아리</th><th>주소</th><th>만든 날</th><th>부원</th><th>실험</th><th>마지막 사용</th><th>버전</th></tr></thead><tbody>' +
-    rows.map((r) => { const d = day(r.info.stats?.lastActive); return '<tr><td><b>' + esc(r.pub.name) + '</b></td><td class="code">' + esc(r.id) + '</td><td>' + (r.pub.createdAt?.toDate ? r.pub.createdAt.toDate().toLocaleDateString('ko-KR') : '-') + '</td><td class="code">' + (r.info.stats?.members ?? '-') + '</td><td class="code">' + (r.info.stats?.experiments ?? '-') + '</td><td>' + (d === null ? '-' : d === 0 ? '오늘' : d + '일 전') + (d !== null && d > 30 ? ' <span class="badge t-warn">오래 안 씀</span>' : '') + '</td><td class="code">' + esc(r.info.stats?.version || r.pub.version || '-') + '</td></tr>'; }).join('') +
-    '</tbody></table></div><p class="p-foot">사람 이름 · 이메일 · 실험 내용은 보이지 않아요. 숫자만 표시합니다.</p>' + await supportAdmin(rows));
+    '<div class="p-stats">' + tile('동아리', rows.length, '최근 30일 새로 ' + newer) + tile('드라이브 연결', linked, '연결 전 ' + (rows.length - linked)) + tile('최근 2주 사용', active, '마스터 접속 기준') +
+      tile('부원', tot('members'), '승인된 기기 ' + tot('devices')) + tile('실험', tot('experiments'), '진행 ' + tot('running') + ' · 완료 ' + tot('done')) + tile('아이디어', tot('ideas')) + '</div>' +
+    '<div class="card" style="padding:0;overflow-x:auto"><table class="p-table"><thead><tr><th>동아리</th><th>만든 날</th><th>부원</th><th>실험 (진행 · 완료)</th><th>마지막 수정</th><th>마스터 접속</th><th>백업</th><th>살펴볼 것</th></tr></thead><tbody>' +
+    rows.map((r) => { const s = S(r), d = day(s.lastActive);
+      return '<tr><td><b>' + esc(r.pub.name) + '</b><br><a class="code muted" href="/c/' + esc(r.id) + '" target="_blank" rel="noopener">/c/' + esc(r.id) + '</a></td><td>' + (r.pub.createdAt?.toDate ? r.pub.createdAt.toDate().toLocaleDateString('ko-KR') : '-') + '</td>' +
+        '<td class="code">' + (s.members ?? '-') + '</td><td class="code">' + (s.experiments ?? '-') + (s.experiments ? ' (' + (s.running || 0) + ' · ' + (s.done || 0) + ')' : '') + '</td>' +
+        '<td>' + ago(dday(s.lastEdit)) + '</td><td>' + ago(d) + '</td><td>' + (s.backupErr ? '오류' : ago(dday(s.backupAt))) + '</td><td>' + (flags(r) || '<span class="muted">-</span>') + '</td></tr>'; }).join('') +
+    '</tbody></table></div><p class="p-foot">숫자는 각 동아리 마스터가 가지를 열 때 새로 받아요. 사람 이름 · 이메일 · 학번 · 실험 내용은 보이지 않아요.</p>' + await supportAdmin(rows));
 }
 /* 시스템: 마스터 문의 (동아리별 대화 · 답장) */
 async function supportAdmin(rows) {

@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.18.1';
+var GAJI_CONNECTOR_VERSION = '2.18.2';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
@@ -778,7 +778,13 @@ function GajiCore(store, util, drive) {
   };
   A.stats = function (q) {
     var me = deviceOf(q); needAdmin(me);
-    return { members: store.rows('members').filter(function (m) { return m.status === '활동'; }).length, experiments: store.rows('nodes').filter(function (n) { return n.type === 'exp'; }).length, ideas: store.rows('nodes').filter(function (n) { return n.type === 'idea'; }).length };
+    // 시스템 사용 현황용 숫자만 (이름 · 학번 · 실험 내용 없음)
+    var ns = store.rows('nodes').filter(function (n) { return !util.bool(n.deleted); }), ex = ns.filter(function (n) { return n.type === 'exp'; }), devs = store.rows('devices');
+    var last = ns.reduce(function (a, n) { var t = String(n.updatedAt || n.created || ''); return t > a ? t : a; }, '');
+    return { members: store.rows('members').filter(function (m) { return m.status === '활동'; }).length, experiments: ex.length, ideas: ns.filter(function (n) { return n.type === 'idea'; }).length,
+      done: ex.filter(function (n) { return n.status === '기록 완료'; }).length, running: ex.filter(function (n) { return ['검토 중', '준비 중', '실험 완료'].indexOf(n.status) >= 0; }).length,
+      devices: devs.filter(function (d) { return d.status === '승인'; }).length, waiting: devs.filter(function (d) { return d.status === '대기'; }).length,
+      lastEdit: String(last).slice(0, 10), backupAt: String(setting('backupAt', '')).slice(0, 10), backupErr: !!setting('backupErr', ''), core: GAJI_CONNECTOR_VERSION };
   };
 
   return {
