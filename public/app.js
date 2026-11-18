@@ -2282,10 +2282,11 @@
     if (PF.mode === 'live') setTimeout(loadThumbs, 0);
   }
 
+  const onDemo = () => PF.mode === 'demo' && !PF.club && !/^\/c\/(?!demo(\/|$))/.test(location.pathname);   // 실제 동아리 주소에서는 잠깐이라도 띄우지 않음
   /* ---------- 체험에서만: 색 설명 카드(반투명, 닫으면 다시 안 뜸) · 처음 화면 안내 ---------- */
   const legDot = (c, kind) => '<i class="lg-' + (kind || 'dot') + '" style="--c:' + c + '"></i>';
   function legendTip(k) {
-    if (PF.mode !== 'demo' || (prefs.legOff || {})[k]) return '';
+    if (!onDemo() || (prefs.legOff || {})[k]) return '';
     const row = (a, t) => '<span>' + a + t + '</span>';
     const dots = {
       home: [row(legDot('var(--exp)', 'ico'), '실험'), row(legDot('var(--idea)', 'ring'), '아이디어'), row(legDot('var(--q)', 'ico'), '질문'), row(legDot('var(--res)', 'ico'), '자료')],
@@ -2325,8 +2326,8 @@
   }
   function tourEnd(keep) { document.querySelectorAll('.tour').forEach((x) => x.remove()); if (!keep) { prefs.tourDone = 1; savePrefs(); } }
   function tourMaybe() {
-    if (PF.mode !== 'demo' || prefs.tourDone || PF.tourOn || nav[0].s !== 'home' || nav.length > 1 || !$('#sheet').hidden) return;
-    PF.tourOn = 1; setTimeout(() => { PF.tourOn = 0; if (!prefs.tourDone && !document.querySelector('.tour') && $('#sheet').hidden && nav[0].s === 'home') tourShow(0); }, 600);
+    if (!onDemo() || prefs.tourDone || PF.tourOn || nav[0].s !== 'home' || nav.length > 1 || !$('#sheet').hidden) return;
+    PF.tourOn = 1; setTimeout(() => { PF.tourOn = 0; if (onDemo() && !prefs.tourDone && !document.querySelector('.tour') && $('#sheet').hidden && nav[0].s === 'home') tourShow(0); }, 600);
   }
   document.addEventListener('click', (e) => {
     if (e.target.closest('[data-tour-again]')) { prefs.tourDone = 0; prefs.legOff = {}; savePrefs(); tab('home'); return; }
@@ -2424,6 +2425,12 @@
     if (act === 'openApprove') return openApprove(did);
     if (act === 'approveDev' || act === 'denyDev') return devAction(act, did);
     if (act === 'addMember') return openSheet('<h3>부원 추가</h3><form id="addMemberForm" style="display:flex;flex-direction:column;gap:12px"><label class="field">학번<input name="sid" inputmode="numeric" maxlength="12" required></label><label class="field">이름<input name="name" maxlength="20" required></label><p class="muted" style="font-size:13px;margin:0">추가하면 4자리 개인 코드가 만들어져요.</p><div class="btn-row"><button type="button" class="btn" data-act="closeSheet">취소</button><button type="submit" class="btn primary">추가</button></div></form>');
+    if (act === 'useCode') { PF.useCode = true; return render(); }
+    if (act === 'inviteMake' || act === 'inviteOff') { if (act === 'inviteOff' && !confirm('초대 링크를 끌까요? 이미 보낸 링크로는 더 신청할 수 없어요.')) return; if (act === 'inviteMake' && PF.people && PF.people.invite && !confirm('새 링크로 바꿀까요? 전에 보낸 링크는 더 쓸 수 없어요.')) return;
+      return rpc('invite', { op: act === 'inviteMake' ? 'make' : 'off' }).then((r) => { if (PF.people) PF.people.invite = r.invite; render(); toast(r.invite ? '초대 링크를 만들었어요' : '초대 링크를 껐어요'); }, (e2) => { if (!deviceLost(e2)) toast(e2.message); }); }
+    if (act === 'inviteShare') { const url = location.origin + '/c/' + PF.slug + '?join=' + encodeURIComponent(PF.people.invite), t = (PF.club.name || '우리 동아리') + ' 가지 가입 링크예요. 이름과 학번을 넣고 가입 신청해 주세요.\n' + url;
+      if (a.dataset.copy || !navigator.share) return (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(() => toast('링크를 복사했어요'), () => prompt('링크를 복사해 주세요', url));
+      return navigator.share({ text: t }).catch(() => {}); }
     if (act === 'refreshPeople') { PF.people = null; return render(); }
     if (act === 'member') return memberSheet(did);
     if (['resetCode', 'setRole', 'setStatus', 'logoutAll'].includes(act)) return peopleAction(a);
@@ -2521,12 +2528,6 @@
     if (flowAct(act, a, ['item', 'run', 'report'].includes(cur().s) ? byId(cur().arg) : null)) return;
     if (act === 'demoWho') return demoWho();
     if (act === 'demoMe') { prefs.demoMe = a.dataset.name; savePrefs(); closeSheet(); render(); return toast(a.dataset.name + '(으)로 체험해요'); }
-    if (act === 'useCode') { PF.useCode = true; return render(); }
-    if (act === 'inviteMake' || act === 'inviteOff') { if (act === 'inviteOff' && !confirm('초대 링크를 끌까요? 이미 보낸 링크로는 더 신청할 수 없어요.')) return; if (act === 'inviteMake' && PF.people && PF.people.invite && !confirm('새 링크로 바꿀까요? 전에 보낸 링크는 더 쓸 수 없어요.')) return;
-      return rpc('invite', { op: act === 'inviteMake' ? 'make' : 'off' }).then((r) => { if (PF.people) PF.people.invite = r.invite; render(); toast(r.invite ? '초대 링크를 만들었어요' : '초대 링크를 껐어요'); }, (e2) => { if (!deviceLost(e2)) toast(e2.message); }); }
-    if (act === 'inviteShare') { const url = location.origin + '/c/' + PF.slug + '?join=' + encodeURIComponent(PF.people.invite), t = (PF.club.name || '우리 동아리') + ' 가지 가입 링크예요. 이름과 학번을 넣고 가입 신청해 주세요.\n' + url;
-      if (a.dataset.copy || !navigator.share) return (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(() => toast('링크를 복사했어요'), () => prompt('링크를 복사해 주세요', url));
-      return navigator.share({ text: t }).catch(() => {}); }
     if (act === 'demoReset') { if (!confirm('체험 데이터를 처음 상태로 되돌릴까요?')) return; db = freshSample(); save(); closeSheet(); nav = [{ s: 'home' }]; render(true); return toast('처음 상태로 되돌렸어요'); }
     if (act === 'shareCode') { const t = a.dataset.text; if (navigator.share) navigator.share({ text: t }).catch(() => {}); else (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('복사했어요'), () => {}); }
   });
