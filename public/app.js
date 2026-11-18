@@ -347,6 +347,12 @@
     const box = (h, inner) => '<svg viewBox="0 0 300 ' + h + '" class="ag-svg tool-svg" aria-hidden="true"><rect x="1" y="1" width="298" height="' + (h - 2) + '" rx="10" fill="#fff" stroke="#D0D5DD"/>' + inner + '</svg>';
     if (k === 'review') return box(120, T(20, 30, '승인 필요', { s: 13, w: 700, c: '#1D2939' }) + '<rect x="20" y="44" width="230" height="7" rx="3.5" fill="#E4E7EC"/><rect x="20" y="58" width="190" height="7" rx="3.5" fill="#E4E7EC"/>' +
       '<rect x="120" y="82" width="70" height="26" rx="6" fill="#fff" stroke="#D0D5DD"/>' + T(155, 99, '취소', { mid: 1 }) + '<rect x="200" y="82" width="80" height="26" rx="6" fill="#1A73E8"/>' + T(240, 99, '권한 검토', { mid: 1, c: '#fff' }) + ring(195, 77, 90, 36));
+    if (k === 'deploy') { const fld = (y, lab, val, hot) => '<rect x="104" y="' + y + '" width="182" height="26" rx="5" fill="#fff" stroke="' + (hot ? '#1A73E8' : '#98A2B3') + '"/>' + T(108, y - 7, lab, { s: 8, w: 500 }) + T(112, y + 17, val, { s: 10.5, c: '#1D2939', w: hot ? 700 : 500 }) + T(274, y + 17, '▾', { s: 10 });
+      return box(222, T(14, 24, '새 배포', { s: 13, w: 700, c: '#1D2939' }) + '<line x1="1" y1="36" x2="299" y2="36" stroke="#E4E7EC"/><line x1="94" y1="36" x2="94" y2="160" stroke="#E4E7EC"/>' +
+        T(12, 52, '유형 선택 ⚙', { s: 9.5 }) + T(12, 72, '웹 앱', { s: 10, c: '#1D2939' }) + T(104, 54, '설명', { s: 9.5, w: 700, c: '#1D2939' }) +
+        '<rect x="104" y="60" width="182" height="22" rx="5" fill="#fff" stroke="#98A2B3"/>' + T(112, 75, '가지 연결기', { s: 10.5, c: '#1D2939' }) + ring(100, 56, 190, 30) +
+        fld(106, '다음 사용자 인증 정보로 실행', '나(내 계정)', true) + ring(100, 102, 190, 34) + fld(154, '액세스 권한이 있는 사용자', '모든 사용자', true) + ring(100, 150, 190, 34) +
+        '<line x1="1" y1="190" x2="299" y2="190" stroke="#E4E7EC"/><rect x="234" y="195" width="54" height="20" rx="4" fill="#1A73E8"/>' + T(261, 209, '배포', { s: 10, c: '#fff', mid: 1 })); }
     if (k === 'log') return box(96, T(14, 22, '실행 로그', { s: 12, w: 700, c: '#1D2939' }) + '<line x1="1" y1="32" x2="299" y2="32" stroke="#E4E7EC"/>' +
       T(14, 52, '오후 3:02:11  알림  실행이 시작됨', { s: 10, w: 500 }) + T(14, 70, '오후 3:02:14  정보  가지 연결기 준비 완료 · 본체 2.23', { s: 10, w: 700, c: '#1F8F5A' }) + ring(8, 58, 284, 18) + T(14, 88, '오후 3:02:14  알림  실행이 완료됨', { s: 10, w: 500 }));
     const fn = k === 'fn', bar = '<rect x="10" y="16" width="10" height="10" rx="2" fill="#D0D5DD"/><rect x="26" y="16" width="10" height="10" rx="2" fill="#D0D5DD"/><rect x="42" y="16" width="12" height="12" rx="2" fill="#98A2B3"/>' +
@@ -577,7 +583,7 @@
       step(7, '실행 로그 확인', '아래쪽 <b>실행 로그</b>에 <b>가지 연결기 준비 완료</b>가 보이면 성공이에요.<br>빨간 오류가 보이면 그 화면을 캡처해서 문의해 주세요.', toolPic('log')) +
       step(8, '배포 → 새 배포', ASI + ' 화면 오른쪽 위 파란 <b>배포</b> 버튼을 눌러요.<br>그다음 <b>새 배포</b>를 눌러요.') +
       step(9, '유형: 웹 앱', '‘유형 선택’ 옆 <b>톱니바퀴</b>를 눌러요.<br>목록에서 <b>웹 앱</b>을 골라요.') +
-      step(10, '실행: 나 · 액세스: 모든 사용자', '<b>다음 사용자 인증 정보로 실행</b>: <b>나</b><br><b>액세스 권한이 있는 사용자</b>: <b>모든 사용자</b><br>그다음 <b>배포</b>를 눌러요.<br><small>‘모든 사용자’여야 부원 기기가 연결돼요. 부원은 코드와 승인으로 보호돼요.</small>') +
+      step(10, '설명 · 실행 · 액세스 고르고 배포', '<b>설명</b>: <b>가지 연결기</b> (아무 말이나 괜찮아요 · 비워도 돼요)<br><b>다음 사용자 인증 정보로 실행</b>: <b>나</b> (그대로)<br><b>액세스 권한이 있는 사용자</b>: ‘나만’을 눌러 <b>모든 사용자</b>로 바꿔요<br>그다음 오른쪽 아래 <b>배포</b>를 눌러요.<br><small>‘나만’으로 두면 부원 기기가 연결되지 않아요. 부원은 코드와 승인으로 보호돼요.</small>', toolPic('deploy')) +
       step(11, '권한 묻기가 또 나오면', '<b>액세스 승인</b>이 나오면 6단계와 똑같이 해요 (<b>모두 선택</b> 체크 → <b>계속</b>).<br>안 나오면 넘어가요.', '<button type="button" class="chipbtn" data-act="authGuide">그림 안내 다시 보기</button>') +
       step(12, '웹 앱 URL 붙여 넣기', '마지막 창의 <b>웹 앱 URL</b> 옆 <b>복사</b>를 눌러요.<br>아래 칸에 붙여 넣고 <b>연결하기</b>를 눌러요.',
         '<form id="connectForm" style="display:flex;flex-direction:column;gap:10px;margin-top:6px"><label class="field">웹 앱 URL<input name="url" required placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" spellcheck="false"></label>' +
