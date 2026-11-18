@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.19.1';
+var GAJI_CONNECTOR_VERSION = '2.19.2';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
@@ -20,8 +20,10 @@ function GajiCore(store, util, drive) {
   function bump() { setSetting('rev', Number(setting('rev', '0')) + 1); }
   function log(me, action, detail) { store.append('log', { at: util.now(), member: me ? me.name : '', device: me ? me.deviceId : '', action: action, detail: String(detail || '').slice(0, 200) }); }
   function hash(salt, v) { return util.sha256(salt + ':' + v); }
+  // 이름은 처음부터 '이름(학번)'으로 받음: 같은 이름도 학번으로 구분되고, 같은 이름(학번)이면 이미 가입된 사람
   function uniqName(name, sid, selfId) {
-    name = String(name || '').trim().slice(0, 20);
+    var base = String(name || '').replace(/\s*\([^)]*\)\s*$/, '').trim(), tail = '(' + String(sid) + ')';
+    name = (base.slice(0, Math.max(2, 20 - tail.length)) + tail).slice(0, 20);
     var taken = function (nm) { return store.rows('members').some(function (m) { return m.status === '활동' && m.id !== selfId && m.name === nm; }); };
     if (!taken(name)) return name;
     var nm = (name.slice(0, 20 - String(sid).length - 2) + '(' + sid + ')');
@@ -64,7 +66,7 @@ function GajiCore(store, util, drive) {
     setSetting('no_exp', q.startNo || 0); setSetting('no_q', 0); setSetting('no_res', 0);
     if (q.masterKey) setSetting('masterKeyHash', hash('master', q.masterKey));
     var code = digits(4), mid = newId('m');
-    store.append('members', { id: mid, studentId: String(q.studentId), name: String(q.name).slice(0, 20), role: '마스터', codeHash: hash(mid, code), codeEnc: seal(mid, code), status: '활동', createdAt: util.now() });
+    store.append('members', { id: mid, studentId: String(q.studentId), name: uniqName(q.name, String(q.studentId)), role: '마스터', codeHash: hash(mid, code), codeEnc: seal(mid, code), status: '활동', createdAt: util.now() });
     var did = newId('d'), secret = util.token(32);
     store.append('devices', { id: did, memberId: mid, label: String(q.label || '').slice(0, 40), secretHash: hash(did, secret), status: '승인', confirm: '', shared: 'false', createdAt: util.now(), approvedAt: util.now(), approvedBy: '처음 설정', lastSeen: util.now() });
     setSetting('initializedAt', util.now());
@@ -108,7 +110,7 @@ function GajiCore(store, util, drive) {
     if (!name) err('bad', '이름을 넣어 주세요');
     limit('apply_' + sid, 5, 600);
     var ms = store.rows('members');
-    if (ms.some(function (m) { return m.studentId === sid && m.status === '활동'; })) err('dup', '이미 등록된 학번이에요. 기장님께 받은 개인 코드로 들어가 주세요');
+    if (ms.some(function (m) { return m.studentId === sid && m.status === '활동'; })) err('dup', '이미 가입된 학번이에요: ' + (ms.filter(function (m) { return m.studentId === sid && m.status === '활동'; })[0] || {}).name + '. 기장님께 받은 개인 코드로 들어가 주세요');
     if (ms.filter(function (m) { return m.status === '신청'; }).length >= 100) err('busy', '가입 신청이 너무 많이 쌓였어요. 기장님께 알려 주세요');
     var mem = ms.filter(function (m) { return m.studentId === sid && m.status === '신청'; })[0];
     name = uniqName(name, sid, mem && mem.id);
@@ -756,7 +758,7 @@ function GajiCore(store, util, drive) {
     var sid = String(q.studentId || '').trim(), name = String(q.name || '').trim().slice(0, 20);
     if (!sid || !name) err('bad', '학번과 이름을 넣어 주세요');
     var all = store.rows('members');
-    if (all.some(function (m) { return m.studentId === sid && m.status === '활동'; })) err('dup', '이미 있는 학번이에요');
+    var dupm = all.filter(function (m) { return m.studentId === sid && m.status === '활동'; })[0]; if (dupm) err('dup', '이미 가입된 부원이에요: ' + dupm.name);
     if (all.some(function (m) { return m.studentId === sid && m.status === '신청'; })) err('dup', '초대 링크로 가입 신청한 학번이에요. 부원 · 기기의 승인 기다리는 기기에서 승인해 주세요');
     name = uniqName(name, sid);
     var id = newId('m'), code = digits(4);

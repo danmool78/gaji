@@ -22,7 +22,7 @@ const util = {
   now: () => new Date(clock).toISOString(), today: () => new Date(clock).toISOString().slice(0, 10),
   random: Math.random, token: (n) => crypto.randomBytes(n).toString('base64url').slice(0, n),
   sha256: (s) => crypto.createHash('sha256').update(s).digest('hex'),
-  bool: (v) => v === true || v === 'true', lock: (fn) => fn(), hit: (k, n) => { HITS[k] = (HITS[k] || 0) + 1; return !HITS.strict || HITS[k] <= n; }, secret: () => 'test-secret-123', links: () => ({ sheet: 'https://docs.google.com/spreadsheets/d/X/edit', script: 'https://script.google.com/home/projects/S/edit' }), backupList: () => BKF.slice(), backupPeek: (id) => ({ exp: 2, comments: 0, files: 0 }), restore: (id, names) => { RS.push({ id, names }); store._t.nodes = [{ id: 'old1', type: 'exp', title: '되살린 실험', owner: '정다온' }]; return { name: '가지 데이터 백업 X' }; }, backup: (o) => { BK.push(o); if (BK.fail) throw new Error('drive 꽉 참'); return { folder: 'https://drive/backup', kept: 3, mailed: o.mail ? 'ki…@x.kr' : undefined }; }
+  bool: (v) => v === true || v === 'true', lock: (fn) => fn(), hit: (k, n) => { HITS[k] = (HITS[k] || 0) + 1; return !HITS.strict || HITS[k] <= n; }, secret: () => 'test-secret-123', links: () => ({ sheet: 'https://docs.google.com/spreadsheets/d/X/edit', script: 'https://script.google.com/home/projects/S/edit' }), backupList: () => BKF.slice(), backupPeek: (id) => ({ exp: 2, comments: 0, files: 0 }), restore: (id, names) => { RS.push({ id, names }); store._t.nodes = [{ id: 'old1', type: 'exp', title: '되살린 실험', owner: '정다온(20399)' }]; return { name: '가지 데이터 백업 X' }; }, backup: (o) => { BK.push(o); if (BK.fail) throw new Error('drive 꽉 참'); return { folder: 'https://drive/backup', kept: 3, mailed: o.mail ? 'ki…@x.kr' : undefined }; }
 };
 // 가짜 드라이브: 폴더 · 파일을 메모리에
 const DRIVE = { files: {}, folders: {}, perm: true, n: 0 };
@@ -44,7 +44,7 @@ ok('unknown action', call({ action: 'hack' }).code === 'unknown');
 
 // 준비
 const KEY = 'k'.repeat(10) + 'MASTERKEY1234567890';
-const init = call({ action: 'init', slug: 'bio-lab', name: '김승엽', studentId: '20301', label: 'iPad', masterKey: KEY });
+const init = call({ action: 'init', slug: 'bio-lab', name: '김승엽(20301)', studentId: '20301', label: 'iPad', masterKey: KEY });
 ok('init', init.ok && /^\d{4}$/.test(init.data.code), init);
 const M = init.data.device;
 ok('init twice', call({ action: 'init', slug: 'x', name: 'a', studentId: '1' }).code === 'already');
@@ -52,19 +52,19 @@ ok('master load', call({ action: 'load', device: M }).data.me.role === '마스�
 ok('bad secret', call({ action: 'load', device: { id: M.id, secret: 'x' } }).code === 'no_device');
 
 // 부원 추가 → 가입 → 대기 → 승인
-const add = call({ action: 'addMember', device: M, studentId: '20315', name: '이하늘' });
+const add = call({ action: 'addMember', device: M, studentId: '20315', name: '이하늘(20315)' });
 ok('addMember', add.ok && /^\d{4}$/.test(add.data.code), add);
 ok('dup member', call({ action: 'addMember', device: M, studentId: '20315', name: 'x' }).code === 'dup');
 const wrong = add.data.code === '0000' ? '1111' : '0000';
 ok('wrong code', call({ action: 'register', studentId: '20315', code: wrong }).code === 'wrong');
 const reg = call({ action: 'register', studentId: '20315', code: add.data.code, label: 'Galaxy' });
-ok('register', reg.ok && reg.data.name === '이하늘' && /^\d{4}$/.test(reg.data.confirm), reg);
+ok('register', reg.ok && reg.data.name === '이하늘(20315)' && /^\d{4}$/.test(reg.data.confirm), reg);
 const S = reg.data.device;
 ok('status pending', call({ action: 'status', device: S }).data.status === '대기');
 ok('pending cannot load', call({ action: 'load', device: S }).code === 'pending');
 ok('member cannot approve', call({ action: 'approve', device: S, id: S.id }).code === 'pending');
 const gd = call({ action: 'getDevice', device: M, id: S.id });
-ok('getDevice', gd.ok && gd.data.member === '이하늘' && gd.data.confirm === reg.data.confirm, gd);
+ok('getDevice', gd.ok && gd.data.member === '이하늘(20315)' && gd.data.confirm === reg.data.confirm, gd);
 ok('approve wrong confirm', call({ action: 'approve', device: M, id: S.id, confirm: '99999' }).code === 'confirm');
 ok('approve', call({ action: 'approve', device: M, id: S.id, confirm: reg.data.confirm }).ok);
 ok('status approved', call({ action: 'status', device: S }).data.status === '승인');
@@ -77,7 +77,7 @@ ok('sync numbers', s1.ok && s1.data.assigned.n1 === 1 && s1.data.assigned.n2 ===
 let L = call({ action: 'load', device: S }).data;
 const n1 = L.nodes.find((n) => n.id === 'n1');
 ok('member verdict stripped on create', n1.verdict === '', n1);
-ok('createdBy', n1.createdBy === '이하늘');
+ok('createdBy', n1.createdBy === '이하늘(20315)');
 ok('links saved', L.links.length === 1 && L.lines.yeast === '효모');
 setRule('approvePeers', 0); setRule('approveTeacher', 'none');   // 이 시험은 승인 없이 진행 (review 숫자로 승인을 흉내 낼 수 없게 막았으므로)
 ['계획 작성', '검토 중', '준비 중'].forEach((st) => call({ action: 'sync', device: S, nodes: [{ id: 'n1', title: '효모 발효', status: st }] }));
@@ -92,7 +92,7 @@ ok('next exp number', call({ action: 'sync', device: S, nodes: [{ id: 'n3', type
 ok('dup link ignored', (call({ action: 'sync', device: S, links: [{ s: 'n2', t: 'n1', k: 'q' }, { s: 'n1', t: 'n1', k: 'rel' }, { s: 'n1', t: 'n3', k: 'evil' }] }), call({ action: 'load', device: S }).data.links.length === 1));
 
 // 비공개 실험
-call({ action: 'sync', device: M, nodes: [{ id: 'p1', type: 'exp', title: '대회 준비', owner: '김승엽', private: 'true' }] });
+call({ action: 'sync', device: M, nodes: [{ id: 'p1', type: 'exp', title: '대회 준비', owner: '김승엽(20301)', private: 'true' }] });
 ok('private hidden from member', !call({ action: 'load', device: S }).data.nodes.some((n) => n.id === 'p1'));
 ok('private visible to admin', call({ action: 'load', device: M }).data.nodes.some((n) => n.id === 'p1'));
 
@@ -110,7 +110,7 @@ ok('self block', call({ action: 'block', device: S, id: reg2.data.device.id }).o
 ok('blocked device', call({ action: 'load', device: reg2.data.device }).code === 'blocked');
 
 // 잠금
-const add2 = call({ action: 'addMember', device: M, studentId: '20320', name: '박별' });
+const add2 = call({ action: 'addMember', device: M, studentId: '20320', name: '박별(20320)' });
 const w2 = add2.data.code === '0000' ? '1111' : '0000';
 for (let i = 0; i < 5; i++) call({ action: 'register', studentId: '20320', code: w2 });
 ok('locked after 5', call({ action: 'register', studentId: '20320', code: add2.data.code }).code === 'locked');
@@ -141,7 +141,7 @@ ok('suspend', call({ action: 'setMember', device: M, id: add2.data.id, status: '
 ok('suspended cannot register', call({ action: 'register', studentId: '20320', code: add2.data.code }).code === 'wrong');
 
 // 모든 기기 로그아웃
-const add3 = call({ action: 'addMember', device: M, studentId: '20330', name: '최온' });
+const add3 = call({ action: 'addMember', device: M, studentId: '20330', name: '최온(20330)' });
 const r3 = call({ action: 'register', studentId: '20330', code: add3.data.code });
 call({ action: 'approve', device: M, id: r3.data.device.id });
 ok('logoutAll', call({ action: 'logoutAll', device: M }).ok);
@@ -159,7 +159,7 @@ const mr = call({ action: 'masterRegister', masterKey: KEY, studentId: '20301', 
 ok('masterRegister existing master approved', mr.ok && call({ action: 'status', device: mr.data.device }).data.status === '승인', mr);
 const nm = call({ action: 'masterRegister', masterKey: KEY, studentId: '20401', label: 'iPad' });
 ok('new master needs name', nm.code === 'need_name');
-const nm2 = call({ action: 'masterRegister', masterKey: KEY, studentId: '20401', name: '새기장', label: 'iPad' });
+const nm2 = call({ action: 'masterRegister', masterKey: KEY, studentId: '20401', name: '새기장(20401)', label: 'iPad' });
 ok('handover: new master', nm2.ok && /^\d{4}$/.test(nm2.data.code));
 const roles = store._t.members.reduce((o, m) => (o[m.studentId] = m.role, o), {});
 ok('old master demoted', roles['20301'] === '관리자' && roles['20401'] === '마스터', roles);
@@ -167,7 +167,7 @@ store._t.settings.find((x) => x.key === 'masterKeyHash').value = '';
 ok('key reset via sheet', call({ action: 'masterRegister', masterKey: 'z'.repeat(24), studentId: '20401', label: 'x' }).ok);
 
 // 내 개인 코드 보기
-const add9 = call({ action: 'addMember', device: M, studentId: '20399', name: '정다온' });
+const add9 = call({ action: 'addMember', device: M, studentId: '20399', name: '정다온(20399)' });
 const r9 = call({ action: 'register', studentId: '20399', code: add9.data.code }); call({ action: 'approve', device: M, id: r9.data.device.id });
 const mc = call({ action: 'myCode', device: r9.data.device });
 ok('myCode returns own code', mc.ok && mc.data.code === add9.data.code, mc);
@@ -183,11 +183,11 @@ const mc2 = call({ action: 'myCode', device: r9b.data.device });
 ok('old code renewed', mc2.ok && mc2.data.renewed && /^\d{4}$/.test(mc2.data.code), mc2);
 ok('device kept after renew', call({ action: 'load', device: r9b.data.device }).ok);
 ok('new code works', call({ action: 'register', studentId: '20399', code: mc2.data.code }).ok);
-ok('ping version', call({ action: 'ping' }).data.version === '2.19.1');
+ok('ping version', call({ action: 'ping' }).data.version === '2.19.2');
 
 // 실수 되돌리기: 내가 10분 안에 옮긴 단계는 한 단계 되돌리기 가능
 setRule('approvePeers', 0); setRule('approveTeacher', 'none');
-call({ action: 'sync', device: M, nodes: [{ id: 'u1', type: 'exp', title: '되돌리기 시험', status: '검토 중', owner: '정다온', plan: PL, review: 2 }] });
+call({ action: 'sync', device: M, nodes: [{ id: 'u1', type: 'exp', title: '되돌리기 시험', status: '검토 중', owner: '정다온(20399)', plan: PL, review: 2 }] });
 call({ action: 'sync', device: r9b.data.device, nodes: [{ id: 'u1', title: '되돌리기 시험', status: '준비 중' }] });
 let ub = call({ action: 'sync', device: r9b.data.device, nodes: [{ id: 'u1', title: '되돌리기 시험', status: '검토 중' }] });
 ok('member undo own move within 10 min', ub.data.rejected.length === 0, ub);
@@ -217,12 +217,12 @@ ok('report edit saved', ld.report.summary === '고침', ld.report);
 // ===== 2.3.0: 계획서 · 삭제 · 댓글 · 검토 · 확정 잠금 · 연결 끊기 =====
 const MEM = r9b.data.device;               // 부원 정다온
 const ADM = M;                             // 마스터
-call({ action: 'sync', device: MEM, nodes: [{ id: 'b1', type: 'exp', title: '레몬 전지 전극', status: '계획 작성', owner: '정다온', plan: { purpose: '전극 금속에 따른 전압', steps: ['레몬 자르기', '전극 꽂기'] } }] });
+call({ action: 'sync', device: MEM, nodes: [{ id: 'b1', type: 'exp', title: '레몬 전지 전극', status: '계획 작성', owner: '정다온(20399)', plan: { purpose: '전극 금속에 따른 전압', steps: ['레몬 자르기', '전극 꽂기'] } }] });
 let L2 = call({ action: 'load', device: ADM }).data;
 ok('plan saved as object', L2.nodes.find((n) => n.id === 'b1').plan.steps[1] === '전극 꽂기');
 // 삭제: 남의 것은 못 지움, 내 것 · 관리자는 지움
-call({ action: 'addMember', device: ADM, studentId: '20500', name: '오세린' });
-const cs = call({ action: 'addMember', device: ADM, studentId: '20501', name: '한결' });
+call({ action: 'addMember', device: ADM, studentId: '20500', name: '오세린(20500)' });
+const cs = call({ action: 'addMember', device: ADM, studentId: '20501', name: '한결(20501)' });
 const rr = call({ action: 'register', studentId: '20501', code: cs.data.code }); call({ action: 'approve', device: ADM, id: rr.data.device.id });
 const OTH = rr.data.device;
 let sy = call({ action: 'sync', device: OTH, nodes: [{ id: 'b1', title: '레몬 전지 전극', deleted: 'true' }] });
@@ -250,20 +250,20 @@ ok('one approval per person', call({ action: 'load', device: ADM }).data.comment
 const c2 = call({ action: 'comment', device: OTH, node: 'b1', text: '좋아요' }).data.comment.id;
 ok('admin deletes any comment', call({ action: 'comment', device: ADM, op: 'delete', id: c2 }).ok && !call({ action: 'load', device: ADM }).data.comments.some((c) => c.id === c2));
 // 비공개 실험 댓글은 못 봄
-call({ action: 'sync', device: ADM, nodes: [{ id: 'p9', type: 'exp', title: '비공개', owner: '김승엽', private: 'true' }] });
+call({ action: 'sync', device: ADM, nodes: [{ id: 'p9', type: 'exp', title: '비공개', owner: '김승엽(20301)', private: 'true' }] });
 call({ action: 'comment', device: ADM, node: 'p9', text: '비밀' });
 ok('private comments hidden', !call({ action: 'load', device: OTH }).data.comments.some((c) => c.node === 'p9'));
 ok('cannot comment on hidden private', call({ action: 'comment', device: OTH, node: 'p9', text: 'x' }).code === 'bad');
 // 보고서 확정: 부원은 확정 못 함, 확정 뒤 부원 수정 막힘, 관리자는 가능
-sy = call({ action: 'sync', device: MEM, nodes: [{ id: 'b1', title: '레몬 전지 전극', report: { summary: 'a', final: { by: '정다온' } } }] });
+sy = call({ action: 'sync', device: MEM, nodes: [{ id: 'b1', title: '레몬 전지 전극', report: { summary: 'a', final: { by: '정다온(20399)' } } }] });
 ok('member cannot finalize', sy.data.rejected.includes('b1:final'), sy);
-call({ action: 'sync', device: ADM, nodes: [{ id: 'b1', title: '레몬 전지 전극', report: { summary: 'a', final: { by: '김승엽' } } }] });
+call({ action: 'sync', device: ADM, nodes: [{ id: 'b1', title: '레몬 전지 전극', report: { summary: 'a', final: { by: '김승엽(20301)' } } }] });
 sy = call({ action: 'sync', device: MEM, nodes: [{ id: 'b1', title: '레몬 전지 전극', plan: { purpose: '바꿈' } }] });
 ok('locked after final', sy.data.rejected.includes('b1:final'), sy);
 sy = call({ action: 'sync', device: ADM, nodes: [{ id: 'b1', title: '레몬 전지 전극', report: { summary: 'a' } }] });
 ok('admin unlocks', sy.data.rejected.length === 0);
 // 연결 끊기 · 다시 잇기 (가지 옮기기)
-call({ action: 'sync', device: MEM, nodes: [{ id: 'b2', type: 'exp', title: '레몬 직렬', owner: '정다온' }], links: [{ s: 'b1', t: 'b2', k: 'next' }] });
+call({ action: 'sync', device: MEM, nodes: [{ id: 'b2', type: 'exp', title: '레몬 직렬', owner: '정다온(20399)' }], links: [{ s: 'b1', t: 'b2', k: 'next' }] });
 ok('link made', call({ action: 'load', device: ADM }).data.links.some((l) => l.s === 'b1' && l.t === 'b2'));
 sy = call({ action: 'sync', device: OTH, links: [{ s: 'b1', t: 'b2', k: 'next', off: true }] });
 ok('other cannot unlink', sy.data.rejected.includes('b2:unlink'), sy);
@@ -306,13 +306,13 @@ ok('no drive object → no_drive', noDrive.handle({ action: 'upload', device: ME
 // ===== 2.5.0: 자동 보관 =====
 const nowSave = clock;
 clock = Date.parse('2025-09-10T03:00:00Z');   // 지난 학년도
-call({ action: 'sync', device: ADM, nodes: [{ id: 'a1', type: 'exp', title: '작년 산화 환원 실험', status: '기록 완료', owner: '정다온', plan: { purpose: '작년 목적: 산화막 확인', steps: ['a', 'b'] }, report: { summary: '작년 결과', final: null, claim: '가설 지지' } },
-  { id: 'a2', type: 'exp', title: '작년 이어서 실험', status: '기록 완료', owner: '정다온', plan: { purpose: '이어진 실험', steps: ['a'] }, report: RP },
-  { id: 'a3', type: 'exp', title: '작년 시작 · 올해 진행 중', status: '기록 완료', owner: '정다온', plan: { purpose: '진행 중 가지의 뿌리', steps: ['a'] }, report: RP }],
+call({ action: 'sync', device: ADM, nodes: [{ id: 'a1', type: 'exp', title: '작년 산화 환원 실험', status: '기록 완료', owner: '정다온(20399)', plan: { purpose: '작년 목적: 산화막 확인', steps: ['a', 'b'] }, report: { summary: '작년 결과', final: null, claim: '가설 지지' } },
+  { id: 'a2', type: 'exp', title: '작년 이어서 실험', status: '기록 완료', owner: '정다온(20399)', plan: { purpose: '이어진 실험', steps: ['a'] }, report: RP },
+  { id: 'a3', type: 'exp', title: '작년 시작 · 올해 진행 중', status: '기록 완료', owner: '정다온(20399)', plan: { purpose: '진행 중 가지의 뿌리', steps: ['a'] }, report: RP }],
   links: [{ s: 'a1', t: 'a2', k: 'next' }] });
 call({ action: 'comment', device: OTH, node: 'a1', kind: 'fix', text: '작년 첨삭: 단위 확인' });
 clock = Date.parse('2026-11-20T03:00:00Z');   // 올해
-call({ action: 'sync', device: ADM, nodes: [{ id: 'a4', type: 'exp', title: '올해 진행 중', status: '준비 중', owner: '정다온', plan: PL }, { id: 'a5', type: 'exp', title: '올해 끝난 실험', status: '기록 완료', owner: '정다온', plan: { purpose: '올해', steps: ['a'] }, report: RP }], links: [{ s: 'a3', t: 'a4', k: 'next' }] });
+call({ action: 'sync', device: ADM, nodes: [{ id: 'a4', type: 'exp', title: '올해 진행 중', status: '준비 중', owner: '정다온(20399)', plan: PL }, { id: 'a5', type: 'exp', title: '올해 끝난 실험', status: '기록 완료', owner: '정다온(20399)', plan: { purpose: '올해', steps: ['a'] }, report: RP }], links: [{ s: 'a3', t: 'a4', k: 'next' }] });
 ok('tidy: small data → nothing moved', call({ action: 'tidy', device: MEM }).data.moved === 0);
 ok('tidy: once a day', call({ action: 'tidy', device: MEM }).data.reason === 'today');
 store._t.settings.find((x) => x.key === 'tidyAt').value = '';
@@ -343,20 +343,20 @@ clock = nowSave;
 
 
 // ===== 2.6.0: 남의 실험은 못 고침 · 함께하는 사람 =====
-call({ action: 'sync', device: MEM, nodes: [{ id: 't1', type: 'exp', title: '정다온의 실험', status: '계획 작성', owner: '정다온', plan: { purpose: '원래 목적' } }, { id: 't2', type: 'idea', title: '정다온의 아이디어', status: '아이디어', fans: 1 }] });
+call({ action: 'sync', device: MEM, nodes: [{ id: 't1', type: 'exp', title: '정다온의 실험', status: '계획 작성', owner: '정다온(20399)', plan: { purpose: '원래 목적' } }, { id: 't2', type: 'idea', title: '정다온의 아이디어', status: '아이디어', fans: 1 }] });
 let ts = call({ action: 'sync', device: OTH, nodes: [{ id: 't1', title: '정다온의 실험', plan: { purpose: '남이 고침' } }] });
 ok('other member cannot edit plan', ts.data.rejected.includes('t1:team') && call({ action: 'load', device: ADM }).data.nodes.find((n) => n.id === 't1').plan.purpose === '원래 목적', ts);
 ts = call({ action: 'sync', device: OTH, nodes: [{ id: 't1', title: '정다온의 실험', status: '검토 중' }] });
 ok('other member cannot move stage', ts.data.rejected.includes('t1:team'));
 ts = call({ action: 'sync', device: OTH, nodes: [{ id: 't1', title: '정다온의 실험', report: { summary: '남이 쓴 결과' } }] });
 ok('other member cannot write results', ts.data.rejected.includes('t1:team'));
-ts = call({ action: 'sync', device: OTH, nodes: [{ id: 't2', title: '정다온의 아이디어', fans: 2, volunteer: '한결' }] });
-ok('anyone: idea 같이 해요 · 담당 지원(본인)', ts.data.rejected.length === 0 && call({ action: 'load', device: ADM }).data.nodes.find((n) => n.id === 't2').volunteer === '한결', ts);
-ts = call({ action: 'sync', device: OTH, nodes: [{ id: 't2', title: '정다온의 아이디어', volunteer: '정다온' }] });
+ts = call({ action: 'sync', device: OTH, nodes: [{ id: 't2', title: '정다온의 아이디어', fans: 2, volunteer: '한결(20501)' }] });
+ok('anyone: idea 같이 해요 · 담당 지원(본인)', ts.data.rejected.length === 0 && call({ action: 'load', device: ADM }).data.nodes.find((n) => n.id === 't2').volunteer === '한결(20501)', ts);
+ts = call({ action: 'sync', device: OTH, nodes: [{ id: 't2', title: '정다온의 아이디어', volunteer: '정다온(20399)' }] });
 ok('cannot volunteer someone else', ts.data.rejected.includes('t2:team'));
-ts = call({ action: 'sync', device: OTH, nodes: [{ id: 't1', title: '정다온의 실험', team: ['한결'] }] });
+ts = call({ action: 'sync', device: OTH, nodes: [{ id: 't1', title: '정다온의 실험', team: ['한결(20501)'] }] });
 ok('other cannot add self to team', ts.data.rejected.includes('t1:team'));
-ts = call({ action: 'sync', device: MEM, nodes: [{ id: 't1', title: '정다온의 실험', team: ['한결'] }] });
+ts = call({ action: 'sync', device: MEM, nodes: [{ id: 't1', title: '정다온의 실험', team: ['한결(20501)'] }] });
 ok('owner adds team member', ts.data.rejected.length === 0);
 ts = call({ action: 'sync', device: OTH, nodes: [{ id: 't1', title: '정다온의 실험', plan: { purpose: '함께 고침' } }] });
 ok('team member can edit', ts.data.rejected.length === 0 && call({ action: 'load', device: ADM }).data.nodes.find((n) => n.id === 't1').plan.purpose === '함께 고침', ts);
@@ -366,7 +366,7 @@ ts = call({ action: 'sync', device: ADM, nodes: [{ id: 't1', title: '정다온�
 ok('admin can edit any', ts.data.rejected.length === 0);
 call({ action: 'sync', device: MEM, nodes: [{ id: 't1', title: '정다온의 실험', private: 'true' }] });
 ok('private visible to team', call({ action: 'load', device: OTH }).data.nodes.some((n) => n.id === 't1'));
-const add5 = call({ action: 'addMember', device: ADM, studentId: '20599', name: '남궁민' }); const r5 = call({ action: 'register', studentId: '20599', code: add5.data.code }); call({ action: 'approve', device: ADM, id: r5.data.device.id });
+const add5 = call({ action: 'addMember', device: ADM, studentId: '20599', name: '남궁민(20599)' }); const r5 = call({ action: 'register', studentId: '20599', code: add5.data.code }); call({ action: 'approve', device: ADM, id: r5.data.device.id });
 ok('private hidden from non-team', !call({ action: 'load', device: r5.data.device }).data.nodes.some((n) => n.id === 't1'));
 ok('non-team can still comment on public', call({ action: 'comment', device: r5.data.device, node: 't2', text: '저도 해 보고 싶어요' }).ok);
 
@@ -384,7 +384,7 @@ store._t.settings.forEach((x) => { if (x.key === 'tidyAt') x.value = ''; });
 tb = call({ action: 'tidy', device: OTH }); ok('no backup again within a week', !tb.data.backup && BK.length === b0 + 1);
 clock += 8 * 864e5; store._t.settings.forEach((x) => { if (x.key === 'tidyAt') x.value = ''; });
 tb = call({ action: 'tidy', device: OTH }); ok('no backup after a week if nothing changed', !tb.data.backup);
-call({ action: 'sync', device: MEM, nodes: [{ id: 'k1', type: 'exp', title: '백업 시험 실험', owner: '정다온' }] });
+call({ action: 'sync', device: MEM, nodes: [{ id: 'k1', type: 'exp', title: '백업 시험 실험', owner: '정다온(20399)' }] });
 store._t.settings.forEach((x) => { if (x.key === 'tidyAt') x.value = ''; });
 tb = call({ action: 'tidy', device: OTH }); ok('backup after a week with changes', tb.data.backup && tb.data.backup.ok && BK.length === b0 + 2);
 ok('backupInfo admin only', call({ action: 'backupInfo', device: OTH }).code === 'not_admin' && call({ action: 'backupInfo', device: ADM }).data.mail === true);
@@ -420,7 +420,7 @@ ok('no restore if pre-backup fails', call({ action: 'restore', device: ADM, id: 
 
 
 // ===== 2.9.0: 단계 규칙 (내용 없이 못 넘어감) =====
-call({ action: 'sync', device: MEM, nodes: [{ id: 's1', type: 'exp', title: '빈 실험', status: '계획 작성', owner: '정다온' }] });
+call({ action: 'sync', device: MEM, nodes: [{ id: 's1', type: 'exp', title: '빈 실험', status: '계획 작성', owner: '정다온(20399)' }] });
 let sg = call({ action: 'sync', device: MEM, nodes: [{ id: 's1', title: '빈 실험', status: '검토 중' }] });
 ok('no plan → cannot ask review', sg.data.rejected.includes('s1:stage:plan') && call({ action: 'load', device: ADM }).data.nodes.find((n) => n.id === 's1').status === '계획 작성', sg);
 ok('admin also needs plan', call({ action: 'sync', device: ADM, nodes: [{ id: 's1', title: '빈 실험', status: '검토 중' }] }).data.rejected.includes('s1:stage:plan'));
@@ -436,7 +436,7 @@ ok('no result → cannot finish', call({ action: 'sync', device: MEM, nodes: [{ 
 ok('result without conclusion → cannot finish', call({ action: 'sync', device: MEM, nodes: [{ id: 's1', title: '빈 실험', report: { summary: '값' }, status: '기록 완료' }] }).data.rejected.includes('s1:stage:result'));
 sg = call({ action: 'sync', device: MEM, nodes: [{ id: 's1', title: '빈 실험', report: RP, status: '기록 완료' }] });
 ok('result + conclusion → 기록 완료', !sg.data.rejected.length && call({ action: 'load', device: ADM }).data.nodes.find((n) => n.id === 's1').status === '기록 완료', sg);
-sg = call({ action: 'sync', device: MEM, nodes: [{ id: 's2', type: 'exp', title: '처음부터 완료라고', status: '기록 완료', owner: '정다온' }] });
+sg = call({ action: 'sync', device: MEM, nodes: [{ id: 's2', type: 'exp', title: '처음부터 완료라고', status: '기록 완료', owner: '정다온(20399)' }] });
 ok('new empty exp cannot start as 기록 완료', call({ action: 'load', device: ADM }).data.nodes.find((n) => n.id === 's2').status === '계획 작성', sg);
 store._t.settings.push({ key: 'approveSkip', value: 'on' });
 ok('admin may skip review when rule allows (with plan)', (() => { call({ action: 'sync', device: ADM, nodes: [{ id: 's3', type: 'exp', title: '관리자 실험', status: '계획 작성', plan: PL }] }); call({ action: 'sync', device: ADM, nodes: [{ id: 's3', title: '관리자 실험', status: '검토 중' }] }); return !call({ action: 'sync', device: ADM, nodes: [{ id: 's3', title: '관리자 실험', status: '준비 중' }] }).data.rejected.length; })());
@@ -445,17 +445,17 @@ ok('admin may skip review when rule allows (with plan)', (() => { call({ action:
 // ===== 2.10.0: 동아리별 승인 규칙 (기본: 팀 밖 부원 2명 → 선생님 최종 승인) =====
 store._t.settings = store._t.settings.filter((x) => !/^approve/.test(x.key));
 const MST = nm2.data.device;   // 지금 마스터 (새기장)
-call({ action: 'sync', device: MEM, nodes: [{ id: 'x1', type: 'exp', title: '팀 실험', status: '계획 작성', owner: '정다온', team: ['한결'], plan: PL }] });
+call({ action: 'sync', device: MEM, nodes: [{ id: 'x1', type: 'exp', title: '팀 실험', status: '계획 작성', owner: '정다온(20399)', team: ['한결(20501)'], plan: PL }] });
 call({ action: 'sync', device: MEM, nodes: [{ id: 'x1', title: '팀 실험', status: '검토 중' }] });
 ok('load has default rules', JSON.stringify(call({ action: 'load', device: MEM }).data.rules) === JSON.stringify({ peers: 2, team: false, teacher: 'final', skip: false, expTeacher: true, expLeader: true }));
 ok('teammate cannot approve (default)', call({ action: 'comment', device: OTH, node: 'x1', kind: 'approve' }).code === 'team');
 ok('owner cannot approve own', call({ action: 'comment', device: MEM, node: 'x1', kind: 'approve' }).code === 'self');
-const tc = call({ action: 'addMember', device: ADM, studentId: 'T001', name: '홍교사' });
+const tc = call({ action: 'addMember', device: ADM, studentId: 'T001', name: '홍교사(T001)' });
 const sm = call({ action: 'setMember', device: MST, id: tc.data.id, role: '교사' }); ok('master sets 교사 role', sm.ok, sm);
 const tr = call({ action: 'register', studentId: 'T001', code: tc.data.code }); call({ action: 'approve', device: ADM, id: tr.data.device.id }); const TCH = tr.data.device;
 ok('teacher cannot approve before peers', call({ action: 'comment', device: TCH, node: 'x1', kind: 'approve' }).code === 'order');
 call({ action: 'comment', device: ADM, node: 'x1', kind: 'approve' });
-const p3 = call({ action: 'addMember', device: ADM, studentId: '30001', name: '서지우' }); const p3r = call({ action: 'register', studentId: '30001', code: p3.data.code }); call({ action: 'approve', device: ADM, id: p3r.data.device.id });
+const p3 = call({ action: 'addMember', device: ADM, studentId: '30001', name: '서지우(30001)' }); const p3r = call({ action: 'register', studentId: '30001', code: p3.data.code }); call({ action: 'approve', device: ADM, id: p3r.data.device.id });
 call({ action: 'comment', device: p3r.data.device, node: 'x1', kind: 'approve' });
 ok('2 peers but no teacher → blocked', call({ action: 'sync', device: MEM, nodes: [{ id: 'x1', title: '팀 실험', status: '준비 중' }] }).data.rejected.includes('x1:stage:teacher'));
 ok('admin cannot skip (default)', call({ action: 'sync', device: ADM, nodes: [{ id: 'x1', title: '팀 실험', status: '준비 중' }] }).data.rejected.length > 0);
@@ -466,23 +466,23 @@ ok('member cannot change rules', call({ action: 'rulesSet', device: OTH, peers: 
 ok('admin(not master) cannot change rules', call({ action: 'rulesSet', device: ADM, peers: 0 }).code === 'not_master');
 ok('bad peers', call({ action: 'rulesSet', device: MST, peers: 9 }).code === 'bad');
 let R = call({ action: 'rulesSet', device: TCH, peers: 1, team: true }); ok('teacher changes rules', R.ok && R.data.peers === 1 && R.data.team === true, R);
-call({ action: 'sync', device: MEM, nodes: [{ id: 'x2', type: 'exp', title: '규칙 바꾼 뒤', status: '계획 작성', owner: '정다온', team: ['한결'], plan: PL }] }); call({ action: 'sync', device: MEM, nodes: [{ id: 'x2', title: '규칙 바꾼 뒤', status: '검토 중' }] });
+call({ action: 'sync', device: MEM, nodes: [{ id: 'x2', type: 'exp', title: '규칙 바꾼 뒤', status: '계획 작성', owner: '정다온(20399)', team: ['한결(20501)'], plan: PL }] }); call({ action: 'sync', device: MEM, nodes: [{ id: 'x2', title: '규칙 바꾼 뒤', status: '검토 중' }] });
 ok('teammate approves when allowed', call({ action: 'comment', device: OTH, node: 'x2', kind: 'approve' }).ok);
 ok('teacher after 1 peer', call({ action: 'comment', device: TCH, node: 'x2', kind: 'approve' }).ok && !call({ action: 'sync', device: MEM, nodes: [{ id: 'x2', title: '규칙 바꾼 뒤', status: '준비 중' }] }).data.rejected.length);
 R = call({ action: 'rulesSet', device: MST, peers: 2, team: false, teacher: 'none' }); ok('master: no teacher needed', R.data.teacher === 'none');
-call({ action: 'sync', device: MEM, nodes: [{ id: 'x3', type: 'exp', title: '선생님 없이', status: '계획 작성', owner: '정다온', plan: PL }] }); call({ action: 'sync', device: MEM, nodes: [{ id: 'x3', title: '선생님 없이', status: '검토 중' }] });
+call({ action: 'sync', device: MEM, nodes: [{ id: 'x3', type: 'exp', title: '선생님 없이', status: '계획 작성', owner: '정다온(20399)', plan: PL }] }); call({ action: 'sync', device: MEM, nodes: [{ id: 'x3', title: '선생님 없이', status: '검토 중' }] });
 call({ action: 'comment', device: ADM, node: 'x3', kind: 'approve' }); call({ action: 'comment', device: p3r.data.device, node: 'x3', kind: 'approve' });
 ok('teacher none → 2 peers enough', !call({ action: 'sync', device: MEM, nodes: [{ id: 'x3', title: '선생님 없이', status: '준비 중' }] }).data.rejected.length);
 call({ action: 'rulesSet', device: MST, teacher: 'final' });
-call({ action: 'sync', device: MEM, nodes: [{ id: 'x4', type: 'exp', title: '처음부터 준비 중', status: '준비 중', owner: '정다온', plan: PL }] });
+call({ action: 'sync', device: MEM, nodes: [{ id: 'x4', type: 'exp', title: '처음부터 준비 중', status: '준비 중', owner: '정다온(20399)', plan: PL }] });
 ok('member new exp cannot start at 준비 중', call({ action: 'load', device: ADM }).data.nodes.find((n) => n.id === 'x4').status === '검토 중');
 
 
 // ===== 2.11.0: 변경 기록 · 되돌리기 =====
-call({ action: 'sync', device: MEM, nodes: [{ id: 'hx', type: 'exp', title: '기록 시험', status: '계획 작성', owner: '정다온', plan: { purpose: '처음 목적', steps: ['a'] } }] });
+call({ action: 'sync', device: MEM, nodes: [{ id: 'hx', type: 'exp', title: '기록 시험', status: '계획 작성', owner: '정다온(20399)', plan: { purpose: '처음 목적', steps: ['a'] } }] });
 call({ action: 'sync', device: MEM, nodes: [{ id: 'hx', title: '기록 시험', plan: { purpose: '고친 목적', steps: ['a'] } }] });
 let hs = call({ action: 'history', device: OTH, node: 'hx' });
-ok('history recorded (before → after)', hs.ok && hs.data.list.length === 1 && hs.data.list[0].field === 'plan' && /처음 목적/.test(hs.data.list[0].before) && /고친 목적/.test(hs.data.list[0].after) && hs.data.list[0].by === '정다온', hs);
+ok('history recorded (before → after)', hs.ok && hs.data.list.length === 1 && hs.data.list[0].field === 'plan' && /처음 목적/.test(hs.data.list[0].before) && /고친 목적/.test(hs.data.list[0].after) && hs.data.list[0].by === '정다온(20399)', hs);
 call({ action: 'sync', device: MEM, nodes: [{ id: 'hx', title: '기록 시험', plan: { purpose: '또 고친 목적', steps: ['a'] } }] });
 hs = call({ action: 'history', device: OTH, node: 'hx' }).data.list;
 ok('same person within 10 min → merged (first before kept)', hs.length === 1 && /처음 목적/.test(hs[0].before) && /또 고친 목적/.test(hs[0].after));
@@ -491,7 +491,7 @@ clock += 11 * 60000;
 const rv = call({ action: 'revert', device: MEM, id: hs[0].id });
 ok('owner reverts', rv.ok && call({ action: 'load', device: ADM }).data.nodes.find((n) => n.id === 'hx').plan.purpose === '처음 목적', rv);
 ok('revert is recorded too', call({ action: 'history', device: OTH, node: 'hx' }).data.list.length === 2);
-call({ action: 'sync', device: MEM, nodes: [{ id: 'hp', type: 'exp', title: '비밀', owner: '정다온', private: 'true' }] });
+call({ action: 'sync', device: MEM, nodes: [{ id: 'hp', type: 'exp', title: '비밀', owner: '정다온(20399)', private: 'true' }] });
 call({ action: 'sync', device: MEM, nodes: [{ id: 'hp', title: '비밀 2' }] });
 ok('private item history hidden from others', call({ action: 'history', device: OTH, node: 'hp' }).code === 'bad');
 ok('history needs device', call({ action: 'history', node: 'hx' }).ok === false);
@@ -500,7 +500,7 @@ ok('history needs device', call({ action: 'history', node: 'hx' }).ok === false)
 // ===== 2.12.0: 보안 (공격 흉내) =====
 let sx = call({ action: 'sync', device: MEM, nodes: [{ id: 'x" onmouseover="alert(1)', type: 'exp', title: '나쁜 번호' }] });
 ok('bad id rejected', !call({ action: 'load', device: ADM }).data.nodes.some((n) => n.title === '나쁜 번호'), sx);
-call({ action: 'sync', device: MEM, nodes: [{ id: 'sx1', type: 'exp', title: '<img src=x onerror=alert(1)>제목', field: '해킹', status: '<b>', date: '2026-13-99"', owner: '정다온', verdict: '<script>', desc: '<script>alert(1)</script>' }] });
+call({ action: 'sync', device: MEM, nodes: [{ id: 'sx1', type: 'exp', title: '<img src=x onerror=alert(1)>제목', field: '해킹', status: '<b>', date: '2026-13-99"', owner: '정다온(20399)', verdict: '<script>', desc: '<script>alert(1)</script>' }] });
 let nx = call({ action: 'load', device: ADM }).data.nodes.find((n) => n.id === 'sx1');
 ok('tags stripped · bad enums dropped', nx && !/[<>]/.test(nx.title + nx.desc) && nx.field !== '해킹' && nx.status !== '<b>' && nx.date !== '2026-13-99"' && !nx.verdict, nx);
 sx = call({ action: 'sync', device: MEM, nodes: [{ id: 'sx1', title: 'x', plan: { purpose: 'a'.repeat(50000), steps: ['b'] } }] });
@@ -541,7 +541,7 @@ ok('I delete my event', !call({ action: 'eventSet', device: OTH, op: 'delete', i
 
 
 // ===== 2.15.0: 실험일 (승인 끝난 내 실험만, 모두에게) =====
-call({ action: 'sync', device: MEM, nodes: [{ id: 'ed1', type: 'exp', title: '실험일 시험', status: '계획 작성', owner: '정다온', plan: PL }] });
+call({ action: 'sync', device: MEM, nodes: [{ id: 'ed1', type: 'exp', title: '실험일 시험', status: '계획 작성', owner: '정다온(20399)', plan: PL }] });
 ok('not approved yet → refused', call({ action: 'eventSet', device: MEM, scope: 'exp', node: 'ed1', date: '2026-11-30' }).code === 'not_ready');
 store._t.nodes.find((n) => n.id === 'ed1').status = '준비 중';
 ok('other member cannot post my experiment day', call({ action: 'eventSet', device: OTH, scope: 'exp', node: 'ed1', date: '2026-11-30' }).code === 'not_mine');
@@ -588,28 +588,28 @@ ok('invite: member cannot make link', call({ action: 'invite', device: MEM, op: 
 let iv = call({ action: 'invite', device: ADM, op: 'make' });
 ok('invite: admin makes link', iv.ok && iv.data.invite.length >= 12, iv);
 const INV = iv.data.invite;
-ok('apply: wrong link refused', call({ action: 'apply', invite: 'nope', studentId: '30101', name: '새부원' }).code === 'invite_off');
-let ap = call({ action: 'apply', invite: INV, studentId: '30101', name: '새부원', label: '폰' });
+ok('apply: wrong link refused', call({ action: 'apply', invite: 'nope', studentId: '30101', name: '새부원(30101)' }).code === 'invite_off');
+let ap = call({ action: 'apply', invite: INV, studentId: '30101', name: '새부원(30101)', label: '폰' });
 ok('apply: creates pending device', ap.ok && ap.data.device.id && ap.data.confirm.length === 4, ap);
 const NEW = ap.data.device;
 ok('apply: status shows pending', call({ action: 'status', device: NEW }).data.status === '대기');
 const pl = call({ action: 'load', device: NEW }); ok('apply: pending cannot load', !pl.ok, pl.code);
-ok('apply: not in member list before approval', !call({ action: 'load', device: MEM }).data.members.some((m) => m.name === '새부원'));
+ok('apply: not in member list before approval', !call({ action: 'load', device: MEM }).data.members.some((m) => m.name === '새부원(30101)'));
 let pp = call({ action: 'people', device: ADM }).data;
 ok('people: shows invite + applied flag', pp.invite === INV && pp.devices.some((d) => d.id === NEW.id && d.applied));
 ok('apply: active student id refused', call({ action: 'apply', invite: INV, studentId: pp.members.find((m) => m.status === '활동' && m.role === '부원').studentId, name: 'x' }).code === 'dup');
 let av = call({ action: 'approve', device: ADM, id: NEW.id });
 ok('approve: applicant becomes member with code', av.ok && av.data.joined && /^\d{4}$/.test(av.data.code), av);
 ok('approve: new member can load', call({ action: 'load', device: NEW }).ok);
-ok('approve: in member list', call({ action: 'load', device: MEM }).data.members.some((m) => m.name === '새부원'));
+ok('approve: in member list', call({ action: 'load', device: MEM }).data.members.some((m) => m.name === '새부원(30101)'));
 // 거절
-let ap2 = call({ action: 'apply', invite: INV, studentId: '30102', name: '거절될사람', label: '폰' });
+let ap2 = call({ action: 'apply', invite: INV, studentId: '30102', name: '거절될사람(30102)', label: '폰' });
 ok('reject: block pending applicant', call({ action: 'block', device: ADM, id: ap2.data.device.id }).ok);
 ok('reject: applicant status rejected', call({ action: 'status', device: ap2.data.device }).code === 'member_off');
-ok('reject: shows in people as 거절', call({ action: 'people', device: ADM }).data.members.some((m) => m.name === '거절될사람' && m.status === '거절'));
+ok('reject: shows in people as 거절', call({ action: 'people', device: ADM }).data.members.some((m) => m.name === '거절될사람(30102)' && m.status === '거절'));
 // 끄기
 ok('invite: off', call({ action: 'invite', device: ADM, op: 'off' }).data.invite === '');
-ok('apply: refused after off', call({ action: 'apply', invite: INV, studentId: '30103', name: '늦은사람' }).code === 'invite_off');
+ok('apply: refused after off', call({ action: 'apply', invite: INV, studentId: '30103', name: '늦은사람(30103)' }).code === 'invite_off');
 ok('invite: new link differs', call({ action: 'invite', device: ADM, op: 'make' }).data.invite !== INV);
 
 
@@ -622,7 +622,7 @@ ok('load has no self rev', !call({ action: 'load', device: ADM }).rev);
 
 // ===== 2.18.2: 시스템 현황 숫자 =====
 const sysStat = call({ action: 'stats', device: ADM });
-ok('stats: numbers only', sysStat.ok && typeof sysStat.data.done === 'number' && typeof sysStat.data.running === 'number' && typeof sysStat.data.devices === 'number' && /^\d{4}-\d\d-\d\d$|^$/.test(sysStat.data.lastEdit) && sysStat.data.core === '2.19.1', sysStat.data);
+ok('stats: numbers only', sysStat.ok && typeof sysStat.data.done === 'number' && typeof sysStat.data.running === 'number' && typeof sysStat.data.devices === 'number' && /^\d{4}-\d\d-\d\d$|^$/.test(sysStat.data.lastEdit) && sysStat.data.core === '2.19.2', sysStat.data);
 ok('stats: no names', !JSON.stringify(sysStat.data).match(/[가-힣]{2,}/));
 ok('stats: member refused', call({ action: 'stats', device: MEM }).code === 'not_admin');
 
@@ -655,11 +655,11 @@ ok('stats: member refused', call({ action: 'stats', device: MEM }).code === 'not
   ok('member cannot create final report', !JSON.stringify(store._t.nodes.find((n) => n.id === 'xf1').report || {}).includes('"final":true'));
   // 6 · 7. 같은 이름 · 학번 막기
   const iv2 = call({ action: 'invite', device: ADM, op: 'make' }).data.invite;
-  { const sa = call({ action: 'apply', invite: iv2, studentId: '40001', name: meM.name }); ok('apply: same name gets 학번 attached', sa.ok && sa.data.name === meM.name + '(40001)', sa); }
+  { const sa = call({ action: 'apply', invite: iv2, studentId: '40001', name: meM.name }); ok('apply: name always gets 학번', sa.ok && sa.data.name === meM.name.replace(/\(.*\)$/, '') + '(40001)', sa); }
   const apA = call({ action: 'apply', invite: iv2, studentId: '40002', name: '동명이인시험' });
   ok('addMember: sid with pending application refused', call({ action: 'addMember', device: ADM, studentId: '40002', name: '다른이름' }).code === 'dup');
   const am = call({ action: 'addMember', device: ADM, studentId: '40003', name: '동명이인시험' });
-  ok('addMember: name free → kept', am.ok && am.data.name === '동명이인시험', am);
+  ok('addMember: name gets 학번', am.ok && am.data.name === '동명이인시험(40003)', am);
   const av2 = call({ action: 'approve', device: ADM, id: apA.data.device.id });
   ok('approve: same name → 학번 attached', av2.ok && store._t.members.some((m) => m.name === '동명이인시험(40002)' && m.status === '활동'), av2);
   ok('addMember: same name → 학번 attached', call({ action: 'addMember', device: ADM, studentId: '40004', name: '동명이인시험' }).data.name === '동명이인시험(40004)');
