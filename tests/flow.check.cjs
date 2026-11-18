@@ -65,7 +65,7 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) process
   await p.fill('#prepAdd [name=t]', '여분 레몬 1개'); await click('#prepAdd [type=submit]');
   ok((await p.inputValue('#prepAdd [name=t]')) === '', '추가 뒤 입력 칸 비움');
   for (let i = 0; i < 14; i++) { const x = await p.$$('[data-act=prepToggle]:not(.on)'); if (!x.length) break; await x[0].click(); await p.waitForTimeout(30); }
-  t = await body(); ok(t.includes('준비 끝') && t.includes('출발 신호 5/5'), '준비 끝 · 출발 신호 5/5'); await shot('04-prep');
+  t = await body(); ok(t.includes('준비 끝') && t.includes('준비 100%'), '준비 끝 · 준비 100%'); await shot('04-prep');
   // 4. 진행 도우미
   await click('[data-act=runOpen]'); t = await body(); ok(t.includes('진행 도우미') || t.includes('시작 '), '진행 도우미 열림');
   await click('[data-act=stepToggle][data-i="0"]'); await click('[data-act=stepToggle][data-i="1"]');

@@ -547,7 +547,7 @@
     if (n.type === 'res') return ['t-neutral', n.status || '자료'];
     if (n.status === '취소') return ['t-neutral', '취소'];
     if (n.status === '기록 완료') return n.verdict === '가설 기각' ? ['t-bad', '가설 기각'] : ['t-ok', n.verdict || '기록 완료'];
-    if (n.status === '준비 중') { const s = signalOf(n); return s >= 5 ? ['t-ok', '● GO'] : (days(n.date) <= 7 ? ['t-bad', '● 위험 ' + s + '/5'] : ['t-warn', '● 준비 ' + s + '/5']); }
+    if (n.status === '준비 중') { const s = prepPct(n); return s >= 100 ? ['t-ok', '● GO'] : (days(n.date) <= 7 ? ['t-bad', '● 급함 ' + s + '%'] : ['t-warn', '● 준비 ' + s + '%']); }
     if (n.status === '검토 중') { const k = reviewCount(n), P = rules().peers; return reviewDone(n) ? ['t-ok', '승인 끝'] : k < P ? ['t-warn', '검토 ' + k + '/' + P] : ['t-warn', '선생님 승인 대기']; }
     if (n.status === '실험 완료') return ['t-warn', '기록 대기'];
     return ['t-neutral', n.status];
@@ -681,7 +681,7 @@
   function todos() {
     const out = [];
     alive().forEach((n) => {
-      if (n.type === 'exp' && n.status === '준비 중' && (n.signal || 0) < 5 && days(n.date) <= 14) out.push({ n, why: '실험 ' + (days(n.date) >= 0 ? 'D-' + days(n.date) : '날짜 지남') + ' · 출발 신호 ' + (n.signal || 0) + '/5', w: days(n.date) });
+      if (n.type === 'exp' && n.status === '준비 중' && prepPct(n) < 100 && days(n.date) <= 14) out.push({ n, why: '실험 ' + (days(n.date) >= 0 ? 'D-' + days(n.date) : '날짜 지남') + ' · 준비 ' + prepPct(n) + '%', w: days(n.date) });
       if (n.type === 'exp' && n.status === '검토 중' && planReady(n.plan) && reviewCount(n) < rules().peers) out.push({ n, why: '검토할 부원이 ' + (rules().peers - reviewCount(n)) + '명 더 필요해요', w: days(n.date) - 3 });
       if (n.type === 'q' && n.status !== '해결') out.push({ n, why: '함께 답을 찾아 주세요', w: 10 });
       if (n.type === 'idea' && ready(n).every(Boolean)) out.push({ n, why: '계획서로 바꿀 수 있어요', w: 6 });
@@ -1260,6 +1260,7 @@
   const PREP_BASE = ['실험 장소 · 시간 정하기', '안전 장비 (보안경 · 장갑)', '결과 기록 표 미리 만들기', '역할 나누기', '선생님께 알리기'];
   function prepItems(n) { const p = n.plan || {}, x = n.prep || {}; return (p.materials || []).map((m) => '준비물: ' + m).concat(PREP_BASE, x.extra || []); }
   function prepState(n) { const items = prepItems(n), done = (n.prep && n.prep.done) || {}; const k = items.filter((i) => done[i]).length; return { items, done, k, total: items.length }; }
+  const prepPct = (n) => { if (!n.plan) return Math.round((+n.signal || 0) * 20); const s = prepState(n); return s.total ? Math.round(100 * s.k / s.total) : 0; };   // 준비 몇 %
   const signalOf = (n) => { if (!n.plan) return +n.signal || 0; const s = prepState(n); return s.total ? Math.round(5 * s.k / s.total) : 0; };
 
   /* ---------- 단계 표시줄 + 지금 할 일 ---------- */
@@ -1365,7 +1366,7 @@
   function prepCard(n) {
     if (n.type !== 'exp' || !['준비 중', '실험 완료', '기록 완료'].includes(n.status)) return '';
     const s = prepState(n), edit = n.status === '준비 중' && canEdit(n);
-    return '<div class="card sec-card"><div class="sec-head"><b>준비 점검</b><span class="muted">' + s.k + '/' + s.total + ' · 출발 신호 ' + signalOf(n) + '/5</span></div>' +
+    return '<div class="card sec-card"><div class="sec-head"><b>준비 점검</b><span class="muted">' + s.k + '/' + s.total + ' · 준비 ' + prepPct(n) + '%</span></div>' +
       '<div class="meter"><i style="width:' + (s.total ? Math.round(100 * s.k / s.total) : 0) + '%"></i></div>' +
       '<div class="checks">' + s.items.map((it) => '<button type="button" class="ck' + (s.done[it] ? ' on' : '') + '" data-act="prepToggle" data-pi="' + esc(it) + '"' + (edit ? '' : ' disabled') + '><span class="box">' + (s.done[it] ? '✓' : '') + '</span><span>' + esc(it) + '</span>' + (s.done[it] && s.done[it] !== true ? '<small>' + md(s.done[it]) + '</small>' : '') + '</button>').join('') + '</div>' +
       (edit ? '<form id="prepAdd" class="inline-add"><input name="t" maxlength="60" placeholder="챙길 것 추가 (예: 여분 전선)"><button type="submit" class="chipbtn">추가</button></form>' : '') + '</div>';
