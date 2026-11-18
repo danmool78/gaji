@@ -851,3 +851,6 @@ details.sup-box[open] .sup-last { display: none; }
 .warn-pre ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .warn-pre { background: #2A2010; border-color: #6B4A12; } :root:not([data-theme="light"]) .warn-pre > b { color: #F5C26B; } }
 :root[data-theme="dark"] .warn-pre { background: #2A2010; border-color: #6B4A12; } :root[data-theme="dark"] .warn-pre > b { color: #F5C26B; }
+.warn-no { display: inline-block; margin-top: 4px; font-weight: 800; color: #B42318; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .warn-no { color: #FF8A80; } }
+:root[data-theme="dark"] .warn-no { color: #FF8A80; }
