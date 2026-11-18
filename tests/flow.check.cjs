@@ -42,7 +42,11 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) process
   await shot('02-plan-saved');
   // 2. 검토 요청 → 승인 · 수정 요청 → 고치기
   await click('[data-act=askReview]'); t = await body(); ok(t.includes('검토 중 · 부원 0/2 · 선생님 대기'), '검토 중');
-  const who = async (name) => { await click('#demoPill'); await click('#sheet [data-act=demoMe][data-name^="' + name + '"]'); };
+  let ITEM = null;   // 체험 인물을 바꾸면 처음 화면으로 가므로, 만든 실험을 다시 엶
+  const reopen = async () => { await click('.tabs [data-tab="find"]'); await p.fill('#q', '전극 금속'); await p.waitForTimeout(120);
+    if (!ITEM) ITEM = await p.$$eval('.day-list .srow[data-item]', (a) => (a.map((x) => x.dataset.item).find((id) => !/^[a-z]+\d+$/.test(id)) || null));
+    await click('.day-list [data-item="' + ITEM + '"]'); };
+  const who = async (name) => { if (!ITEM) await reopen(); await click('#demoPill'); await click('#sheet [data-act=demoMe][data-name^="' + name + '"]'); await reopen(); };
   ok(!(await p.$('[data-act=approve]')), '내 실험은 내가 승인 못 함');
   await who('홍교사');
   await click('[data-act=fixNote]'); await p.selectOption('#sheet .cm-add [name=sec]', 'plan.ctrl'); await p.fill('#sheet .cm-add [name=text]', '통제 변인에 레몬 온도(실온)도 넣어 주세요');

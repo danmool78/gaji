@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.23.0';
+var GAJI_CONNECTOR_VERSION = '2.23.1';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
@@ -323,7 +323,8 @@ function GajiCore(store, util, drive) {
       else if (Object.prototype.hasOwnProperty.call(GAJI_JSON, k)) { if (typeof v === 'string' && v !== '') { try { v = JSON.parse(v); } catch (e) { return; } if (!v || typeof v !== 'object') return; }   // 글자로 보낸 JSON도 풀어서 같은 검사
         if (v == null || v === '') o[k] = v; else { var sv = typeof v === 'string' ? v : JSON.stringify(v); if (sv.length > JSON_MAX) { if (bad) bad.push(c.id + ':big'); } else o[k] = v; } }
     });
-    return o.title === undefined ? null : o;
+    if (o.title === '') delete o.title;   // 빈 제목은 바꾸지 않음
+    return o;   // 새 항목은 sync 에서 제목을 따로 확인
   }
   // 너무 잦은 요청 막기 (기기 · 학번마다 일정 시간에 몇 번까지)
   function limit(key, n, sec) { if (util.hit && !util.hit(key, n, sec)) err('slow', '요청이 너무 많아요. 잠시 뒤 다시 해 주세요'); }
@@ -396,7 +397,8 @@ function GajiCore(store, util, drive) {
       var parentLine = function (id) { var l = store.rows('links').filter(function (x) { return x.t === id && (x.k === 'next' || x.k === 'follow') && !util.bool(x.off) && preIds[x.s]; }).pop(); if (!l) return null; return lineNow[l.s] !== undefined ? lineNow[l.s] : (byId[l.s] || {}).line; };   // 저장돼 있던 연결 · 원래 있던 부모만
       rows.forEach(function (r) { byId[r.id] = r; });
       (q.nodes || []).slice(0, 50).forEach(function (c0) {
-        var c = cleanIn(c0, rejected); if (!c || !c.title) return;
+        var c = cleanIn(c0, rejected); if (!c) return;
+        if (!byId[c.id] && !c.title) return;   // 새 항목은 제목이 있어야 (이미 있는 항목은 바뀐 칸만 옴)
         if (assigned[c.id]) return;   // 같은 묶음에서 방금 만든 것 (다음 저장에서 고침)
         var old = byId[c.id];
         if (old && util.bool(old.private) && !admin && !inTeam(old, me)) { rejected.push(old.id + ':team'); return; }   // 볼 수 없는 비공개 항목 (보관에서 꺼내기 전에)

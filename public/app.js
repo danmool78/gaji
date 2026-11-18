@@ -219,13 +219,14 @@
   function applyLoad(d) {
     PF.me = d.me; PF.rev = d.rev; PF.rules = d.rules || null; PF.board = d.notice || null; PF.events = d.events || []; PF.newDevices = (d.newDevices || []).filter((x) => !(prefs.seenDev || []).includes(x.id));
     db = { settings: db.settings, nodes: d.nodes.map(fixNode), links: d.links, lines: d.lines || {}, lastNo: d.lastNo || { exp: 0, q: 0, res: 0 }, comments: d.comments || [], files: d.files || [] }; PF.members = d.members || [];
-    PF.base = snapshot(); PF.mode = 'live';
+    PF.base = snapshot(); PF.mode = 'live'; PF.loadGen = (PF.loadGen || 0) + 1;
   }
   async function liveLoad(fromServer) {
     try {
       if (!fromServer && PF.mode === 'live' && PF.base && dirty()) await doSync();
       const d = await rpc('load');
-      if (!fromServer && PF.mode === 'live' && PF.base && dirty()) { await doSync(); return liveLoad(); }   // 기다리는 사이 고친 것이 있으면 먼저 보내고 다시
+      if (PF.busy) { scheduleSync(); return; }   // 보내는 중이면 그 결과가 다시 맞춤
+      if (PF.mode === 'live' && PF.base && dirty()) { await doSync(); return liveLoad(); }   // 기다리는 사이 고친 것이 있으면 먼저 보내고 다시
       applyLoad(d); putCache(d); PF.refreshing = false; PF.notice = ''; render(); pollRev(); tidyLater();
       masterExtras();
       if (PF.approveId) { const id = PF.approveId; PF.approveId = null; history.replaceState(null, '', location.pathname); openApprove(id); }
@@ -250,18 +251,21 @@
   async function doSync() {
     if (PF.mode !== 'live') return; if (PF.busy) return scheduleSync();
     const d = dirty(); if (!d) return;
-    const full = d.nodes.map((n) => JSON.parse(JSON.stringify(n)));
-    const sent = full.map((n) => { const b0 = PF.base.nodes[n.id]; if (!b0) return n; const b = JSON.parse(b0), o = { id: n.id, title: n.title };   // 이미 있는 항목: 바뀐 칸만
+    const depth = (n) => { let k = 0, p = parentOf(n); while (p && k < 50) { k++; p = parentOf(p); } return k; };
+    const full = d.nodes.slice().sort((a, b) => depth(a) - depth(b)).map((n) => JSON.parse(JSON.stringify(n)));   // 부모 먼저
+    const gen = PF.loadGen || 0;
+    const sent = full.map((n) => { const b0 = PF.base.nodes[n.id]; if (!b0) return n; const b = JSON.parse(b0), o = { id: n.id };   // 이미 있는 항목: 바뀐 칸만 (제목도 바뀌었을 때만)
       Object.keys(n).forEach((k) => { if (JSON.stringify(n[k]) !== JSON.stringify(b[k])) o[k] = n[k]; }); Object.keys(b).forEach((k) => { if (!(k in n)) o[k] = null; }); return o; }), links = d.links.map((l) => ({ s: l.s, t: l.t, k: l.k })).concat(d.unlinks), lines = Object.assign({}, db.lines);
     PF.busy = true; applyBrand();
     try {
       const r = await rpc('sync', { nodes: sent, links, lines });
       PF.busy = false;
-      if (r.rejected && r.rejected.length) { const rj = r.rejected.join(' '); toast(/:stage:teacher/.test(rj) ? '지도 선생님이 승인해야 준비를 시작할 수 있어요' : /:stage:plan/.test(rj) ? '계획서(목적 · 방법)를 먼저 다 써야 다음 단계로 갈 수 있어요' : /:stage:review/.test(rj) ? '다른 부원 2명이 승인해야 준비를 시작할 수 있어요' : /:stage:result/.test(rj) ? '결과와 결론을 기록해야 기록 완료가 돼요' : /:stage/.test(rj) ? '단계는 하나씩, 내용을 채운 뒤에 넘어갈 수 있어요' : /:team/.test(rj) ? '담당 · 함께하는 사람 · 기장 · 선생님만 고칠 수 있어요' : /:final/.test(rj) ? '확정된 보고서예요 · 운영진이 확정을 풀어야 고칠 수 있어요' : '결과 판정 · 취소 · 단계 되돌리기는 운영진만 할 수 있어요'); }   // 서버 상태로 맞추는 건 아래에서 (다시 보내지 않음)
+      if (r.rejected && r.rejected.length) { const rj = r.rejected.join(' '); toast(/:stage:teacher/.test(rj) ? '지도 선생님이 승인해야 준비를 시작할 수 있어요' : /:stage:plan/.test(rj) ? '계획서(목적 · 방법)를 먼저 다 써야 다음 단계로 갈 수 있어요' : /:stage:review/.test(rj) ? '다른 부원 2명이 승인해야 준비를 시작할 수 있어요' : /:stage:result/.test(rj) ? '결과와 결론을 기록해야 기록 완료가 돼요' : /:stage/.test(rj) ? '단계는 하나씩, 내용을 채운 뒤에 넘어갈 수 있어요' : /:big/.test(rj) ? '내용이 너무 길어서 저장하지 못했어요 (한 칸 4만 자까지)' : /:fan/.test(rj) ? '이미 같이 해요를 눌렀어요' : /:name/.test(rj) ? '명단에 없는 이름이라 저장하지 못했어요' : /:link|:unlink/.test(rj) ? '그 항목과는 연결할 수 없어요' : /:delete/.test(rj) ? '만든 사람 · 담당 · 운영진만 지울 수 있어요' : /:cancel/.test(rj) ? '취소 · 되살리기는 운영진만 할 수 있어요' : /:status/.test(rj) ? '단계는 하나씩만 되돌릴 수 있어요 (10분 안에 내가 옮긴 것만)' : /:team/.test(rj) ? '담당 · 함께하는 사람 · 기장 · 선생님만 고칠 수 있어요' : /:final/.test(rj) ? '확정된 보고서예요 · 운영진이 확정을 풀어야 고칠 수 있어요' : '결과 판정 · 취소 · 단계 되돌리기는 운영진만 할 수 있어요'); }   // 서버 상태로 맞추는 건 아래에서 (다시 보내지 않음)
+      if ((PF.loadGen || 0) !== gen) { render(); return liveLoad(); }   // 보내는 사이 서버 내용을 새로 받았으면: 남은 차이를 다시 맞춤
       full.forEach((s) => { const no = r.assigned && r.assigned[s.id]; const n = byId(s.id); if (no) { s.no = no; if (n) n.no = no; } PF.base.nodes[s.id] = JSON.stringify(s); });
       links.forEach((l) => (l.off ? PF.base.links.delete(lkey(l)) : PF.base.links.add(lkey(l)))); PF.base.lines = JSON.stringify(lines);
       render();   // rev 는 rpc 가 '내 변경만'일 때만 맞춤 (그 사이 남이 바꾼 것을 놓치지 않게)
-      if (r.rejected && r.rejected.length) { liveLoad(true); return; }   // 막힌 내용은 서버 상태로 다시 맞춤 (다시 보내지 않음)
+      if (r.rejected && r.rejected.length) { liveLoad(!dirty()); return; }   // 막힌 내용은 서버 상태로 (그 사이 새로 고친 것이 있으면 먼저 보냄)
       if (dirty()) scheduleSync();
     } catch (e) { PF.busy = false; applyBrand(); if (!deviceLost(e)) { toast('저장하지 못했어요 · 잠시 뒤 다시 보낼게요'); clearTimeout(scheduleSync.t); scheduleSync.t = setTimeout(doSync, 8000); } }
   }
@@ -1389,7 +1393,7 @@
     rpc('archived', { ids: [id] }, null, { quiet: true }).then((r) => {
       const it = r.items && r.items[id], n = byId(id); if (!n) return;
       if (it) { Object.assign(n, it.data || {}); const have = new Set(allComments().map((c) => c.id)); (it.comments || []).forEach((c) => { if (!have.has(c.id)) allComments().push(c); }); }
-      delete n.arch; n._full = true; if (PF.base) PF.base.nodes[id] = JSON.stringify(n); render();
+      delete n.arch; n._full = true; if (PF.base && PF.base.nodes[id]) { const b = JSON.parse(PF.base.nodes[id]); Object.assign(b, (it && it.data) || {}); delete b.arch; b._full = true; PF.base.nodes[id] = JSON.stringify(b); } render();
     }, (e) => { if (!deviceLost(e)) toast('보관된 기록을 불러오지 못했어요'); }).finally(() => { delete PF.archLoading[id]; });
   }
   const archWait = (n) => { fetchArchived(n.id); return '<div class="card empty loading-line">' + SPIN + '지난 기록을 불러오는 중…</div>'; };

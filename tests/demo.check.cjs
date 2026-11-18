@@ -29,6 +29,7 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) process
   // 홍교사로 바꿔 댓글
   await click('#demoPill'); await click('#sheet [data-act=demoMe][data-name^="홍교사"]');
   ok((await p.textContent('#demoPill')).includes('홍교사'), '홍교사로 바꿈');
+  await click('.tabs [data-tab="find"]'); await p.fill('#q', '병렬'); await p.waitForTimeout(100); await click('.day-list .srow');   // 인물을 바꾸면 처음 화면으로
   await p.fill('#comments .cm-add [name=text]', '연결 그림을 넣으면 승인할게요'); await click('#comments .cm-add button[value=note]');
   t = await body(); ok(t.includes('연결 그림을 넣으면') && /홍교사[\s\S]{0,40}연결 그림을 넣으면/.test(t), '홍교사 이름으로 댓글');
   // 승인 규칙(기본): 부원 2명 → 선생님 최종 승인. 부원 1명뿐이면 선생님도 못 함
