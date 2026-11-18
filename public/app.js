@@ -214,7 +214,7 @@
     if (PF.isMaster && PF.api && !PF.statsSent) { PF.statsSent = true; rpc('stats', null, null, { quiet: true }).then((st) => PF.api.saveStats(st)).catch(() => {}); }
   }
   function applyLoad(d) {
-    PF.me = d.me; PF.rev = d.rev; PF.rules = d.rules || null; PF.notice = d.notice || null; PF.events = d.events || []; PF.newDevices = (d.newDevices || []).filter((x) => !(prefs.seenDev || []).includes(x.id));
+    PF.me = d.me; PF.rev = d.rev; PF.rules = d.rules || null; PF.board = d.notice || null; PF.events = d.events || []; PF.newDevices = (d.newDevices || []).filter((x) => !(prefs.seenDev || []).includes(x.id));
     db = { settings: db.settings, nodes: d.nodes.map(fixNode), links: d.links, lines: d.lines || {}, lastNo: d.lastNo || { exp: 0, q: 0, res: 0 }, comments: d.comments || [], files: d.files || [] }; PF.members = d.members || [];
     PF.base = snapshot(); PF.mode = 'live';
   }
@@ -732,7 +732,7 @@
       '<span class="hof-k">' + c.k + '</span><b class="hof-v">' + c.v + '</b>' + (c.n ? '<span class="hof-t">' + fieldTag(c.n) + esc(c.n.title) + '</span>' : '<span class="hof-t"><b>' + esc(c.who) + '</b></span>') + '<small class="muted">' + (c.n ? esc(c.s) : c.s) + '</small></button>').join('') + '</div></section>';
   }
   /* 공지판: 하나뿐인 판 · 기장 · 관리자 · 선생님만 쓰고 고침 · 바뀌면 15초 안에 모두의 화면에 */
-  const curNotice = () => PF.mode === 'live' ? PF.notice : db.notice || null;
+  const curNotice = () => PF.mode === 'live' ? PF.board : db.notice || null;   // 공지판 (PF.notice 는 들어가기 화면 안내 문구라 따로)
   function noticeBoard() {
     const nt = curNotice(), ed = isAdmin();
     if (!nt && !ed) return '';
@@ -749,7 +749,7 @@
   }
   async function noticeSave(text) {
     text = String(text || '').trim();
-    if (PF.mode === 'live') { try { PF.notice = (await rpc('noticeSet', { text })).notice; } catch (e) { if (!deviceLost(e)) toast(e.message); return; } }
+    if (PF.mode === 'live') { try { PF.board = (await rpc('noticeSet', { text })).notice; } catch (e) { if (!deviceLost(e)) toast(e.message); return; } }
     else { db.notice = text ? { text: text.slice(0, 1000), by: meName(), role: myRole(), at: nowIso() } : null; save(); }
     closeSheet(); render(); toast(text ? '공지를 올렸어요' : '공지를 지웠어요');
   }
