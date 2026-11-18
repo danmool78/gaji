@@ -196,8 +196,13 @@ async function systemPage() {
 }
 /* 시스템: 마스터 문의 (동아리별 대화 · 답장) */
 async function supportAdmin(rows) {
-  const all = (await getDocs(query(collectionGroup(db, 'support'), orderBy('at', 'desc'), limit(300))).catch((e) => ({ docs: [], err: e }))).docs || [];
-  const by = {}; all.forEach((d) => { const slug = d.ref.parent.parent.id; (by[slug] = by[slug] || []).push({ from: d.data().from, text: d.data().text, at: d.data().at && d.data().at.toDate ? d.data().at.toDate() : null }); });
+  // 동아리마다 따로 읽음 (모아 읽기 색인이 없어도 됨)
+  const by = {}, errs = [];
+  await Promise.all(rows.map(async (r) => {
+    try { const q = await getDocs(query(collection(db, 'clubs', r.id, 'support'), orderBy('at', 'desc'), limit(30)));
+      if (q.size) by[r.id] = q.docs.map((d) => ({ from: d.data().from, text: d.data().text, at: d.data().at && d.data().at.toDate ? d.data().at.toDate() : null })); }
+    catch (e) { errs.push(r.id + ': ' + (e.code || e.message || e)); }
+  }));
   const name = (slug) => ((rows.find((r) => r.id === slug) || {}).pub || {}).name || slug;
   const slugs = Object.keys(by).sort((a, b) => (by[b][0].at || 0) - (by[a][0].at || 0));
   const when = (t) => t ? t.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
@@ -205,7 +210,8 @@ async function supportAdmin(rows) {
     (slugs.length ? slugs.map((s) => '<div class="card sup-box"><div class="sup-h"><b>' + esc(name(s)) + '</b><span class="code muted">/c/' + esc(s) + '</span>' + (by[s][0].from === 'master' ? '<span class="badge t-warn">답장 필요</span>' : '') + '</div>' +
       '<div class="sup-thread">' + by[s].slice(0, 20).reverse().map((m) => '<div class="sup-msg ' + m.from + '"><p>' + esc(m.text).replace(/\n/g, '<br>') + '</p><small>' + (m.from === 'system' ? '가지' : '마스터') + ' · ' + when(m.at) + '</small></div>').join('') + '</div>' +
       '<form class="sup-form" data-sup="' + esc(s) + '"><textarea name="text" rows="2" maxlength="2000" required placeholder="답장 쓰기"></textarea><button type="submit" class="btn primary">답장</button></form></div>').join('')
-      : '<div class="card muted" style="font-size:14px">아직 문의가 없어요.</div>');
+      : '<div class="card muted" style="font-size:14px">아직 문의가 없어요.</div>') +
+    (errs.length ? '<div class="card" style="font-size:13px;color:var(--bad)">읽지 못한 동아리 ' + errs.length + '곳: ' + esc(errs.slice(0, 5).join(' / ')) + '</div>' : '');
 }
 
 document.addEventListener('submit', async (e) => {
