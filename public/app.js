@@ -1050,7 +1050,8 @@
     let h = '<div class="seg" role="group" aria-label="보기" style="grid-template-columns:repeat(3,1fr)"><button type="button" data-tmode="all" aria-pressed="' + (mode === 'all') + '">전체 가지</button><button type="button" data-tmode="line" aria-pressed="' + (mode === 'line') + '">줄기별</button><button type="button" data-tmode="date" aria-pressed="' + (mode === 'date') + '">날짜별</button></div>';
     if (mode === 'all') return h + viewAllBranches() + legendTip('tree');
     if (mode === 'line') {
-      const L = computeLines(), live = L.filter((l) => l.state !== 'done'), done = L.filter((l) => l.state === 'done');
+      const lastOf = (l) => l.rows.reduce((m, r) => { const d = String((r.n && (r.n.date || r.n.created)) || ''); return d > m ? d : m; }, '');   // 줄기에서 가장 최근 가지 날짜
+      const L = computeLines().slice().sort((a, b) => lastOf(b).localeCompare(lastOf(a))), live = L.filter((l) => l.state !== 'done'), done = L.filter((l) => l.state === 'done');   // 최근 가지가 있는 줄기가 위
       h += '<div class="grid2 wide3">' + live.map(lineCard).join('') + '</div>' || '<div class="card empty">아직 가지가 없어요. 홈에서 새 실험이나 아이디어를 올려 보세요.</div>';
       if (done.length) h += '<button type="button" class="fold" data-fold>' + (prefs.showDone ? '▾' : '▸') + ' 끝난 줄기 ' + done.length + '개</button>' + (prefs.showDone ? '<div class="grid2 wide3">' + done.map(lineCard).join('') + '</div>' : '');
     } else {
