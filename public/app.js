@@ -303,7 +303,7 @@
       const core = PF.connAuth === 'core';
       return gateCard('<div class="card gate-box"><b>연결하지 못했어요</b><p class="muted">' + esc(PF.error) + '</p>' +
         (core ? (PF.isMaster
-          ? '<div class="gate-note card" style="text-align:left;line-height:1.8;font-weight:400"><b>연결기 권한 허용이 필요해요 (마스터)</b><br>① 가지 데이터 시트 → 확장 프로그램 → <b>Apps Script</b><br>② 아래 <b>연결기 코드 복사</b> → 코드 전체 지우고 붙여 넣기 → <b>저장</b><br>③ 위쪽 <b>▷ 실행</b> 왼쪽 함수 목록에서 <b>권한허용</b> → <b>▷ 실행</b> → 권한 검토 → <b>고급 → …(으)로 이동 → 허용</b> <button type="button" class="chipbtn" data-act="authGuide">그림으로 보기</button><br>④ 아래 <b>실행 로그</b>에 ‘준비 완료’가 보이면 여기서 <b>다시 시도</b><br>빨간 오류가 보이면 그 화면을 캡처해 주세요.</div>' +
+          ? '<div class="gate-note card" style="text-align:left;line-height:1.8;font-weight:400"><b>연결기 권한 허용이 필요해요 (마스터)</b><br>① 가지 데이터 시트 → 확장 프로그램 → <b>Apps Script</b><br>② 아래 <b>연결기 코드 복사</b> → 코드 전체 지우고 붙여 넣기 → <b>저장</b><br>③ 위쪽 도구 줄 <b>디버그</b> 오른쪽 함수 칸에서 <b>권한허용</b>을 골라요<br>④ <b>▷ 실행</b>을 눌러요<br>⑤ <b>권한 검토</b> → 내 계정<br>⑥ <b>고급 → …(으)로 이동 → 허용</b> <button type="button" class="chipbtn" data-act="authGuide">그림으로 보기</button><br>⑦ 아래 <b>실행 로그</b>에 ‘준비 완료’가 보이면 여기서 <b>다시 시도</b><br>빨간 오류가 보이면 그 화면을 캡처해 주세요.</div>' +
             '<button type="button" class="btn" data-act="copyGs">연결기 코드 복사</button><textarea id="gsCode" class="gs-code" readonly spellcheck="false" style="height:90px">' + esc(PF.gs || '불러오는 중…') + '</textarea>'
           : '<p class="muted" style="font-size:13px">동아리 마스터가 연결기를 손보는 중이에요. 잠시 뒤 다시 열어 주세요.</p>') : '') +
         '<button type="button" class="btn primary" data-act="retry">다시 시도</button></div>');
@@ -336,6 +336,22 @@
         '<label class="field">내 이름 <span class="muted" style="font-weight:400">처음 쓰는 학번일 때만</span><input name="name" maxlength="20"></label>' +
         '<button type="submit" class="btn">마스터로 연결</button></form>'
         : (PF.api && !PF.isMaster ? '<button type="button" class="chipbtn" data-act="pfLogin">동아리 마스터라면 구글로 로그인</button>' : '')));
+  }
+
+  /* Apps Script 도구 줄 그림 (어디를 누르는지 빨간 테두리) */
+  function toolPic(k) {
+    const T = (x, y, txt, o) => '<text x="' + x + '" y="' + y + '" font-size="' + ((o && o.s) || 11) + '" font-weight="' + ((o && o.w) || 600) + '" fill="' + ((o && o.c) || '#475467') + '"' + (o && o.mid ? ' text-anchor="middle"' : '') + '>' + txt + '</text>';
+    const ring = (x, y, w, h) => '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="7" fill="none" stroke="#E5383B" stroke-width="3"/>';
+    const box = (h, inner) => '<svg viewBox="0 0 300 ' + h + '" class="ag-svg tool-svg" aria-hidden="true"><rect x="1" y="1" width="298" height="' + (h - 2) + '" rx="10" fill="#fff" stroke="#D0D5DD"/>' + inner + '</svg>';
+    if (k === 'review') return box(120, T(20, 30, '승인 필요', { s: 13, w: 700, c: '#1D2939' }) + '<rect x="20" y="44" width="230" height="7" rx="3.5" fill="#E4E7EC"/><rect x="20" y="58" width="190" height="7" rx="3.5" fill="#E4E7EC"/>' +
+      '<rect x="120" y="82" width="70" height="26" rx="6" fill="#fff" stroke="#D0D5DD"/>' + T(155, 99, '취소', { mid: 1 }) + '<rect x="200" y="82" width="80" height="26" rx="6" fill="#1A73E8"/>' + T(240, 99, '권한 검토', { mid: 1, c: '#fff' }) + ring(195, 77, 90, 36));
+    if (k === 'log') return box(96, T(14, 22, '실행 로그', { s: 12, w: 700, c: '#1D2939' }) + '<line x1="1" y1="32" x2="299" y2="32" stroke="#E4E7EC"/>' +
+      T(14, 52, '오후 3:02:11  알림  실행이 시작됨', { s: 10, w: 500 }) + T(14, 70, '오후 3:02:14  정보  가지 연결기 준비 완료 · 본체 2.23', { s: 10, w: 700, c: '#1F8F5A' }) + ring(8, 58, 284, 18) + T(14, 88, '오후 3:02:14  알림  실행이 완료됨', { s: 10, w: 500 }));
+    const fn = k === 'fn', bar = '<rect x="10" y="16" width="10" height="10" rx="2" fill="#D0D5DD"/><rect x="26" y="16" width="10" height="10" rx="2" fill="#D0D5DD"/><rect x="42" y="16" width="12" height="12" rx="2" fill="#98A2B3"/>' +
+      T(70, 27, '▷ 실행', { c: '#1D2939' }) + T(120, 27, '디버그') + '<rect x="160" y="11" width="86" height="22" rx="4" fill="#F2F4F7"/>' + T(168, 27, fn ? '권한허용 ▾' : '권한허용 ▾', { c: '#1D2939' }) + T(254, 27, '실행 로그', { s: 10 });
+    if (fn) return box(150, bar + ring(156, 7, 94, 30) + '<rect x="160" y="38" width="120" height="104" rx="6" fill="#fff" stroke="#D0D5DD"/>' +
+      T(170, 58, 'gajiCore_', { w: 500, s: 10 }) + T(170, 78, 'doPost', { w: 500, s: 10 }) + T(170, 98, 'doGet', { w: 500, s: 10 }) + '<rect x="163" y="106" width="114" height="22" rx="4" fill="#E8F0FE"/>' + T(170, 121, '권한허용', { w: 700, c: '#1A73E8' }) + ring(160, 103, 120, 28));
+    return box(46, bar + ring(62, 9, 50, 26));
   }
 
   /* 구글 '확인하지 않은 앱' 경고 넘기는 그림 안내 (직접 만든 연결기라 꼭 나오는 화면) */
@@ -532,14 +548,19 @@
         ? step(1, '가지 데이터 시트 만들기', '버튼을 누르면 구글이 ‘사본을 만드시겠어요?’라고 물어요. <b>사본 만들기</b>를 눌러요. 연결기가 이미 들어 있는 시트가 내 드라이브에 생겨요.',
             '<a class="btn primary" href="https://docs.google.com/spreadsheets/d/' + esc(tpl) + '/copy?title=' + encodeURIComponent('가지 데이터') + '" target="_blank" rel="noopener">가지 데이터 시트 만들기</a>' +
             '<span class="muted" style="font-size:12px">학교 공유 드라이브에 두고 싶으면, 만든 뒤 드라이브에서 그 공유 드라이브로 옮기면 돼요.</span>') +
-          step(2, 'Apps Script 열기', '방금 만든 시트에서 메뉴 <b>확장 프로그램 → Apps Script</b>. 코드가 이미 들어 있으니 <b>아무것도 고치지 않아요.</b> 그다음 위쪽 <b>▷ 실행</b> 왼쪽 함수 목록에서 <b>권한허용</b>을 고르고 <b>▷ 실행</b> → <b>권한 검토</b> → 내 계정 → 아래 그림처럼 허용해요.', authGuide())
+          step(2, 'Apps Script 열기', '방금 만든 시트에서 메뉴 <b>확장 프로그램 → Apps Script</b>를 눌러요.<br>코드가 이미 들어 있으니 <b>아무것도 고치지 않아요.</b>')
         : step(1, '가지 데이터 시트 만들기', '새 구글 시트를 만들고 이름을 <b>가지 데이터</b>로 바꿔요.', '<a class="btn" href="https://docs.google.com/spreadsheets/create" target="_blank" rel="noopener">새 시트 열기</a>') +
-          step(2, '연결기 코드 붙여 넣기', '시트 메뉴 <b>확장 프로그램 → Apps Script</b>. 원래 있던 코드를 모두 지우고 붙여 넣은 뒤 <b>저장</b>(Ctrl+S)해요. 그다음 위쪽 <b>▷ 실행</b> 왼쪽 함수 목록에서 <b>권한허용</b>을 고르고 <b>▷ 실행</b> → <b>권한 검토</b> → 내 계정 → 아래 그림처럼 허용해요.', codeBox + authGuide())) +
-      step(3, '배포 → 새 배포', 'Apps Script 화면 오른쪽 위 파란 <b>배포</b> 버튼 → <b>새 배포</b>.') +
-      step(4, '유형: 웹 앱', '‘유형 선택’ 옆 <b>톱니바퀴</b> → <b>웹 앱</b>.') +
-      step(5, '실행: 나 · 액세스: 모든 사용자', '두 칸을 그림처럼 고르고 <b>배포</b>. ‘모든 사용자’여야 부원 기기가 연결돼요 (로그인 없이 부원 기기용 · 코드와 승인으로 보호돼요).') +
-      step(6, '권한 허용', '<b>액세스 승인</b>이 나오면 → 내 계정 → 2단계와 같은 경고가 또 나오면 그때처럼 <b>고급 → …(으)로 이동 → 허용</b>. 큰 파란 버튼은 누르지 않아요.', '<button type="button" class="chipbtn" data-act="authGuide">그림 안내 다시 보기</button>') +
-      step(7, '웹 앱 URL 복사해서 붙여 넣기', '마지막 창의 <b>웹 앱 URL</b> 옆 <b>복사</b>를 누르고 아래에 붙여 넣어요.',
+          step(2, '연결기 코드 붙여 넣기', '시트 메뉴 <b>확장 프로그램 → Apps Script</b>를 열어요.<br>원래 있던 코드를 모두 지우고 붙여 넣은 뒤 <b>저장</b>(Ctrl+S)해요.', codeBox)) +
+      step(3, '함수 칸에서 ‘권한허용’ 고르기', '위쪽 도구 줄에서 <b>디버그</b> 오른쪽 함수 칸을 눌러요.<br>목록에서 <b>권한허용</b>을 골라요.', toolPic('fn')) +
+      step(4, '▷ 실행 누르기', '같은 줄의 <b>▷ 실행</b>을 눌러요.', toolPic('run')) +
+      step(5, '권한 검토 → 내 계정', '‘승인 필요’ 창이 뜨면 <b>권한 검토</b>를 눌러요.<br>그다음 <b>시트를 만든 내 구글 계정</b>을 골라요.', toolPic('review')) +
+      step(6, '경고 넘기고 허용', '‘확인되지 않은 앱’ 경고가 나와요. 그림 순서대로 눌러요.', authGuide()) +
+      step(7, '실행 로그 확인', '아래쪽 <b>실행 로그</b>에 <b>가지 연결기 준비 완료</b>가 보이면 성공이에요.<br>빨간 오류가 보이면 그 화면을 캡처해서 문의해 주세요.', toolPic('log')) +
+      step(8, '배포 → 새 배포', 'Apps Script 화면 오른쪽 위 파란 <b>배포</b> 버튼을 눌러요.<br>그다음 <b>새 배포</b>를 눌러요.') +
+      step(9, '유형: 웹 앱', '‘유형 선택’ 옆 <b>톱니바퀴</b>를 눌러요.<br>목록에서 <b>웹 앱</b>을 골라요.') +
+      step(10, '실행: 나 · 액세스: 모든 사용자', '<b>다음 사용자 인증 정보로 실행</b>: <b>나</b><br><b>액세스 권한이 있는 사용자</b>: <b>모든 사용자</b><br>그다음 <b>배포</b>를 눌러요.<br><small>‘모든 사용자’여야 부원 기기가 연결돼요. 부원은 코드와 승인으로 보호돼요.</small>') +
+      step(11, '권한 묻기가 또 나오면', '<b>액세스 승인</b>이 나오면 6단계와 똑같이 허용해요.<br>안 나오면 넘어가요.', '<button type="button" class="chipbtn" data-act="authGuide">그림 안내 다시 보기</button>') +
+      step(12, '웹 앱 URL 붙여 넣기', '마지막 창의 <b>웹 앱 URL</b> 옆 <b>복사</b>를 눌러요.<br>아래 칸에 붙여 넣고 <b>연결하기</b>를 눌러요.',
         '<form id="connectForm" style="display:flex;flex-direction:column;gap:10px;margin-top:6px"><label class="field">웹 앱 URL<input name="url" required placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" spellcheck="false"></label>' +
         '<div class="grid2"><label class="field">내 학번<input name="sid" autocapitalize="characters" maxlength="12" required></label><label class="field">내 이름<input name="name" maxlength="20" required></label></div>' +
         '<button type="submit" class="btn primary">연결하기</button>' + (PF.rewire ? '<button type="button" class="chipbtn" data-act="rewireCancel">취소</button>' : '') + '</form>') +
