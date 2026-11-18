@@ -1,6 +1,6 @@
 // 체험 화면을 가로형 태블릿 크기(1180×820)로 찍어 소개 영상에 씀:  node intro/capture.cjs
 const { chromium } = require('playwright'); const http = require('http'), fs = require('fs'), path = require('path');
-const P = path.join(__dirname, '..', 'public'), OUT = path.join(__dirname, 'shots');
+const P = process.env.PUB || path.join(__dirname, '..', 'public'), OUT = path.join(__dirname, 'shots');
 const srv = http.createServer((q, r) => { let f = path.join(P, q.url.split('?')[0]); if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) f = P + '/index.html'; r.writeHead(200, { 'content-type': f.endsWith('.js') ? 'text/javascript' : f.endsWith('.css') ? 'text/css' : f.endsWith('.html') ? 'text/html' : f.endsWith('.svg') ? 'image/svg+xml' : 'application/octet-stream' }); fs.createReadStream(f).pipe(r); }).listen(5199);
 (async () => {
   const b = await chromium.launch(); const p = await (await b.newContext({ viewport: { width: 1180, height: 820 }, deviceScaleFactor: 2, colorScheme: 'light' })).newPage();
