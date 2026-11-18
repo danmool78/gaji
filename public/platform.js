@@ -105,7 +105,7 @@ async function clubPage(slug) {
   let isMaster = false;
   if (user) {
     const info = await getDoc(doc(db, 'clubs', slug, 'private', 'info')).catch(() => null);
-    if (info && info.exists()) { isMaster = true; club.domain = info.data().domain || '';
+    if (info && info.exists() && info.data().masterUid === user.uid) { isMaster = true; club.domain = info.data().domain || '';   // 시스템 마스터도 info 를 읽을 수 있으니 ID로 확인
       updateDoc(info.ref, { 'stats.lastActive': serverTimestamp(), 'stats.version': VERSION }).catch(() => {});
       const k = await getDoc(doc(db, 'clubs', slug, 'secret', 'key')).catch(() => null);
       club.masterKey = k && k.exists() ? k.data().masterKey : ''; }
@@ -149,16 +149,27 @@ function handoverPage(slug, club, code) {
   if (!user) return portal(head() + box + '<p class="muted">이 동아리의 새 마스터가 됩니다. 구글 계정으로 로그인해 주세요. 링크는 만든 뒤 24시간 동안만 쓸 수 있어요.</p><button type="button" class="btn primary" data-p="login">구글로 로그인</button></div>');
   portal(head() + box + '<p class="muted">로그인한 계정으로 이 동아리의 마스터를 넘겨받습니다. 예전 마스터는 더 이상 관리할 수 없게 돼요.</p><button type="button" class="btn primary" data-p="claim" data-slug="' + esc(slug) + '" data-code="' + esc(code) + '">넘겨받기</button><a class="btn" href="/">취소</a></div>');
 }
+// 넘겨받은 뒤 연결기 마스터 키를 새로 바꿈: 예전 마스터가 가진 키로는 더 이상 마스터가 될 수 없게
+async function rekey(slug) {
+  const [pub, sec] = await Promise.all([getDoc(doc(db, 'clubs', slug)), getDoc(doc(db, 'clubs', slug, 'secret', 'key'))]);
+  const url = pub.exists() && pub.data().connector, old = sec.exists() && sec.data().masterKey, key = randomCode(40);
+  if (url && old) {
+    const r = await fetch(url, { method: 'POST', body: JSON.stringify({ action: 'rekey', masterKey: old, newKey: key }) }).then((x) => x.json());
+    if (!r || !r.ok) throw new Error((r && r.message) || '연결기 키를 바꾸지 못했어요');   // 예전 판 연결기면 다음에 마스터가 열 때 다시
+  }
+  await setDoc(doc(db, 'clubs', slug, 'secret', 'key'), { masterKey: key });
+}
 async function claim(slug, code) {
   try {
     const b = writeBatch(db);
     b.set(doc(db, 'clubs', slug, 'claims', user.uid), { code });
     b.update(doc(db, 'clubs', slug, 'private', 'info'), { masterUid: user.uid });
+    b.delete(doc(db, 'clubs', slug, 'handover', 'current'));   // 코드는 한 번만
     await b.commit();
     await Promise.all([
       setDoc(doc(db, 'masters', user.uid), { slugs: arrayUnion(slug) }, { merge: true }),
-      deleteDoc(doc(db, 'clubs', slug, 'handover', 'current')).catch(() => {}),
-      deleteDoc(doc(db, 'clubs', slug, 'claims', user.uid)).catch(() => {})
+      deleteDoc(doc(db, 'clubs', slug, 'claims', user.uid)).catch(() => {}),
+      rekey(slug).catch((e) => console.error('rekey', e))
     ]);
     location.href = '/c/' + slug + '?welcome=1';
   } catch (e) { console.error(e); toast('넘겨받지 못했어요 · 링크가 만료됐거나 이미 쓰였어요'); }
@@ -173,6 +184,7 @@ async function systemPage() {
   const rows = await Promise.all(clubs.docs.map(async (d) => { const i = await getDoc(doc(db, 'clubs', d.id, 'private', 'info')).catch(() => null); return { id: d.id, pub: d.data(), info: i && i.exists() ? i.data() : {} }; }));
   const now = Date.now(), day = (t) => t && t.toDate ? Math.floor((now - t.toDate()) / 864e5) : null, dday = (iso) => iso ? Math.floor((now - Date.parse(iso + 'T00:00:00')) / 864e5) : null;
   rows.sort((a, b) => (day(a.info.stats?.lastActive) ?? 9e9) - (day(b.info.stats?.lastActive) ?? 9e9));
+  const num = (v) => Number.isFinite(+v) && v !== '' && v != null ? String(Math.max(0, Math.floor(+v))) : '-';
   const S = (r) => r.info.stats || {}, tot = (k) => rows.reduce((a, r) => a + (+S(r)[k] || 0), 0);
   const linked = rows.filter((r) => r.pub.connector).length, active = rows.filter((r) => (day(S(r).lastActive) ?? 999) <= 14).length;
   const newer = rows.filter((r) => (day(r.pub.createdAt) ?? 999) <= 30).length, newest = rows.map((r) => S(r).core).filter(Boolean).sort().pop() || '';
@@ -181,7 +193,7 @@ async function systemPage() {
     if (!r.pub.connector) f.push(['t-warn', '드라이브 연결 전']);
     if ((day(s.lastActive) ?? 999) > 30 && r.pub.connector) f.push(['t-neutral', '30일 넘게 안 씀']);
     if (s.backupErr) f.push(['t-bad', '백업 오류']); else if (r.pub.connector && (dday(s.backupAt) ?? 999) > 10) f.push(['t-warn', '백업 오래됨']);
-    if (s.waiting) f.push(['t-info', '기기 승인 대기 ' + s.waiting]);
+    if (+s.waiting > 0) f.push(['t-info', '기기 승인 대기 ' + num(s.waiting)]);
     if (s.core && newest && s.core !== newest) f.push(['t-neutral', '연결기 ' + s.core]);
     return f.map((x) => '<span class="badge ' + x[0] + '">' + esc(x[1]) + '</span>').join(' '); };
   const tile = (k, v, sub) => '<div class="card"><small>' + k + '</small><b>' + v + '</b>' + (sub ? '<span class="muted" style="font-size:12px">' + sub + '</span>' : '') + '</div>';
@@ -191,7 +203,7 @@ async function systemPage() {
     '<div class="card" style="padding:0;overflow-x:auto"><table class="p-table"><thead><tr><th>동아리</th><th>만든 날</th><th>부원</th><th>실험 (진행 · 완료)</th><th>마지막 수정</th><th>마스터 접속</th><th>백업</th><th>살펴볼 것</th></tr></thead><tbody>' +
     rows.map((r) => { const s = S(r), d = day(s.lastActive);
       return '<tr><td><b>' + esc(r.pub.name) + '</b><br><a class="code muted" href="/c/' + esc(r.id) + '" target="_blank" rel="noopener">/c/' + esc(r.id) + '</a></td><td>' + (r.pub.createdAt?.toDate ? r.pub.createdAt.toDate().toLocaleDateString('ko-KR') : '-') + '</td>' +
-        '<td class="code">' + (s.members ?? '-') + '</td><td class="code">' + (s.experiments ?? '-') + (s.experiments ? ' (' + (s.running || 0) + ' · ' + (s.done || 0) + ')' : '') + '</td>' +
+        '<td class="code">' + num(s.members) + '</td><td class="code">' + num(s.experiments) + (+s.experiments ? ' (' + num(s.running) + ' · ' + num(s.done) + ')' : '') + '</td>' +
         '<td>' + ago(dday(s.lastEdit)) + '</td><td>' + ago(d) + '</td><td>' + (s.backupErr ? '오류' : ago(dday(s.backupAt))) + '</td><td>' + (flags(r) || '<span class="muted">-</span>') + '</td></tr>'; }).join('') +
     '</tbody></table></div><p class="p-foot">숫자는 각 동아리 마스터가 가지를 열 때 새로 받아요. 사람 이름 · 이메일 · 학번 · 실험 내용은 보이지 않아요.</p>' + await supportAdmin(rows));
 }

@@ -33,6 +33,7 @@ const drive = {
 };
 const store = memStore(), core = ctx.GajiCore(store, util, drive);
 const call = (q) => core.handle(q);
+const setRule = (k, v) => { const r = store._t.settings.find((x) => x.key === k); if (r) r.value = String(v); else store._t.settings.push({ key: k, value: String(v) }); };
 let pass = 0, fail = 0;
 function ok(name, cond, extra) { if (cond) pass++; else { fail++; console.log('FAIL', name, extra !== undefined ? JSON.stringify(extra) : ''); } }
 
@@ -78,10 +79,12 @@ const n1 = L.nodes.find((n) => n.id === 'n1');
 ok('member verdict stripped on create', n1.verdict === '', n1);
 ok('createdBy', n1.createdBy === '이하늘');
 ok('links saved', L.links.length === 1 && L.lines.yeast === '효모');
+setRule('approvePeers', 0); setRule('approveTeacher', 'none');   // 이 시험은 승인 없이 진행 (review 숫자로 승인을 흉내 낼 수 없게 막았으므로)
 ['계획 작성', '검토 중', '준비 중'].forEach((st) => call({ action: 'sync', device: S, nodes: [{ id: 'n1', title: '효모 발효', status: st }] }));
 const s2 = call({ action: 'sync', device: S, nodes: [{ id: 'n1', title: '효모 발효', status: '계획 작성', verdict: '가설 기각' }] });
 ok('member backward/verdict rejected', s2.data.rejected.includes('n1:status') && s2.data.rejected.includes('n1:verdict'), s2);
 ok('member cancel rejected', call({ action: 'sync', device: S, nodes: [{ id: 'n1', title: '효모 발효', status: '취소' }] }).data.rejected.includes('n1:cancel'));
+setRule('approvePeers', 2); setRule('approveTeacher', 'final');
 call({ action: 'sync', device: M, nodes: [{ id: 'n1', title: '효모 발효', status: '계획 작성', verdict: '가설 지지' }] });
 const n1b = call({ action: 'load', device: M }).data.nodes.find((n) => n.id === 'n1');
 ok('admin backward + verdict', n1b.status === '계획 작성' && n1b.verdict === '가설 지지', n1b);
@@ -180,9 +183,10 @@ const mc2 = call({ action: 'myCode', device: r9b.data.device });
 ok('old code renewed', mc2.ok && mc2.data.renewed && /^\d{4}$/.test(mc2.data.code), mc2);
 ok('device kept after renew', call({ action: 'load', device: r9b.data.device }).ok);
 ok('new code works', call({ action: 'register', studentId: '20399', code: mc2.data.code }).ok);
-ok('ping version', call({ action: 'ping' }).data.version === '2.18.2');
+ok('ping version', call({ action: 'ping' }).data.version === '2.19.0');
 
 // 실수 되돌리기: 내가 10분 안에 옮긴 단계는 한 단계 되돌리기 가능
+setRule('approvePeers', 0); setRule('approveTeacher', 'none');
 call({ action: 'sync', device: M, nodes: [{ id: 'u1', type: 'exp', title: '되돌리기 시험', status: '검토 중', owner: '정다온', plan: PL, review: 2 }] });
 call({ action: 'sync', device: r9b.data.device, nodes: [{ id: 'u1', title: '되돌리기 시험', status: '준비 중' }] });
 let ub = call({ action: 'sync', device: r9b.data.device, nodes: [{ id: 'u1', title: '되돌리기 시험', status: '검토 중' }] });
@@ -196,6 +200,7 @@ ok('member cannot undo after 10 min', ub.data.rejected.includes('u1:status'), ub
 call({ action: 'sync', device: M, nodes: [{ id: 'u1', title: '되돌리기 시험', status: '준비 중' }] });
 ub = call({ action: 'sync', device: r9b.data.device, nodes: [{ id: 'u1', title: '되돌리기 시험', status: '검토 중' }] });
 ok('member cannot undo someone else\'s move', ub.data.rejected.includes('u1:status'), ub);
+setRule('approvePeers', 2); setRule('approveTeacher', 'final');
 ub = call({ action: 'sync', device: M, nodes: [{ id: 'u1', title: '되돌리기 시험', status: '검토 중' }] });
 ok('admin can always go back', ub.data.rejected.length === 0, ub);
 
@@ -617,9 +622,63 @@ ok('load has no self rev', !call({ action: 'load', device: ADM }).rev);
 
 // ===== 2.18.2: 시스템 현황 숫자 =====
 const sysStat = call({ action: 'stats', device: ADM });
-ok('stats: numbers only', sysStat.ok && typeof sysStat.data.done === 'number' && typeof sysStat.data.running === 'number' && typeof sysStat.data.devices === 'number' && /^\d{4}-\d\d-\d\d$|^$/.test(sysStat.data.lastEdit) && sysStat.data.core === '2.18.2', sysStat.data);
+ok('stats: numbers only', sysStat.ok && typeof sysStat.data.done === 'number' && typeof sysStat.data.running === 'number' && typeof sysStat.data.devices === 'number' && /^\d{4}-\d\d-\d\d$|^$/.test(sysStat.data.lastEdit) && sysStat.data.core === '2.19.0', sysStat.data);
 ok('stats: no names', !JSON.stringify(sysStat.data).match(/[가-힣]{2,}/));
 ok('stats: member refused', call({ action: 'stats', device: MEM }).code === 'not_admin');
+
+
+// ===== 2.19.0: 버그 점검에서 나온 것 =====
+{
+  const meM = call({ action: 'load', device: MEM }).data.me, meO = call({ action: 'load', device: OTH }).data.me;
+  const ppl = call({ action: 'people', device: ADM }).data;
+  const master = ppl.members.find((m) => m.role === '마스터');
+  // 1. 관리자가 마스터의 코드를 다시 만들어 가로챌 수 없음
+  const adminDev = (() => { const m2 = ppl.members.find((m) => m.role === '부원' && m.id !== meM.id && m.id !== meO.id && m.status === '활동'); return null; })();
+  ok('resetCode: master target refused for non-master', (() => { const keep = store._t.members.map((m) => ({ ...m })); const o = store._t.members.find((m) => m.id === meO.id); o.role = '관리자';
+    const r = call({ action: 'resetCode', device: OTH, id: master.id }); store._t.members.forEach((m, i) => Object.assign(m, keep[i])); return r.code === 'not_master'; })());
+  // 2. __proto__ 로 검사를 건너뛸 수 없음
+  call({ action: 'sync', device: MEM, nodes: [JSON.parse('{"id":"xp1","title":"p","__proto__":{"type":"exp","status":"<img src=x>","owner":"<script>x</script>","review":999}}')] });
+  const xp = store._t.nodes.find((n) => n.id === 'xp1');
+  ok('cleanIn: __proto__ ignored', xp && !String(xp.status || '').includes('<') && !String(xp.owner || '').includes('<') && !xp.review, xp);
+  // 3. 아이디어 → 실험으로 바꿔 단계를 건너뛸 수 없음
+  call({ action: 'sync', device: MEM, nodes: [{ id: 'xi1', type: 'idea', title: '꼼수', status: '기록 완료' }] });
+  ok('idea cannot hold exp stage', store._t.nodes.find((n) => n.id === 'xi1').status !== '기록 완료');
+  const ti = call({ action: 'sync', device: MEM, nodes: [{ id: 'xi1', title: '꼼수', type: 'exp', status: '기록 완료' }] });
+  ok('idea → exp starts from first stage', store._t.nodes.find((n) => n.id === 'xi1').status !== '기록 완료' && ti.data.rejected.some((x) => x.startsWith('xi1:stage')), ti.data);
+  // 4. review 숫자로 승인을 흉내 낼 수 없음
+  call({ action: 'sync', device: MEM, nodes: [{ id: 'xr1', type: 'exp', title: '승인 흉내', status: '검토 중', plan: PL, review: 9 }] });
+  call({ action: 'sync', device: MEM, nodes: [{ id: 'xr1', title: '승인 흉내', review: 9 }] });
+  const tr = call({ action: 'sync', device: MEM, nodes: [{ id: 'xr1', title: '승인 흉내', status: '준비 중' }] });
+  ok('review number does not count as approvals', store._t.nodes.find((n) => n.id === 'xr1').status === '검토 중' && tr.data.rejected.includes('xr1:stage:review'), tr.data);
+  // 5. 새로 만들 때 확정 보고서를 보낼 수 없음
+  call({ action: 'sync', device: MEM, nodes: [{ id: 'xf1', type: 'exp', title: '확정', report: { final: true, summary: 's', claim: 'c' } }] });
+  ok('member cannot create final report', !JSON.stringify(store._t.nodes.find((n) => n.id === 'xf1').report || {}).includes('"final":true'));
+  // 6 · 7. 같은 이름 · 학번 막기
+  const iv2 = call({ action: 'invite', device: ADM, op: 'make' }).data.invite;
+  ok('apply: same name as active member refused', call({ action: 'apply', invite: iv2, studentId: '40001', name: meM.name }).code === 'dup_name');
+  const apA = call({ action: 'apply', invite: iv2, studentId: '40002', name: '동명이인시험' });
+  ok('addMember: sid with pending application refused', call({ action: 'addMember', device: ADM, studentId: '40002', name: '다른이름' }).code === 'dup');
+  call({ action: 'addMember', device: ADM, studentId: '40003', name: '동명이인시험' });
+  ok('approve: refused when same name already active', call({ action: 'approve', device: ADM, id: apA.data.device.id }).code === 'dup');
+  // 8. 지난 단계의 내용을 지울 수 없음
+  store._t.nodes.push({ id: 'xc1', no: 900, type: 'exp', title: '내용 지우기', status: '기록 완료', plan: PL, report: RP, owner: meM.name, createdBy: meM.name, created: '2026-11-01' });
+  const tc = call({ action: 'sync', device: MEM, nodes: [{ id: 'xc1', title: '내용 지우기', plan: null, report: null }] });
+  const xc = store._t.nodes.find((n) => n.id === 'xc1');
+  ok('cannot clear plan/report after stage passed', xc.plan && xc.report && tc.data.rejected.includes('xc1:stage:plan'), tc.data);
+  // 9. 비공개 실험의 실험일 제목이 새지 않음
+  store._t.nodes.push({ id: 'xs1', no: 901, type: 'exp', title: '비밀 실험 제목', status: '준비 중', plan: PL, private: 'true', owner: meM.name, createdBy: meM.name, created: '2026-11-01' });
+  store._t.events.push({ id: 'evs1', date: '2026-12-01', title: '비밀 실험 제목', scope: 'exp', by: meM.name, byId: meM.id, at: '2026-11-17', off: '', node: 'xs1', state: 'ok', okBy: '' });
+  ok('private exp event hidden from others', !call({ action: 'load', device: OTH }).data.events.some((e) => e.title === '비밀 실험 제목'));
+  ok('private exp event visible to owner', call({ action: 'load', device: MEM }).data.events.some((e) => e.title === '비밀 실험 제목'));
+  // 10. 남의 담당 지원을 지울 수 없음
+  store._t.nodes.push({ id: 'xv1', no: 902, type: 'idea', title: '담당 지원', status: '아이디어', volunteer: meM.name, owner: '', createdBy: '누군가', created: '2026-11-01' });
+  const tv = call({ action: 'sync', device: OTH, nodes: [{ id: 'xv1', title: '담당 지원', volunteer: '' }] });
+  ok('cannot clear someone else\'s volunteer', store._t.nodes.find((n) => n.id === 'xv1').volunteer === meM.name && tv.data.rejected.includes('xv1:team'), tv.data);
+  // 마스터 키 바꾸기
+  ok('rekey: wrong old key refused', call({ action: 'rekey', masterKey: 'x'.repeat(25), newKey: 'y'.repeat(30) }).code === 'wrong_key');
+  { const rk = call({ action: 'rekey', masterKey: 'z'.repeat(24), newKey: 'NEWKEY'.repeat(5) }); ok('rekey: right old key works', rk.ok, rk); }
+  ok('rekey: old key no longer registers master', call({ action: 'masterRegister', masterKey: 'z'.repeat(24), studentId: '20301', label: 'x' }).code === 'wrong_key');
+}
 
 console.log(`connector: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

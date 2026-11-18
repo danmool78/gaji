@@ -1256,7 +1256,7 @@
   const teacherNeeded = () => rules().teacher === 'final' && teacherNames().length > 0;
   const teacherOk = (n) => { const t = teacherNames(); return !teacherNeeded() || approvals(n).some((c) => t.includes(c.by)); };
   const peerApprovals = (n) => { const R = rules(), t = teacherNames(); return approvals(n).filter((c) => !t.includes(c.by) && (R.team || !teamOf(n).includes(c.by))); };
-  const reviewCount = (n) => Math.max(+n.review || 0, peerApprovals(n).length);
+  const reviewCount = (n) => PF.mode === 'live' ? peerApprovals(n).length : Math.max(+n.review || 0, peerApprovals(n).length);   // 실제 동아리는 서버와 같게 승인 댓글만 셈
   const reviewDone = (n) => reviewCount(n) >= rules().peers && teacherOk(n);
   // 이 실험의 사람들: 담당 · 만든 사람 · 함께하는 사람 (아이디어는 담당 지원자도). 이 사람들과 기장 · 선생님만 고칠 수 있어요
   const teamOf = (n) => [n.owner, n.createdBy].concat(Array.isArray(n.team) ? n.team : []).concat(n.type === 'idea' && n.volunteer ? [n.volunteer] : []).filter(Boolean);

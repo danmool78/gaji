@@ -42,17 +42,19 @@ service cloud.firestore {
         && (!('domain' in d) || (d.domain is string && d.domain.size() <= 60))
         && (!('connectorUrl' in d) || (d.connectorUrl is string && d.connectorUrl.size() <= 300))
         && (!('sheetId' in d) || (d.sheetId is string && d.sheetId.size() <= 100))
-        && (!('stats' in d) || d.stats is map);
+        && (!('stats' in d) || (d.stats is map && d.stats.size() <= 16));
     }
 
     // ---------- 동아리 공개 정보 ----------
     match /clubs/{slug} {
-      allow read: if true;
+      allow get: if true;            // 동아리 주소를 아는 사람은 공개 정보를 봄
+      allow list: if isSystem();     // 모든 동아리 목록은 시스템 마스터만
       // 새 동아리: 같은 묶음 쓰기에서 private/info 의 마스터가 나 자신이어야 한다
       allow create: if signedIn() && validSlug(slug) && validPublic(request.resource.data)
         && request.resource.data.createdAt == request.time
         && getAfter(infoPath(slug)).data.masterUid == request.auth.uid;
-      allow update: if (isMaster(slug) || isSystem()) && validPublic(request.resource.data)
+      allow update: if (isMaster(slug) || (isSystem() && request.resource.data.get('connector', '') == resource.data.get('connector', '')))
+        && validPublic(request.resource.data)
         && request.resource.data.createdAt == resource.data.createdAt;
       allow delete: if false;
 
@@ -90,7 +92,8 @@ service cloud.firestore {
               && exists(/databases/$(database)/documents/clubs/$(slug)/handover/current)
               && get(/databases/$(database)/documents/clubs/$(slug)/handover/current).data.expiresAt > request.time
               && getAfter(/databases/$(database)/documents/clubs/$(slug)/claims/$(request.auth.uid)).data.code
-                 == get(/databases/$(database)/documents/clubs/$(slug)/handover/current).data.code)
+                 == get(/databases/$(database)/documents/clubs/$(slug)/handover/current).data.code
+              && !existsAfter(/databases/$(database)/documents/clubs/$(slug)/handover/current))   // 코드는 한 번만 (같은 묶음에서 지움)
           // 복구: 시스템 마스터는 마스터를 바꿀 수 있다 (선생님 요청 시)
           || isSystem());
         allow delete: if false;
@@ -104,7 +107,8 @@ service cloud.firestore {
           && request.resource.data.code is string && request.resource.data.code.size() >= 20
           && request.resource.data.expiresAt is timestamp
           && request.resource.data.expiresAt < request.time + duration.value(25, 'h');
-        allow delete: if isMaster(slug) || isSystem();
+        // 넘겨받는 사람은 같은 묶음에서 마스터가 되면서 코드를 지움
+        allow delete: if isMaster(slug) || isSystem() || (signedIn() && getAfter(infoPath(slug)).data.masterUid == request.auth.uid);
       }
       match /claims/{uid} {
         allow read: if false;

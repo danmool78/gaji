@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.18.2';
+var GAJI_CONNECTOR_VERSION = '2.19.0';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
@@ -102,6 +102,7 @@ function GajiCore(store, util, drive) {
     limit('apply_' + sid, 5, 600);
     var ms = store.rows('members');
     if (ms.some(function (m) { return m.studentId === sid && m.status === '활동'; })) err('dup', '이미 등록된 학번이에요. 기장님께 받은 개인 코드로 들어가 주세요');
+    if (ms.some(function (m) { return m.name === name && m.status === '활동'; })) err('dup_name', '같은 이름의 부원이 이미 있어요. 이름 뒤에 반이나 번호를 붙여 주세요 (예: 김가지2)');
     if (ms.filter(function (m) { return m.status === '신청'; }).length >= 100) err('busy', '가입 신청이 너무 많이 쌓였어요. 기장님께 알려 주세요');
     var mem = ms.filter(function (m) { return m.studentId === sid && m.status === '신청'; })[0];
     if (mem) { mem.name = name; store.update('members', mem._row, mem); }
@@ -117,6 +118,16 @@ function GajiCore(store, util, drive) {
   /* 동아리 마스터(가지에 구글로 로그인한 사람)의 새 기기: 마스터 키로 바로 승인.
      마스터가 바뀌면 새 마스터의 학번으로 마스터 역할이 옮겨 감.
      키를 잃어버리면 시트 '설정' 탭의 masterKeyHash 값을 지우면 다음 키로 다시 맞춰짐 (시트 편집 권한 = 드라이브 주인만). */
+  /* 마스터를 넘겨받은 사람이 연결기 마스터 키를 새로 바꿈 (예전 키를 아는 사람만) */
+  A.rekey = function (q) {
+    if (!initialized()) err('not_initialized', '연결기가 아직 준비되지 않았어요');
+    limit('rekey', 10, 600);
+    var kh = setting('masterKeyHash', ''), old = String(q.masterKey || ''), nk = String(q.newKey || '');
+    if (nk.length < 20 || nk.length > 100) err('bad', '새 키가 짧아요');
+    if (!kh || kh !== hash('master', old)) err('wrong_key', '이 동아리의 연결기가 아니에요');
+    setSetting('masterKeyHash', hash('master', nk)); log(null, '마스터 키 바꿈', '');
+    return { ok: true };
+  };
   A.masterRegister = function (q) {
     if (!initialized()) err('not_initialized', '연결기가 아직 준비되지 않았어요');
     limit('mreg', 20, 600);
@@ -128,6 +139,8 @@ function GajiCore(store, util, drive) {
     var sid = String(q.studentId || '').trim(), code = '';
     if (!sid) err('bad', '학번을 넣어 주세요');
     var mem = store.rows('members').filter(function (m) { return m.studentId === sid && m.status === '활동'; })[0];
+    var ap0 = !mem && store.rows('members').filter(function (m) { return m.studentId === sid && m.status === '신청'; })[0];
+    if (ap0) { code = digits(4); ap0.status = '활동'; ap0.codeHash = hash(ap0.id, code); ap0.codeEnc = seal(ap0.id, code); if (q.name) ap0.name = String(q.name).slice(0, 20); store.update('members', ap0._row, ap0); mem = store.rows('members').filter(function (m) { return m.id === ap0.id; })[0]; }
     if (!mem) {
       if (!q.name) err('need_name', '처음 쓰는 학번이에요. 이름도 넣어 주세요');
       code = digits(4); var mid = newId('m');
@@ -209,7 +222,7 @@ function GajiCore(store, util, drive) {
   function approvalsOf(n) {
     var R = rules(), t = teachers();
     var k = store.rows('comments').filter(function (c) { return c.node === n.id && c.kind === 'approve' && !util.bool(c.off) && c.by !== n.owner && c.by !== n.createdBy && t.indexOf(c.by) < 0 && (R.team || !inTeam(n, { name: c.by })); }).length;
-    return Math.max(k, Number(n.review) || 0);
+    return k;   // 승인 댓글만 셈 (review 숫자는 화면 표시용)
   }
   function teacherNeeded() { return rules().teacher === 'final' && teachers().length > 0; }
   // 지도 선생님(역할 '교사')이 있으면 선생님 승인이 꼭 있어야 준비 시작 (선생님이 아직 없으면 승인 2명으로)
@@ -276,6 +289,7 @@ function GajiCore(store, util, drive) {
     var o = { id: String(c.id) };
     Object.keys(c).forEach(function (k) {
       var v = c[k];
+      if (k === '__proto__' || k === 'constructor' || k === 'prototype') return;   // 검사 건너뛰기 막기
       if (k === 'title') o.title = plain(v, 100);
       else if (k === 'type') { if (TYPES[v]) o.type = v; }
       else if (k === 'field') { if (FIELDS[v]) o.field = v; }
@@ -288,7 +302,7 @@ function GajiCore(store, util, drive) {
       else if (k === 'private' || k === 'deleted' || k === 'equip' || k === 'arch') o[k] = v === true || v === 'true' ? 'true' : v === '보관' ? '보관' : '';
       else if (k === 'signal' || k === 'review' || k === 'fans') o[k] = Math.max(0, Math.min(999, Math.round(Number(v) || 0)));
       else if (k === 'team') o.team = Array.isArray(v) ? v.slice(0, 12).map(function (x) { return plain(x, 20); }).filter(Boolean) : [];
-      else if (GAJI_JSON[k]) { if (v == null || v === '') o[k] = v; else { var sv = typeof v === 'string' ? v : JSON.stringify(v); if (sv.length > JSON_MAX) { if (bad) bad.push(c.id + ':big'); } else o[k] = v; } }
+      else if (Object.prototype.hasOwnProperty.call(GAJI_JSON, k)) { if (v == null || v === '') o[k] = v; else { var sv = typeof v === 'string' ? v : JSON.stringify(v); if (sv.length > JSON_MAX) { if (bad) bad.push(c.id + ':big'); } else o[k] = v; } }
     });
     return o.title === undefined ? null : o;
   }
@@ -308,8 +322,10 @@ function GajiCore(store, util, drive) {
   /* ---------- 달력 일정: 동아리 일정(관리자가 쓰고 모두 봄) · 내 일정(누구나 쓰고 나만 봄) ---------- */
   function eventsFor(me) {
     // 동아리 일정 · 승인된 실험일은 모두에게, 내 일정은 나에게만, 승인 대기 실험일은 올린 사람과 승인하는 사람(선생님 · 마스터)에게만
-    var ap = expApprover(me), need = expNeedsOk();
+    var ap = expApprover(me), need = expNeedsOk(), hidden = {};
+    store.rows('nodes').forEach(function (n) { if (util.bool(n.private)) hidden[n.id] = n; });   // 비공개 실험
     return store.rows('events').map(function (e) { if (!need && e.scope === 'exp' && e.state === 'wait') e.state = 'ok'; return e; }).filter(function (e) { if (util.bool(e.off)) return false; if (e.scope === 'club') return true; if (e.scope === 'exp') return e.state === 'ok' || e.byId === me.id || ap; return e.byId === me.id; })
+      .filter(function (e) { if (e.scope !== 'exp' || !e.node) return true; var n = hidden[e.node]; return !n || ADMIN[me.role] || inTeam(n, me); })
       .map(function (e) { return { id: e.id, date: e.date, title: e.title, scope: e.scope, by: e.by, mine: e.byId === me.id, node: e.node || '', state: e.scope === 'exp' ? (e.state || 'ok') : '', okBy: e.okBy || '' }; });
   }
   // 실험일 승인: 선생님. 설정에서 허용하면 기장(마스터)이 대행. 선생님이 아직 없으면 기장이 대신함
@@ -363,8 +379,9 @@ function GajiCore(store, util, drive) {
           var fam = c.type === 'q' ? 'q' : c.type === 'res' ? 'res' : 'exp', no = Number(setting('no_' + fam, 0)) + 1;
           setSetting('no_' + fam, no);
           var n = { id: String(c.id).slice(0, 40), no: no, created: util.today(), createdBy: me.name, updatedAt: util.now(), updatedBy: me.name };
-          NODE_FIELDS.forEach(function (f) { if (f in c) n[f] = c[f]; });
-          if (!admin) n.verdict = '';
+          NODE_FIELDS.forEach(function (f) { if (Object.prototype.hasOwnProperty.call(c, f)) n[f] = c[f]; });
+          if (!admin) { n.verdict = ''; delete n.review; if (n.report && typeof n.report === 'object' && n.report.final) { n.report = JSON.parse(JSON.stringify(n.report)); delete n.report.final; } }
+          if (n.type !== 'exp' && STAGES.indexOf(n.status) > 0) n.status = '';   // 아이디어 · 질문 · 자료는 실험 단계를 가질 수 없음
           if (n.type === 'exp' && !admin && STAGES.indexOf(n.status) > 2) { n.status = '검토 중'; rejected.push(n.id + ':stage:review'); }   // 새로 만들 때 검토를 건너뛸 수 없음
           if (n.type === 'exp' && STAGES.indexOf(n.status) > 1 && stageBlock({ id: n.id, status: '계획 작성' }, n, true, true)) { n.status = '계획 작성'; rejected.push(n.id + ':stage'); }
           store.append('nodes', n); assigned[n.id] = no; log(me, '새로 만듦', n.title);
@@ -372,7 +389,7 @@ function GajiCore(store, util, drive) {
         }
         var u = cleanNode(old), changed = false, team = admin || inTeam(old, me);
         NODE_FIELDS.forEach(function (f) {
-          if (!(f in c) || val(c[f]) === val(old[f])) return;
+          if (!Object.prototype.hasOwnProperty.call(c, f) || val(c[f]) === val(old[f])) return;
           if (wasArch && c.arch && HEAVY.indexOf(f) >= 0) return;
           if (!team) {
             if (!(old.type === 'idea' && OPEN_FIELDS[f])) { if (rejected.indexOf(old.id + ':team') < 0) rejected.push(old.id + ':team'); return; }
@@ -380,6 +397,8 @@ function GajiCore(store, util, drive) {
           if (f === 'volunteer' && !admin && c.volunteer && c.volunteer !== me.name) { rejected.push(old.id + ':team'); return; }   // 담당 지원은 본인만
           if ((f === 'team' || f === 'owner' || f === 'private') && !admin && !mineNode(old, me)) { rejected.push(old.id + ':team'); return; }   // 보관 내용을 아직 안 받은 기기: 무거운 칸은 건드리지 않음
           if (!admin && f === 'verdict') { rejected.push(old.id + ':verdict'); return; }
+          if (!admin && f === 'review') return;   // 승인 수는 승인 댓글로만 셈
+          if (f === 'volunteer' && !admin && old.volunteer && old.volunteer !== me.name) { rejected.push(old.id + ':team'); return; }   // 남의 담당 지원을 지울 수 없음
           if (!admin && f === 'status' && STAGES.indexOf(c.status) >= 0 && STAGES.indexOf(c.status) < STAGES.indexOf(old.status)) {
             // 부원: 내가 방금(10분 안) 옮긴 단계는 한 단계만 되돌릴 수 있음 (실수 되돌리기)
             var mine = old.updatedBy === me.name && (Date.parse(util.now()) - Date.parse(old.updatedAt || 0)) < 10 * 60000 && STAGES.indexOf(c.status) === STAGES.indexOf(old.status) - 1;
@@ -393,7 +412,14 @@ function GajiCore(store, util, drive) {
           if (f === 'report' && !admin && c.report && c.report.final && !isFinal(old)) { rejected.push(old.id + ':final'); return; }
           u[f] = c[f]; changed = true;
         });
-        var sb = changed ? stageBlock(old, u, admin) : '';
+        var base = old.type === 'exp' ? old : Object.assign({}, old, { status: STAGES[0] });   // 아이디어에서 실험이 되면 처음 단계부터 확인
+        var sb = changed ? stageBlock(base, u, admin) : '';
+        if (!sb && changed && u.type === 'exp') {   // 이미 지난 단계의 내용(계획서 · 결과)을 비우면 막음
+          var si = STAGES.indexOf(u.status);
+          if (si >= 2 && !planOk(u.plan) && planOk(old.plan)) { u.plan = old.plan; rejected.push(old.id + ':stage:plan'); }
+          if (si >= 5 && !resultOk(u.report) && resultOk(old.report)) { u.report = old.report; rejected.push(old.id + ':stage:result'); }
+        }
+        if (u.type !== 'exp' && STAGES.indexOf(u.status) > 0 && STAGES.indexOf(u.status) !== STAGES.indexOf(old.status)) { u.status = old.status; rejected.push(old.id + ':stage'); }
         if (sb) { u.status = old.status; rejected.push(old.id + ':stage:' + sb); changed = NODE_FIELDS.some(function (f) { return val(u[f]) !== val(old[f]); }); }
         if (changed) { recordHistory(old, u, me); u.updatedAt = util.now(); u.updatedBy = me.name; store.update('nodes', old._row, u); log(me, '수정', old.title); }
       });
@@ -545,6 +571,7 @@ function GajiCore(store, util, drive) {
 
   A.tidy = function (q) {
     var me = deviceOf(q); var today = util.today();
+    if (q.force && !ADMIN[me.role]) q.force = false;   // 강제 정리는 관리자만
     if (setting('tidyAt', '') === today && !q.force) return { done: false, reason: 'today' };
     return util.lock(function () {
       setSetting('tidyAt', today);
@@ -588,7 +615,7 @@ function GajiCore(store, util, drive) {
     var me = deviceOf(q), admin = !!ADMIN[me.role], out = {};
     var rows = store.rows('archive'), nodes = store.rows('nodes');
     (q.ids || []).slice(0, 20).forEach(function (id) {
-      var n = nodes.filter(function (x) { return x.id === id; })[0]; if (!n || (util.bool(n.private) && !admin && n.owner !== me.name)) return;
+      var n = nodes.filter(function (x) { return x.id === id; })[0]; if (!n || (util.bool(n.private) && !admin && !inTeam(n, me))) return;
       var a = rows.filter(function (x) { return x.id === id; })[0]; if (!a) return;
       out[id] = { data: a.data || {}, comments: (a.comments || []).map(function (c) { return { id: c.id, node: c.node, sec: c.sec, kind: c.kind, text: c.text, by: c.by, byId: c.byId, role: c.role, at: c.at, editedAt: c.editedAt, resolved: util.bool(c.resolved) }; }) };
     });
@@ -601,7 +628,7 @@ function GajiCore(store, util, drive) {
     var nodes = {}; store.rows('nodes').forEach(function (n) { nodes[n.id] = n; });
     var hits = [];
     store.rows('archive').forEach(function (a) {
-      var n = nodes[a.id]; if (!n || (util.bool(n.private) && !admin && n.owner !== me.name)) return;
+      var n = nodes[a.id]; if (!n || (util.bool(n.private) && !admin && !inTeam(n, me))) return;
       var text = (JSON.stringify(a.data || {}) + ' ' + (a.comments || []).map(function (c) { return c.text; }).join(' ')).toLowerCase();
       if (!terms.every(function (t) { return text.indexOf(t) >= 0; })) return;
       var i = text.indexOf(terms[0]); hits.push({ id: a.id, snip: text.slice(Math.max(0, i - 20), i + 50).replace(/[{}"\[\]]/g, ' ').replace(/\s+/g, ' ') });
@@ -721,7 +748,10 @@ function GajiCore(store, util, drive) {
     var me = deviceOf(q); needAdmin(me);
     var sid = String(q.studentId || '').trim(), name = String(q.name || '').trim().slice(0, 20);
     if (!sid || !name) err('bad', '학번과 이름을 넣어 주세요');
-    if (store.rows('members').some(function (m) { return m.studentId === sid && m.status === '활동'; })) err('dup', '이미 있는 학번이에요');
+    var all = store.rows('members');
+    if (all.some(function (m) { return m.studentId === sid && m.status === '활동'; })) err('dup', '이미 있는 학번이에요');
+    if (all.some(function (m) { return m.studentId === sid && m.status === '신청'; })) err('dup', '초대 링크로 가입 신청한 학번이에요. 부원 · 기기의 승인 기다리는 기기에서 승인해 주세요');
+    if (all.some(function (m) { return m.name === name && m.status === '활동'; })) err('dup_name', '같은 이름의 부원이 이미 있어요. 이름 뒤에 반이나 번호를 붙여 주세요 (예: 김가지2)');
     var id = newId('m'), code = digits(4);
     store.append('members', { id: id, studentId: sid, name: name, role: '부원', codeHash: hash(id, code), codeEnc: seal(id, code), status: '활동', createdAt: util.now() });
     bump(); log(me, '부원 추가', name);
@@ -730,6 +760,8 @@ function GajiCore(store, util, drive) {
   A.resetCode = function (q) {
     var me = deviceOf(q); needAdmin(me);
     var m = store.rows('members').filter(function (x) { return x.id === q.id; })[0]; if (!m) err('bad');
+    if (m.role === '마스터' && m.id !== me.id) err('not_master', '마스터의 코드는 마스터 본인만 다시 만들 수 있어요');
+    if ((m.role === '관리자' || m.role === '교사') && me.role !== '마스터' && m.id !== me.id) err('not_master', '관리자 · 선생님의 코드는 마스터만 다시 만들 수 있어요');
     var code = digits(4); m.codeHash = hash(m.id, code); m.codeEnc = seal(m.id, code); store.update('members', m._row, m);
     store.rows('devices').forEach(function (d) { if (d.memberId === m.id && d.status !== '차단') { d.status = '차단'; store.update('devices', d._row, d); } });
     bump(); log(me, '코드 재발급 · 기기 해제', m.name);
@@ -754,6 +786,8 @@ function GajiCore(store, util, drive) {
     var d = store.rows('devices').filter(function (x) { return x.id === q.id; })[0]; if (!d) err('bad', '요청을 찾을 수 없어요');
     if (q.confirm && d.confirm && String(q.confirm) !== String(d.confirm)) err('confirm', '확인 숫자가 달라요');
     d.status = '승인'; d.shared = q.shared ? 'true' : 'false'; d.approvedAt = util.now(); d.approvedBy = me.name; d.confirm = ''; d.lastSeen = util.now();
+    var nm0 = store.rows('members').filter(function (x) { return x.id === d.memberId && x.status === '신청'; })[0];
+    if (nm0 && store.rows('members').some(function (x) { return x.status === '활동' && (x.studentId === nm0.studentId || x.name === nm0.name); })) err('dup', '같은 학번이나 이름의 부원이 이미 있어요. 이 신청은 거절하고, 이름을 바꿔 다시 신청하게 해 주세요');
     store.update('devices', d._row, d);
     var nm = store.rows('members').filter(function (x) { return x.id === d.memberId && x.status === '신청'; })[0], code = '';
     if (nm) { code = digits(4); nm.codeHash = hash(nm.id, code); nm.codeEnc = seal(nm.id, code); nm.status = '활동'; store.update('members', nm._row, nm); log(me, '가입 승인', nm.name); }
