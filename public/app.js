@@ -275,7 +275,7 @@
   $('#demoPill').addEventListener('click', () => { if (PF.mode !== 'demo') return; demoWho(); });
   function demoWho() {
     const ms = db.members || [{ name: '김기장', role: '마스터', note: '기장' }];
-    openSheet('<h3>누구로 체험할까요?</h3><p class="muted" style="margin:0;font-size:13px">북일고등학교 실험 동아리는 체험용 가상 동아리예요. 바꾼 내용은 이 브라우저에만 저장되고 <b>매일 처음 상태로 돌아가요.</b></p><div class="move-list">' +
+    openSheet('<h3>누구로 체험할까요?</h3><p class="muted" style="margin:0;font-size:13px">가지고등학교 실험 동아리는 체험용 가상 동아리예요. 바꾼 내용은 이 브라우저에만 저장되고 <b>매일 처음 상태로 돌아가요.</b></p><div class="move-list">' +
       ms.map((m) => '<button type="button" class="srow" data-act="demoMe" data-name="' + esc(m.name) + '"><span class="tx"><b>' + esc(m.name) + '</b><small>' + esc(m.note || (m.role === '부원' ? '부원' : m.role)) + '</small></span>' + (meName() === m.name ? '<span class="badge t-info">지금</span>' : '') + '</button>').join('') +
       '</div><div class="btn-row"><button type="button" class="btn" data-act="demoReset">처음 상태로 되돌리기</button><button type="button" class="btn" data-act="closeSheet">닫기</button></div>');
   }
@@ -2014,12 +2014,12 @@
       '<div class="field">화면 밝기<div class="seg" style="grid-template-columns:repeat(3,1fr)">' + [['system', '기기 설정'], ['light', '밝게'], ['dark', '어둡게']].map(([k, l]) => '<button type="button" data-theme="' + k + '" aria-pressed="' + (th === k) + '">' + l + '</button>').join('') + '</div></div>' +
       '</div>' +
       (PF.mode === 'live' ? '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>내 계정</b><span class="muted" style="font-size:13px">' + esc(PF.me.name) + ' · ' + esc(PF.me.role) + ' · 이 기기: ' + esc((PF.dev && PF.dev.label) || deviceLabel()) + '<br>개인 코드는 다른 기기에서 들어갈 때 학번과 함께 써요.</span><div class="btn-row"><button type="button" class="btn primary" data-act="myCode">내 개인 코드 보기</button><button type="button" class="btn" data-act="leaveDevice">이 기기에서 나가기</button></div></div>' :
-      '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>체험 데이터</b><span class="muted" style="font-size:13px">' + (PF.club ? '동아리 드라이브 연결 전까지 실험 목록은 예시 데이터로 보여요. 이 기기에만 저장됩니다.' : '북일고등학교 실험 동아리(가상)로 마음껏 만들고 고쳐 보세요. 이 브라우저에만 저장되고 매일 처음 상태로 돌아가요. 지금: ' + esc(meName()) + '') + '</span><button type="button" class="btn" data-act="reset">예시로 되돌리기</button></div>');
+      '<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>체험 데이터</b><span class="muted" style="font-size:13px">' + (PF.club ? '동아리 드라이브 연결 전까지 실험 목록은 예시 데이터로 보여요. 이 기기에만 저장됩니다.' : '가지고등학교 실험 동아리(가상)로 마음껏 만들고 고쳐 보세요. 이 브라우저에만 저장되고 매일 처음 상태로 돌아가요. 지금: ' + esc(meName()) + '') + '</span><button type="button" class="btn" data-act="reset">예시로 되돌리기</button></div>');
   }
   /* 설정 맨 위: 드라이브 연결 (동아리마다 따로) */
   function driveCard() {
     const box = (badge, body) => '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">드라이브 연결</b>' + badge + '</div>' + body + '</div>';
-    if (!PF.club) return box('<span class="badge t-neutral">체험</span>', '<span class="muted" style="font-size:13px;line-height:1.7">지금은 <b>체험용 가상 동아리(북일고등학교 실험 동아리)</b>예요. 드라이브 연결 없이 바로 써 볼 수 있어요. 바꾼 내용은 이 브라우저에만 저장되고 <b>매일 처음 상태로 돌아가요.</b></span><button type="button" class="btn" data-act="demoWho" style="align-self:flex-start">누구로 체험할지 바꾸기 · 처음 상태로</button>');
+    if (!PF.club) return box('<span class="badge t-neutral">체험</span>', '<span class="muted" style="font-size:13px;line-height:1.7">지금은 <b>체험용 가상 동아리(가지고등학교 실험 동아리)</b>예요. 드라이브 연결 없이 바로 써 볼 수 있어요. 바꾼 내용은 이 브라우저에만 저장되고 <b>매일 처음 상태로 돌아가요.</b></span><button type="button" class="btn" data-act="demoWho" style="align-self:flex-start">누구로 체험할지 바꾸기 · 처음 상태로</button>');
     if (PF.isMaster) { fetchGs(); return linksCard() + backupCard() + connectCard(); }
     return linksCard() + backupCard();   // 관리자: 바로 열기만 · 부원에게는 보이지 않음
   }

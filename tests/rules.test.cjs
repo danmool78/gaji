@@ -23,7 +23,7 @@ async function createClub(db, uid, slug, name) {
   await env.withSecurityRulesDisabled(async (c) => { await setDoc(doc(c.firestore(), 'system/config'), { admins: ['sys'] }); });
 
   await t('로그인 안 하면 동아리를 만들 수 없다', () => assertFails(createClub(anon(), 'x', 'club-a')));
-  await t('마스터가 동아리를 만든다 (공개 + 비공개 + 내 목록 한 번에)', () => assertSucceeds(createClub(user('alice'), 'alice', 'bukil-sci', '북일 과학')));
+  await t('마스터가 동아리를 만든다 (공개 + 비공개 + 내 목록 한 번에)', () => assertSucceeds(createClub(user('alice'), 'alice', 'bukil-sci', '가지 과학')));
   await t('같은 주소로 또 만들 수 없다', () => assertFails(createClub(user('bob'), 'bob', 'bukil-sci')));
   await t('남을 마스터로 적어서 만들 수 없다', async () => { const db = user('bob'); const b = writeBatch(db); b.set(doc(db, 'clubs', 'club-b'), pub('b')); b.set(doc(db, 'clubs', 'club-b', 'private', 'info'), { masterUid: 'alice', createdAt: serverTimestamp() }); await assertFails(b.commit()); });
   await t('예약된 주소(demo)는 쓸 수 없다', () => assertFails(createClub(user('bob'), 'bob', 'demo')));
@@ -32,7 +32,7 @@ async function createClub(db, uid, slug, name) {
   await t('다른 사람은 비공개 정보를 못 읽는다', () => assertFails(getDoc(doc(user('bob'), 'clubs', 'bukil-sci', 'private', 'info'))));
   await t('마스터는 비공개 정보를 읽는다', () => assertSucceeds(getDoc(doc(user('alice'), 'clubs', 'bukil-sci', 'private', 'info'))));
   await t('시스템 마스터는 사용 현황을 읽는다', () => assertSucceeds(getDoc(doc(user('sys'), 'clubs', 'bukil-sci', 'private', 'info'))));
-  await t('마스터는 이름 · 색을 바꾼다', () => assertSucceeds(updateDoc(doc(user('alice'), 'clubs', 'bukil-sci'), { name: '북일고 과학탐구반', color: '#2F6FDB' })));
+  await t('마스터는 이름 · 색을 바꾼다', () => assertSucceeds(updateDoc(doc(user('alice'), 'clubs', 'bukil-sci'), { name: '가지고 과학탐구반', color: '#2F6FDB' })));
   await t('다른 사람은 이름을 못 바꾼다', () => assertFails(updateDoc(doc(user('bob'), 'clubs', 'bukil-sci'), { name: '해킹' })));
   await t('공개 정보에 다른 칸(이메일 등)을 넣을 수 없다', () => assertFails(updateDoc(doc(user('alice'), 'clubs', 'bukil-sci'), { email: 'a@b.c' })));
   await t('마스터는 연결기 주소를 저장한다', () => assertSucceeds(updateDoc(doc(user('alice'), 'clubs', 'bukil-sci'), { connector: 'https://script.google.com/macros/s/AKfy123/exec' })));

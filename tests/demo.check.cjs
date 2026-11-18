@@ -1,4 +1,4 @@
-// 체험(북일고등학교 실험 동아리) 확인
+// 체험(가지고등학교 실험 동아리) 확인
 const { chromium } = require('playwright'); const http = require('http'), fs = require('fs'), path = require('path'); const P = require('path').join(__dirname, '../public');
 const srv = http.createServer((q, r) => { let f = path.join(P, q.url.split('?')[0]); if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) f = P + '/index.html'; r.writeHead(200, { 'content-type': f.endsWith('.js') ? 'text/javascript' : f.endsWith('.css') ? 'text/css' : f.endsWith('.html') ? 'text/html' : 'text/plain' }); fs.createReadStream(f).pipe(r); }).listen(5096);
 const W = Number(process.argv[2] || 390);
@@ -13,7 +13,7 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) process
   await p.reload(); await p.waitForTimeout(300);
   ok((await p.textContent('.layout')).includes('전지 연구') || (await p.textContent('.layout')).includes('내가 할 일'), '예전 판 저장 데이터 → 새 예시로 바뀜');
   const body = () => p.textContent('.layout'), click = async (s) => { await p.click(s); await p.waitForTimeout(80); };
-  let t = await body(); ok(t.includes('북일고등학교 실험 동아리') && (await p.textContent('#demoPill')).includes('김기장'), '북일고 · 김기장으로 시작');
+  let t = await body(); ok(t.includes('가지고등학교 실험 동아리') && (await p.textContent('#demoPill')).includes('김기장'), '가지고 · 김기장으로 시작');
   await p.screenshot({ path: 'shots/demo-home-' + W + '.png' });
   await click('.tabs [data-tab="tree"]'); t = await body(); ok(t.includes('전지 연구'), '가지: 전지 연구 줄기'); await p.screenshot({ path: 'shots/demo-tree-' + W + '.png' });
   // 확정된 레몬 전지 보고서 · 그림
