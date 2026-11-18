@@ -303,7 +303,7 @@
       const core = PF.connAuth === 'core';
       return gateCard('<div class="card gate-box"><b>연결하지 못했어요</b><p class="muted">' + esc(PF.error) + '</p>' +
         (core ? (PF.isMaster
-          ? '<div class="gate-note card" style="text-align:left;line-height:1.8;font-weight:400"><b>연결기 권한 허용이 필요해요 (마스터)</b><br>① 가지 데이터 시트 → 확장 프로그램 → <b>Apps Script</b><br>② 아래 <b>연결기 코드 복사</b> → 코드 전체 지우고 붙여 넣기 → <b>저장</b><br>③ 위쪽 도구 줄 <b>디버그</b> 오른쪽 함수 칸에서 <b>권한허용</b>을 골라요<br>④ <b>▷ 실행</b>을 눌러요<br>⑤ <b>권한 검토</b> → 내 계정<br>⑥ 경고 창의 <b>가지 연결기(안전하지 않음) 앱으로 이동</b>(또는 고급 → 이동) → <b>허용</b> <button type="button" class="chipbtn" data-act="authGuide">그림으로 보기</button><br>⑦ 아래 <b>실행 로그</b>에 ‘준비 완료’가 보이면 여기서 <b>다시 시도</b><br>빨간 오류가 보이면 그 화면을 캡처해 주세요.</div>' +
+          ? '<div class="gate-note card" style="text-align:left;line-height:1.8;font-weight:400"><b>연결기 권한 허용이 필요해요 (마스터)</b><br>① 가지 데이터 시트 → 확장 프로그램 → <b>Apps Script</b><br>② 아래 <b>연결기 코드 복사</b> → 코드 전체 지우고 붙여 넣기 → <b>저장</b><br>③ 위쪽 도구 줄 <b>디버그</b> 오른쪽 함수 칸에서 <b>권한허용</b>을 골라요<br>④ <b>▷ 실행</b>을 눌러요<br>⑤ <b>권한 검토</b> → 내 계정<br>⑥ 경고 창의 <b>가지 연결기(안전하지 않음) 앱으로 이동</b>(또는 고급 → 이동)<br>⑦ <b>모두 선택</b>에 꼭 체크 → 맨 아래 <b>계속</b> <button type="button" class="chipbtn" data-act="authGuide">그림으로 보기</button><br>⑧ 아래 <b>실행 로그</b>에 ‘준비 완료’가 보이면 여기서 <b>다시 시도</b><br>빨간 오류가 보이면 그 화면을 캡처해 주세요.</div>' +
             '<button type="button" class="btn" data-act="copyGs">연결기 코드 복사</button><textarea id="gsCode" class="gs-code" readonly spellcheck="false" style="height:90px">' + esc(PF.gs || '불러오는 중…') + '</textarea>'
           : '<p class="muted" style="font-size:13px">동아리 마스터가 연결기를 손보는 중이에요. 잠시 뒤 다시 열어 주세요.</p>') : '') +
         '<button type="button" class="btn primary" data-act="retry">다시 시도</button></div>');
@@ -375,14 +375,25 @@
       '<path d="M150 114v26M140 130l10 10 10-10" stroke="#98A2B3" stroke-width="3" fill="none" stroke-linecap="round"/>' +
       '<rect x="24" y="152" width="96" height="30" rx="15" fill="#fff" stroke="#D0D5DD"/>' + t(72, 171, '취소', { s: 11, c: '#475467' }).replace('x="72"', 'x="72" text-anchor="middle"') +
       '<rect x="180" y="152" width="96" height="30" rx="15" fill="#1A73E8"/>' + t(228, 171, '허용', { s: 11, c: '#fff' }).replace('x="228"', 'x="228" text-anchor="middle"') + ring(172, 145, 112, 44));
+    const box = (x, y, on) => '<rect x="' + x + '" y="' + y + '" width="13" height="13" rx="2" fill="' + (on ? '#1A73E8' : '#fff') + '" stroke="' + (on ? '#1A73E8' : '#98A2B3') + '" stroke-width="1.6"/>' + (on ? '<path d="m' + (x + 3) + ' ' + (y + 6.5) + ' 3 3 5-6" stroke="#fff" stroke-width="2" fill="none"/>' : '');
+    const pAll = frame(t(20, 30, '가지 연결기에서 Google 계정에', { s: 12 }) + t(20, 47, '대한 액세스를 요청합니다', { s: 12 }) + '<rect x="20" y="58" width="260" height="22" rx="6" fill="#FEF0C7"/>' +
+      t(20, 102, '액세스할 수 있는 항목을 선택하세요', { s: 10.5, c: '#475467' }) + box(22, 112, true) + t(44, 123, '모두 선택', { s: 12 }) + ring(14, 105, 112, 26) +
+      '<line x1="20" y1="138" x2="280" y2="138" stroke="#E4E7EC"/>' + t(22, 155, 'Google Drive 파일 보기, 수정 …', { s: 10, w: 500, c: '#475467' }) + box(262, 145, true) +
+      '<line x1="20" y1="165" x2="280" y2="165" stroke="#E4E7EC"/>' + t(22, 183, 'Google Slides 프레젠테이션 …', { s: 10, w: 500, c: '#475467' }) + box(262, 173, true));
+    const pGo = frame(t(22, 30, '스프레드시트 보기, 수정 …', { s: 10, w: 500, c: '#475467' }) + box(262, 20, true) + '<line x1="20" y1="42" x2="280" y2="42" stroke="#E4E7EC"/>' +
+      t(22, 62, '외부 서비스에 연결', { s: 10, w: 500, c: '#475467' }) + box(262, 52, true) + '<line x1="20" y1="74" x2="280" y2="74" stroke="#E4E7EC"/>' +
+      t(22, 94, '이메일 보내기', { s: 10, w: 500, c: '#475467' }) + box(262, 84, true) + line(20, 116, 230) +
+      '<rect x="24" y="152" width="96" height="30" rx="15" fill="#fff" stroke="#D0D5DD"/>' + t(72, 171, '취소', { s: 11, c: '#475467' }).replace('x="72"', 'x="72" text-anchor="middle"') +
+      '<rect x="180" y="152" width="96" height="30" rx="15" fill="#1A73E8"/>' + t(228, 171, '계속', { s: 11, c: '#fff' }).replace('x="228"', 'x="228" text-anchor="middle"') + ring(172, 145, 112, 44));
     const card = (n, img, b, d) => '<div class="ag-step"><span class="ag-n">' + n + '</span>' + img + '<b>' + b + '</b><span>' + d + '</span></div>';
     return '<div class="auth-guide"><div class="ag-warn"><b>파란 단추(‘안전한 환경으로 돌아가기’)는 누르지 마세요.</b> 누르면 허용되지 않고 창이 닫혀요.</div>' +
       '<div class="ag-steps">' +
       card(1, p0, '빨간 상자 안 밑줄 링크', '‘Google에서 인증하지 않은 앱’이 나오면 빨간 상자 안의 밑줄 친 <b>가지 연결기(안전하지 않음) 앱으로 이동</b>을 눌러요.<br>우리 동아리가 직접 만든 연결기라 나오는 정상 경고예요. 개발자 칸에는 시트를 만든 내 계정이 보여요.') +
-      card(2, p3, '아래로 내려서 ‘허용’', '권한 목록을 끝까지 내려 <b>허용</b>(또는 <b>계속</b>)을 눌러요.<br>체크 칸이 있으면 모두 체크해요.') +
+      card(2, pAll, '‘모두 선택’ 꼭 체크', '항목을 고르는 화면이 나오면 맨 위 <b>모두 선택</b>에 꼭 체크해요.<br><b>하나라도 빠지면</b> 사진 · 보고서 · 백업 · 일정이 동작하지 않아요.') +
+      card(3, pGo, '맨 아래 ‘계속’', '끝까지 내려 <b>계속</b>(또는 <b>허용</b>)을 눌러요.<br>항목 고르는 화면 없이 바로 <b>허용</b>만 있으면 그걸 눌러요.') +
       '</div><details class="wmore" style="margin-top:8px"><summary>화면이 다르게 ‘고급’이 보여요</summary><div class="ag-steps" style="margin-top:8px">' +
       card('A', p1, '왼쪽 아래 작은 ‘고급’', '아래쪽의 작은 글씨 <b>고급</b>을 눌러요.') +
-      card('B', p2, '‘…(으)로 이동(안전하지 않음)’', '펼쳐진 글 맨 아래 밑줄 친 링크를 눌러요. 그다음 위의 2번처럼 허용해요.') +
+      card('B', p2, '‘…(으)로 이동(안전하지 않음)’', '펼쳐진 글 맨 아래 밑줄 친 링크를 눌러요. 그다음 위의 2 · 3번처럼 해요.') +
       '</div></details><p class="ag-tip">잘못 눌러 창이 닫혔으면 괜찮아요. <b>▷ 실행</b>을 한 번 더 누르면 같은 창이 다시 떠요.</p></div>';
   }
   async function submitJoin(f) {
@@ -565,7 +576,7 @@
       step(8, '배포 → 새 배포', 'Apps Script 화면 오른쪽 위 파란 <b>배포</b> 버튼을 눌러요.<br>그다음 <b>새 배포</b>를 눌러요.') +
       step(9, '유형: 웹 앱', '‘유형 선택’ 옆 <b>톱니바퀴</b>를 눌러요.<br>목록에서 <b>웹 앱</b>을 골라요.') +
       step(10, '실행: 나 · 액세스: 모든 사용자', '<b>다음 사용자 인증 정보로 실행</b>: <b>나</b><br><b>액세스 권한이 있는 사용자</b>: <b>모든 사용자</b><br>그다음 <b>배포</b>를 눌러요.<br><small>‘모든 사용자’여야 부원 기기가 연결돼요. 부원은 코드와 승인으로 보호돼요.</small>') +
-      step(11, '권한 묻기가 또 나오면', '<b>액세스 승인</b>이 나오면 6단계와 똑같이 허용해요.<br>안 나오면 넘어가요.', '<button type="button" class="chipbtn" data-act="authGuide">그림 안내 다시 보기</button>') +
+      step(11, '권한 묻기가 또 나오면', '<b>액세스 승인</b>이 나오면 6단계와 똑같이 해요 (<b>모두 선택</b> 체크 → <b>계속</b>).<br>안 나오면 넘어가요.', '<button type="button" class="chipbtn" data-act="authGuide">그림 안내 다시 보기</button>') +
       step(12, '웹 앱 URL 붙여 넣기', '마지막 창의 <b>웹 앱 URL</b> 옆 <b>복사</b>를 눌러요.<br>아래 칸에 붙여 넣고 <b>연결하기</b>를 눌러요.',
         '<form id="connectForm" style="display:flex;flex-direction:column;gap:10px;margin-top:6px"><label class="field">웹 앱 URL<input name="url" required placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" spellcheck="false"></label>' +
         '<div class="grid2"><label class="field">내 학번<input name="sid" autocapitalize="characters" maxlength="12" required></label><label class="field">내 이름<input name="name" maxlength="20" required></label></div>' +
