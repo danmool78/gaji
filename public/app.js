@@ -329,7 +329,8 @@
       '<label class="field">학번<input name="sid" autocapitalize="characters" autocomplete="username" maxlength="12" required placeholder="예: 20315 · 선생님은 T01"></label>' +
       '<label class="field">개인 코드 <span class="muted" style="font-weight:400">운영진에게 받은 4자리</span><input name="code" inputmode="numeric" autocomplete="current-password" type="password" maxlength="4" pattern="[0-9]{4}" required placeholder="••••"></label>' +
       '<button type="submit" class="btn primary">들어가기</button>' +
-      '<p class="muted" style="font-size:12px;line-height:1.6">처음 쓰는 기기는 기장님 승인 뒤에 열려요. 내 코드와 기기는 다른 사람에게 빌려주지 않아요.</p></form>') +
+      '<p class="muted" style="font-size:12px;line-height:1.6">처음 쓰는 기기는 기장님 승인 뒤에 열려요. 내 코드와 기기는 다른 사람에게 빌려주지 않아요.</p>' +
+      '<p class="muted" style="font-size:12px;line-height:1.6;margin:0;padding-top:10px;border-top:1px solid var(--line)"><b>처음이라 코드가 없나요?</b> 기장님께 <b>초대 링크</b>를 받아 열면 이름 · 학번만으로 가입 신청할 수 있어요. 코드를 잊었으면 기장님이 부원 명단에서 새 코드를 알려 줄 수 있어요.</p></form>') +
       (mk ? '<form class="card gate-box" id="masterJoinForm"><b>동아리 마스터로 이 기기 연결</b><p class="muted" style="font-size:13px">구글로 로그인한 마스터는 승인 없이 바로 연결돼요.</p>' +
         '<label class="field">내 학번<input name="sid" autocapitalize="characters" maxlength="12" required></label>' +
         '<label class="field">내 이름 <span class="muted" style="font-weight:400">처음 쓰는 학번일 때만</span><input name="name" maxlength="20"></label>' +

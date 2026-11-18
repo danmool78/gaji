@@ -17,7 +17,46 @@ const LOGO = '<svg viewBox="96 56 340 396" class="gaji-mark"><g fill="#fff" fill
 let user = null;
 const authReady = new Promise((res) => onAuthStateChanged(auth, (u) => { user = u; if (window.GAJI_APP && window.GAJI_APP.dbg) window.GAJI_APP.dbg('로그인변화'); res(); render(); }));
 
+/* ---------- 카카오톡 · 네이버 · 인스타 같은 앱 안 브라우저 ----------
+   구글은 앱 안 브라우저에서 로그인을 막고(403 disallowed_useragent), 기기 연결도 크롬 · 사파리와 따로 저장돼요.
+   카카오톡은 바깥 브라우저로 바로 넘기고, 다른 앱은 여는 방법을 띠로 안내해요. */
+const UA = navigator.userAgent || '';
+const INAPP = /KAKAOTALK/i.test(UA) ? 'kakao' : /NAVER\(inapp|Instagram|FBAN|FBAV|FB_IAB|\bLine\/|everytimeApp|DaumApps|BAND\/|; wv\)/i.test(UA) ? 'app' : '';
+const INAPP_NAME = INAPP === 'kakao' ? '카카오톡' : /NAVER/i.test(UA) ? '네이버 앱' : /Instagram/i.test(UA) ? '인스타그램' : /FBAN|FBAV|FB_IAB/i.test(UA) ? '페이스북' : /\bLine\//i.test(UA) ? '라인' : /BAND\//i.test(UA) ? '밴드' : '앱';
+const IOS = /iPhone|iPad|iPod/i.test(UA) || (/Macintosh/.test(UA) && navigator.maxTouchPoints > 1);
+function openOutside() {
+  const u = location.href;
+  if (INAPP === 'kakao') { location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(u); return true; }
+  if (!IOS) { location.href = 'intent://' + location.host + location.pathname + location.search + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(u) + ';end'; return true; }
+  return false;
+}
+function inappBar(strong) {
+  if (!INAPP || (INAPP !== 'kakao' && route.page === 'club' && route.slug === 'demo')) return;
+  let bar = $('#inappBar');
+  if (!bar) {
+    bar = document.createElement('div'); bar.id = 'inappBar';
+    bar.style.cssText = 'position:sticky;top:0;z-index:9999;background:#1D2939;color:#fff;padding:12px 16px;font-size:13px;line-height:1.6;display:flex;flex-direction:column;gap:8px;word-break:keep-all';
+    const canJump = INAPP === 'kakao' || !IOS;
+    bar.innerHTML = '<b style="font-size:14px">' + esc(INAPP_NAME) + ' 안에서 열렸어요</b><span>구글 로그인(동아리 만들기 · 마스터)이 막히고, 이 기기 연결도 크롬 · 사파리와 따로 저장돼요. <b>' + (IOS ? '사파리로' : '크롬으로') + ' 열어 주세요.</b>' +
+      (canJump ? '' : ' 화면 오른쪽 아래(또는 위) <b>⋯ 메뉴 → ‘다른 브라우저로 열기’</b>를 누르거나, 링크를 복사해 사파리에 붙여 넣어요.') + '</span>' +
+      '<span style="display:flex;gap:8px;flex-wrap:wrap">' + (canJump ? '<button type="button" data-inapp="open" style="background:#fff;color:#1D2939;border:0;border-radius:999px;padding:8px 14px;font-weight:700;font:inherit;font-weight:700">' + (IOS ? '사파리로' : '크롬으로') + ' 열기</button>' : '') +
+      '<button type="button" data-inapp="copy" style="background:transparent;color:#fff;border:1px solid #fff6;border-radius:999px;padding:8px 14px;font:inherit">링크 복사</button>' +
+      '<button type="button" data-inapp="close" style="background:transparent;color:#fffa;border:0;padding:8px 6px;font:inherit;margin-left:auto">닫기</button></span>';
+    document.body.prepend(bar);
+  }
+  if (strong) { bar.style.background = '#B42318'; bar.scrollIntoView({ block: 'start' }); window.scrollTo(0, 0); }
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-inapp]'); if (!b) return;
+  if (b.dataset.inapp === 'open') return void openOutside();
+  if (b.dataset.inapp === 'close') return void $('#inappBar').remove();
+  const done = () => toast('링크를 복사했어요 · ' + (IOS ? '사파리' : '크롬') + ' 주소창에 붙여 넣어 주세요');
+  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(location.href).then(done, () => prompt('이 링크를 복사해 주세요', location.href));
+  else prompt('이 링크를 복사해 주세요', location.href);
+});
+
 async function login() {
+  if (INAPP) { inappBar(true); toast(INAPP_NAME + ' 안에서는 구글 로그인이 막혀요 · ' + (IOS ? '사파리로' : '크롬으로') + ' 열어 주세요'); return; }
   const p = new GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' });
   try { await signInWithPopup(auth, p); }
   catch (e) { if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment') return signInWithRedirect(auth, p); if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') toast('로그인하지 못했어요'); }
@@ -293,4 +332,9 @@ else {
     try { const c = JSON.parse(localStorage.getItem('gaji-club:' + route.slug) || 'null'); const dv = JSON.parse(localStorage.getItem('gaji-dev:' + route.slug) || 'null'); if (c && c.connector && dv && dv.url === c.connector) { showApp(); window.GAJI_APP.setClub(c, false, null, route.slug); } } catch (e) {}
   }
   authReady.then(() => {});
+}
+
+if (INAPP) {
+  if (INAPP === 'kakao') openOutside();   // 카카오톡은 언제나 바깥 브라우저로 (못 넘어가도 띠가 남아 안내)
+  if (document.body) inappBar(); else document.addEventListener('DOMContentLoaded', () => inappBar());
 }
