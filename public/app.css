@@ -852,3 +852,5 @@ details.sup-box[open] .sup-last { display: none; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .warn-pre { background: #2A2010; border-color: #6B4A12; } :root:not([data-theme="light"]) .warn-pre > b { color: #F5C26B; } }
 :root[data-theme="dark"] .warn-pre { background: #2A2010; border-color: #6B4A12; } :root[data-theme="dark"] .warn-pre > b { color: #F5C26B; }
 .warn-no { display: block; margin-top: 8px; padding: 9px 12px; border-radius: 8px; background: #D92D20; color: #fff; font-weight: 500; letter-spacing: 0.01em; }
+.gbtn { display: inline-block; padding: 2px 12px; border-radius: 6px; background: #1A73E8; color: #fff; font-size: 0.9em; font-weight: 600; line-height: 1.6; white-space: nowrap; vertical-align: 0.05em; }
+.gmenu { display: inline-block; padding: 0 8px; border-radius: 4px; border: 1px solid #D0D5DD; background: #fff; color: #1D2939; font-size: 0.92em; line-height: 1.6; white-space: nowrap; }

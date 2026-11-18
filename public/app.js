@@ -590,10 +590,10 @@
       step(5, '권한 검토 → 내 계정', '‘승인 필요’ 창이 뜨면 <b>권한 검토</b>를 눌러요.<br>그다음 <b>시트를 만든 내 구글 계정</b>을 골라요.', toolPic('review')) +
       step(6, '경고 넘기고 허용', '‘Google에서 인증하지 않은 앱’ 경고가 나와요. 맨 위에서 말한 정상 경고예요.<br>그림 순서대로 눌러요. 같은 경고가 한 번 더 떠도 똑같이 해요.', authGuide()) +
       step(7, '실행 로그 확인', '아래쪽 <b>실행 로그</b>에 <b>가지 연결기 준비 완료</b>가 보이면 성공이에요.<br>빨간 오류가 보이면 그 화면을 캡처해서 문의해 주세요.', toolPic('log')) +
-      step(8, '배포 → 새 배포', ASI + ' 화면 오른쪽 위 파란 <b>배포</b> 버튼을 눌러요.<br>그다음 <b>새 배포</b>를 눌러요.') +
+      step(8, '배포 → 새 배포', ASI + ' 화면 오른쪽 위 <span class="gbtn">배포 ▾</span> 버튼을 눌러요.<br>그다음 <span class="gmenu">새 배포</span>를 눌러요.') +
       step(9, '유형: 웹 앱', '‘유형 선택’ 옆 <b>톱니바퀴</b>를 눌러요.<br>목록에서 <b>웹 앱</b>을 골라요.') +
-      step(10, '설명 · 실행 · 액세스 고르고 배포', '<b>설명</b>: <b>가지 연결기</b> (아무 말이나 괜찮아요 · 비워도 돼요)<br><b>다음 사용자 인증 정보로 실행</b>: <b>나</b> (그대로)<br><b>액세스 권한이 있는 사용자</b>: ‘나만’을 눌러 <b>모든 사용자</b>로 바꿔요<br>그다음 오른쪽 아래 <b>배포</b>를 눌러요.<br><small>‘나만’으로 두면 부원 기기가 연결되지 않아요. 부원은 코드와 승인으로 보호돼요.</small>', toolPic('deploy')) +
-      step(11, '‘액세스 승인’이 나오면', '배포를 누른 뒤 파란 <b>액세스 승인</b> 단추가 나오면 눌러요.<br>내 계정 → 경고의 <b>가지 연결기(안전하지 않음) 앱으로 이동</b> → <b>모두 선택</b> 체크 → <b>계속</b>.<br>6단계와 똑같아요. 안 나오면 넘어가요.', '<button type="button" class="chipbtn" data-act="authGuide">그림 안내 다시 보기</button>') +
+      step(10, '설명 · 실행 · 액세스 고르고 배포', '<b>설명</b>: <b>가지 연결기</b> (아무 말이나 괜찮아요 · 비워도 돼요)<br><b>다음 사용자 인증 정보로 실행</b>: <b>나</b> (그대로)<br><b>액세스 권한이 있는 사용자</b>: ‘나만’을 눌러 <b>모든 사용자</b>로 바꿔요<br>그다음 오른쪽 아래 <span class="gbtn">배포</span>를 눌러요.<br><small>‘나만’으로 두면 부원 기기가 연결되지 않아요. 부원은 코드와 승인으로 보호돼요.</small>', toolPic('deploy')) +
+      step(11, '‘액세스 승인’이 나오면', '<span class="gbtn">배포</span>를 누른 뒤 <span class="gbtn">액세스 승인</span> 단추가 나오면 눌러요.<br>내 계정 → 경고의 <b>가지 연결기(안전하지 않음) 앱으로 이동</b> → <b>모두 선택</b> 체크 → <b>계속</b>.<br>6단계와 똑같아요. 안 나오면 넘어가요.', '<button type="button" class="chipbtn" data-act="authGuide">그림 안내 다시 보기</button>') +
       step(12, '웹 앱 URL 붙여 넣기', '‘배포가 업데이트되었습니다’ 창에서 <b>배포 ID</b>가 아니라 아래쪽 <b>웹 앱 · URL</b> 밑의 <b>복사</b>를 눌러요.<br>아래 칸에 붙여 넣고 <b>연결하기</b>를 눌러요.<br><small>https://script.google.com/macros/s/…/exec 모양이에요. 그 아래 ‘라이브러리’ URL이 함께 보여도 쓰지 않아요.</small>', toolPic('url') +
         '<form id="connectForm" style="display:flex;flex-direction:column;gap:10px;margin-top:6px"><label class="field">웹 앱 URL<input name="url" required placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" spellcheck="false"></label>' +
         '<div class="grid2"><label class="field">내 학번<input name="sid" autocapitalize="characters" maxlength="12" required></label><label class="field">내 이름<input name="name" maxlength="20" required></label></div>' +
