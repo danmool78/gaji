@@ -11,7 +11,7 @@ const check = (label) => `(() => { const bad = [];
   return bad; })()`;
 (async () => { const b = await chromium.launch(); let total = 0;
   for (const [w, h] of [[375, 740], [390, 844], [820, 1180]]) {
-    const p = await (await b.newContext({ viewport: { width: w, height: h } })).newPage();
+    const p = await (await b.newContext({ viewport: { width: w, height: h } })).newPage(); await p.addInitScript(() => { try { const v = JSON.parse(localStorage.getItem('gaji-prefs') || '{}'); v.tourDone = 1; localStorage.setItem('gaji-prefs', JSON.stringify(v)); } catch (e) {} });   // 처음 화면 안내는 따로 시험
     await p.route('**/platform.js', (r) => r.fulfill({ body: 'document.querySelector(".app").hidden=false', contentType: 'text/javascript' }));
     await p.goto('http://localhost:5085/c/demo');
     const report = async (name) => { const bad = await p.evaluate(check()); if (bad.length) { total += bad.length; console.log(w + 'px ' + name + ':', [...new Set(bad)].join(' / ')); } };

@@ -183,7 +183,7 @@ const mc2 = call({ action: 'myCode', device: r9b.data.device });
 ok('old code renewed', mc2.ok && mc2.data.renewed && /^\d{4}$/.test(mc2.data.code), mc2);
 ok('device kept after renew', call({ action: 'load', device: r9b.data.device }).ok);
 ok('new code works', call({ action: 'register', studentId: '20399', code: mc2.data.code }).ok);
-ok('ping version', call({ action: 'ping' }).data.version === '2.19.2');
+ok('ping version', call({ action: 'ping' }).data.version === '2.20.0');
 
 // 실수 되돌리기: 내가 10분 안에 옮긴 단계는 한 단계 되돌리기 가능
 setRule('approvePeers', 0); setRule('approveTeacher', 'none');
@@ -622,7 +622,7 @@ ok('load has no self rev', !call({ action: 'load', device: ADM }).rev);
 
 // ===== 2.18.2: 시스템 현황 숫자 =====
 const sysStat = call({ action: 'stats', device: ADM });
-ok('stats: numbers only', sysStat.ok && typeof sysStat.data.done === 'number' && typeof sysStat.data.running === 'number' && typeof sysStat.data.devices === 'number' && /^\d{4}-\d\d-\d\d$|^$/.test(sysStat.data.lastEdit) && sysStat.data.core === '2.19.2', sysStat.data);
+ok('stats: numbers only', sysStat.ok && typeof sysStat.data.done === 'number' && typeof sysStat.data.running === 'number' && typeof sysStat.data.devices === 'number' && /^\d{4}-\d\d-\d\d$|^$/.test(sysStat.data.lastEdit) && sysStat.data.core === '2.20.0', sysStat.data);
 ok('stats: no names', !JSON.stringify(sysStat.data).match(/[가-힣]{2,}/));
 ok('stats: member refused', call({ action: 'stats', device: MEM }).code === 'not_admin');
 
@@ -681,6 +681,29 @@ ok('stats: member refused', call({ action: 'stats', device: MEM }).code === 'not
   ok('rekey: wrong old key refused', call({ action: 'rekey', masterKey: 'x'.repeat(25), newKey: 'y'.repeat(30) }).code === 'wrong_key');
   { const rk = call({ action: 'rekey', masterKey: 'z'.repeat(24), newKey: 'NEWKEY'.repeat(5) }); ok('rekey: right old key works', rk.ok, rk); }
   ok('rekey: old key no longer registers master', call({ action: 'masterRegister', masterKey: 'z'.repeat(24), studentId: '20301', label: 'x' }).code === 'wrong_key');
+}
+
+
+// ===== 2.20.0: 예전 부원 이름 정리 =====
+{
+  const mm = (n) => store._t.members.find((m) => m.name === n);
+  store._t.members.push({ id: 'mOld1', studentId: '50001', name: '옛부원', role: '부원', codeHash: '', status: '활동', createdAt: '2026-01-01' });
+  store._t.members.push({ id: 'mDup1', studentId: '50002', name: '같은이름', role: '부원', codeHash: '', status: '활동', createdAt: '2026-01-01' });
+  store._t.members.push({ id: 'mDup2', studentId: '50003', name: '같은이름', role: '부원', codeHash: '', status: '활동', createdAt: '2026-01-01' });
+  store._t.nodes.push({ id: 'ro1', no: 950, type: 'exp', title: '정리 시험', status: '계획 작성', owner: '옛부원', createdBy: '옛부원', team: ['옛부원', '다른사람'], run: { notes: [{ by: '옛부원', text: '옛부원 메모' }] }, created: '2026-01-01' });
+  store._t.comments.push({ id: 'rc1', node: 'ro1', kind: 'approve', text: '', by: '옛부원', at: '2026-01-01' });
+  store._t.history.push({ id: 'rh1', node: 'ro1', field: 'team', by: '옛부원', at: '2026-01-01', before: '["옛부원"]', after: '["옛부원","다른사람"]' });
+  const MD = call({ action: 'masterRegister', masterKey: 'NEWKEY'.repeat(5), studentId: '20301', label: 'rename' }).data.device;
+  ok('renameAll: member refused', call({ action: 'renameAll', device: MEM }).code === 'not_master');
+  const rn = call({ action: 'renameAll', device: MD });
+  ok('renameAll: ok', rn.ok && rn.data.renamed >= 1 && rn.data.skipped.includes('같은이름'), rn);
+  const n = store._t.nodes.find((x) => x.id === 'ro1');
+  ok('renameAll: node fields', n.owner === '옛부원(50001)' && n.createdBy === '옛부원(50001)' && n.team[0] === '옛부원(50001)' && n.team[1] === '다른사람', n);
+  ok('renameAll: nested + text kept', n.run.notes[0].by === '옛부원(50001)' && n.run.notes[0].text === '옛부원 메모');
+  ok('renameAll: comment', store._t.comments.find((x) => x.id === 'rc1').by === '옛부원(50001)');
+  ok('renameAll: history json string', store._t.history.find((x) => x.id === 'rh1').after === '["옛부원(50001)","다른사람"]');
+  ok('renameAll: member renamed, dup kept', !!mm('옛부원(50001)') && store._t.members.filter((m) => m.name === '같은이름').length === 2);
+  ok('renameAll: second run does nothing', call({ action: 'renameAll', device: MD }).data.renamed === 0);
 }
 
 console.log(`connector: ${pass} passed, ${fail} failed`);

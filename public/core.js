@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.19.2';
+var GAJI_CONNECTOR_VERSION = '2.20.0';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
@@ -752,6 +752,43 @@ function GajiCore(store, util, drive) {
         return { id: d.id, member: m.name || '', studentId: m.studentId || '', applied: m.status === '신청', label: d.label, status: d.status, confirm: d.status === '대기' ? d.confirm : '', shared: util.bool(d.shared), createdAt: d.createdAt, lastSeen: d.lastSeen,
           others: devs.filter(function (x) { return x.memberId === d.memberId && x.id !== d.id && x.status === '승인'; }).length }; })
     };
+  };
+  /* 부원 이름 정리 (마스터): 예전 부원 이름을 '이름(학번)'으로 바꾸고, 그 이름이 쓰인 기록(담당 · 팀원 · 작성자 · 승인 · 댓글 · 일정 · 변경 기록 · 공지 · 보관)도 함께 바꿈.
+     같은 이름이 두 명 이상이면 기록 속 이름이 누구 것인지 알 수 없어 그 이름은 건너뛰고 알려 줌. 기록 탭(로그)은 그대로 둠. */
+  A.renameAll = function (q) {
+    var me = deviceOf(q); if (me.role !== '마스터') err('not_master', '마스터만 할 수 있어요');
+    return util.lock(function () {
+      var ms = store.rows('members').filter(function (m) { return m.status === '활동' || m.status === '중지'; }), cnt = {}, map = {}, skipped = [];
+      ms.forEach(function (m) { cnt[m.name] = (cnt[m.name] || 0) + 1; });
+      ms.forEach(function (m) {
+        if (/\([^)]*\)$/.test(m.name) || !m.studentId) return;   // 이미 정리됨
+        if (cnt[m.name] > 1) { if (skipped.indexOf(m.name) < 0) skipped.push(m.name); return; }
+        map[m.name] = uniqName(m.name, m.studentId, m.id);
+      });
+      var olds = Object.keys(map); if (!olds.length) return { renamed: 0, skipped: skipped, changedRows: 0 };
+      var deep = function (v) {
+        if (typeof v === 'string') {
+          if (map[v]) return map[v];
+          if (/^\s*[\[{]/.test(v)) { try { var o = JSON.parse(v), o2 = deep(o); var t = JSON.stringify(o2); return t !== JSON.stringify(o) ? t : v; } catch (e) { return v; } }
+          return v;
+        }
+        if (Array.isArray(v)) return v.map(deep);
+        if (v && typeof v === 'object') { var r = {}; Object.keys(v).forEach(function (k) { r[k] = deep(v[k]); }); return r; }
+        return v;
+      };
+      var rows = 0;
+      ['nodes', 'comments', 'links', 'files', 'events', 'history', 'archive'].forEach(function (tab) {
+        store.rows(tab).forEach(function (row) {
+          var u = {}, ch = false;
+          Object.keys(row).forEach(function (k) { if (k === '_row') return; var nv = deep(row[k]); if (JSON.stringify(nv) !== JSON.stringify(row[k])) ch = true; u[k] = nv; });
+          if (ch) { store.update(tab, row._row, u); rows++; }
+        });
+      });
+      var nt = setting('notice', ''); if (nt) { var nn = deep(nt); if (nn !== nt) setSetting('notice', nn); }
+      store.rows('members').forEach(function (m) { if (map[m.name] && (m.status === '활동' || m.status === '중지')) { m.name = map[m.name]; store.update('members', m._row, m); } });
+      bump(); log(me, '부원 이름 정리', olds.length + '명 · 기록 ' + rows + '줄');
+      return { renamed: olds.length, skipped: skipped, changedRows: rows };
+    });
   };
   A.addMember = function (q) {
     var me = deviceOf(q); needAdmin(me);

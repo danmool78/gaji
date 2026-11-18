@@ -13,7 +13,7 @@ const check = (label) => `(() => { const bad = [];
   return bad; })()`;
 const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) process.exitCode = 1; };
 (async () => {
-  const b = await chromium.launch(); const ctx = await b.newContext({ viewport: { width: W, height: H } }); const p = await ctx.newPage();
+  const b = await chromium.launch(); const ctx = await b.newContext({ viewport: { width: W, height: H } }); const p = await ctx.newPage(); await p.addInitScript(() => { try { const v = JSON.parse(localStorage.getItem('gaji-prefs') || '{}'); v.tourDone = 1; localStorage.setItem('gaji-prefs', JSON.stringify(v)); } catch (e) {} });   // 처음 화면 안내는 따로 시험
   const errs = []; p.on('pageerror', (e) => errs.push(e.message)); p.on('dialog', (d) => d.accept());
   await p.route('**/platform.js', (r) => r.fulfill({ body: 'document.querySelector(".app").hidden=false', contentType: 'text/javascript' }));
   await p.goto('http://localhost:5087/c/demo');
@@ -42,7 +42,7 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) process
   await shot('02-plan-saved');
   // 2. 검토 요청 → 승인 · 수정 요청 → 고치기
   await click('[data-act=askReview]'); t = await body(); ok(t.includes('검토 중 · 부원 0/2 · 선생님 대기'), '검토 중');
-  const who = async (name) => { await click('#demoPill'); await click('#sheet [data-act=demoMe][data-name="' + name + '"]'); };
+  const who = async (name) => { await click('#demoPill'); await click('#sheet [data-act=demoMe][data-name^="' + name + '"]'); };
   ok(!(await p.$('[data-act=approve]')), '내 실험은 내가 승인 못 함');
   await who('홍교사');
   await click('[data-act=fixNote]'); await p.selectOption('#sheet .cm-add [name=sec]', 'plan.ctrl'); await p.fill('#sheet .cm-add [name=text]', '통제 변인에 레몬 온도(실온)도 넣어 주세요');

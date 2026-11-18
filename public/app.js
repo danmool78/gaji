@@ -136,7 +136,8 @@
   // 내 역할: 연결된 동아리는 연결기가 알려 준 역할, 체험은 고른 사람의 역할, 연결 전 마스터 미리 보기는 마스터
   const myRole = () => PF.mode === 'live' ? (PF.me && PF.me.role) || '부원' : PF.mode === 'preview' ? '마스터' : (((typeof db !== 'undefined' && db.members) || []).find((m) => m.name === meName()) || { role: '마스터' }).role;
   const isAdmin = () => myRole() === '관리자' || myRole() === '마스터' || myRole() === '교사';
-  const meName = () => (PF.mode === 'live' && PF.me ? PF.me.name : prefs.demoMe || '김기장');
+  const demoMaster = () => ((db.members || []).find((m) => m.role === '마스터') || { name: '김기장(20301)' }).name;
+  const meName = () => (PF.mode === 'live' && PF.me ? PF.me.name : (prefs.demoMe && (db.members || []).some((m) => m.name === prefs.demoMe) ? prefs.demoMe : demoMaster()));   // 예전 이름으로 저장된 체험 인물은 기장으로
   const URL_RE = /^https:\/\/script\.google\.com\/(a\/[^/]+\/)?macros\/s\/[\w-]+\/exec$/;
   function deviceLabel() {
     const u = navigator.userAgent;
@@ -275,7 +276,7 @@
   // 체험: 누구로 써 볼지 고르기 (이름만 바뀜)
   $('#demoPill').addEventListener('click', () => { if (PF.mode !== 'demo') return; demoWho(); });
   function demoWho() {
-    const ms = db.members || [{ name: '김기장', role: '마스터', note: '기장' }];
+    const ms = db.members || [{ name: '김기장(20301)', role: '마스터', note: '기장' }];
     openSheet('<h3>누구로 체험할까요?</h3><p class="muted" style="margin:0;font-size:13px">가지고등학교 실험 동아리는 체험용 가상 동아리예요. 바꾼 내용은 이 브라우저에만 저장되고 <b>매일 처음 상태로 돌아가요.</b></p><div class="move-list">' +
       ms.map((m) => '<button type="button" class="srow" data-act="demoMe" data-name="' + esc(m.name) + '"><span class="tx"><b>' + esc(m.name) + '</b><small>' + esc(m.note || (m.role === '부원' ? '부원' : m.role)) + '</small></span>' + (meName() === m.name ? '<span class="badge t-info">지금</span>' : '') + '</button>').join('') +
       '</div><div class="btn-row"><button type="button" class="btn" data-act="demoReset">처음 상태로 되돌리기</button><button type="button" class="btn" data-act="closeSheet">닫기</button></div>');
@@ -481,6 +482,20 @@
   }
 
   /* ---------- 드라이브 연결 마법사 (마스터) ---------- */
+  // 부원 이름 정리: 예전 이름을 '이름(학번)'으로 (기록 속 이름도 함께)
+  function renameCard() {
+    if (PF.mode !== 'live' || !PF.me || PF.me.role !== '마스터') return '';
+    const old = (PF.members || []).filter((m) => !/\([^)]*\)$/.test(m.name));
+    if (!old.length) return '';
+    return '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">부원 이름 정리</b><span class="badge t-warn">' + old.length + '명</span></div>' +
+      '<span class="muted" style="font-size:13px;line-height:1.6">새 부원은 <b>이름(학번)</b>으로 들어와요. 예전 부원 ' + old.length + '명(' + esc(old.slice(0, 4).map((m) => m.name).join(' · ')) + (old.length > 4 ? ' …' : '') + ')도 같은 모양으로 바꿔요. 실험 담당 · 팀원 · 작성자 · 승인 · 댓글 · 일정 · 변경 기록 속 이름도 함께 바뀌어서 기록은 그대로 이어져요. 같은 이름이 두 명이면 그 이름은 건너뛰어요.</span>' +
+      '<div class="btn-row"><button type="button" class="btn primary" data-act="renameAll">이름(학번)으로 정리하기</button></div></div>';
+  }
+  async function renameAll() {
+    if (!confirm('예전 부원 이름을 이름(학번)으로 바꾸고, 기록 속 이름도 함께 바꿀까요?')) return;
+    try { const r = await rpc('renameAll'); toast(r.renamed + '명 정리했어요' + (r.skipped.length ? ' · 같은 이름이라 건너뜀: ' + r.skipped.join(', ') : '')); liveLoad(); }
+    catch (e) { if (!deviceLost(e)) toast(e.message); }
+  }
   function connectCard() {
     const c = PF.club;
     if (c.connector && !PF.rewire) return '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">드라이브 연결</b><span class="badge t-ok">● 연결됨</span></div>' +
@@ -2071,7 +2086,7 @@
   function driveCard() {
     const box = (badge, body) => '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">드라이브 연결</b>' + badge + '</div>' + body + '</div>';
     if (!PF.club) return box('<span class="badge t-neutral">체험</span>', '<span class="muted" style="font-size:13px;line-height:1.7">지금은 <b>체험용 가상 동아리(가지고등학교 실험 동아리)</b>예요. 드라이브 연결 없이 바로 써 볼 수 있어요. 바꾼 내용은 이 브라우저에만 저장되고 <b>매일 처음 상태로 돌아가요.</b></span><button type="button" class="btn" data-act="demoWho" style="align-self:flex-start">누구로 체험할지 바꾸기 · 처음 상태로</button>');
-    if (PF.isMaster) { fetchGs(); return linksCard() + backupCard() + connectCard(); }
+    if (PF.isMaster) { fetchGs(); return renameCard() + linksCard() + backupCard() + connectCard(); }
     return linksCard() + backupCard();   // 관리자: 바로 열기만 · 부원에게는 보이지 않음
   }
   // 관리자: 동아리 데이터 바로 열기 (주소는 연결기가 알려 줌)
@@ -2488,6 +2503,7 @@
     if (act === 'inviteShare') { const url = location.origin + '/c/' + PF.slug + '?join=' + encodeURIComponent(PF.people.invite), t = (PF.club.name || '우리 동아리') + ' 가지 가입 링크예요. 이름과 학번을 넣고 가입 신청해 주세요.\n' + url;
       if (a.dataset.copy || !navigator.share) return (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(() => toast('링크를 복사했어요'), () => prompt('링크를 복사해 주세요', url));
       return navigator.share({ text: t }).catch(() => {}); }
+    if (act === 'renameAll') return renameAll();
     if (act === 'refreshPeople') { PF.people = null; PF.peopleErr = ''; return render(); }
     if (act === 'member') return memberSheet(did);
     if (['resetCode', 'setRole', 'setStatus', 'logoutAll'].includes(act)) return peopleAction(a);

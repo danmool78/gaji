@@ -4,7 +4,7 @@ const srv = http.createServer((q, r) => { let f = path.join(P, q.url.split('?')[
 const W = Number(process.argv[2] || 390);
 const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) process.exitCode = 1; };
 (async () => {
-  const b = await chromium.launch(); const p = await (await b.newContext({ viewport: { width: W, height: W > 700 ? 900 : 844 } })).newPage();
+  const b = await chromium.launch(); const p = await (await b.newContext({ viewport: { width: W, height: W > 700 ? 900 : 844 } })).newPage(); await p.addInitScript(() => { try { const v = JSON.parse(localStorage.getItem('gaji-prefs') || '{}'); v.tourDone = 1; localStorage.setItem('gaji-prefs', JSON.stringify(v)); } catch (e) {} });   // 처음 화면 안내는 따로 시험
   const errs = []; p.on('pageerror', (e) => errs.push(e.message)); p.on('dialog', (d) => d.accept());
   await p.route('**/platform.js', (r) => r.fulfill({ body: 'document.querySelector(".app").hidden=false', contentType: 'text/javascript' }));
   await p.goto('http://localhost:5096/c/demo');
@@ -27,7 +27,7 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) process
   await click('.tabs [data-tab="find"]'); await p.fill('#q', '병렬'); await p.waitForTimeout(100); await click('.day-list .srow');
   t = await body(); ok(t.includes('부원 1/2') && t.includes('고칠 곳 1개'), '병렬 연결: 검토 중 · 승인 1/2 · 고칠 곳 1');
   // 홍교사로 바꿔 댓글
-  await click('#demoPill'); await click('#sheet [data-act=demoMe][data-name="홍교사"]');
+  await click('#demoPill'); await click('#sheet [data-act=demoMe][data-name^="홍교사"]');
   ok((await p.textContent('#demoPill')).includes('홍교사'), '홍교사로 바꿈');
   await p.fill('#comments .cm-add [name=text]', '연결 그림을 넣으면 승인할게요'); await click('#comments .cm-add button[value=note]');
   t = await body(); ok(t.includes('연결 그림을 넣으면') && /홍교사[\s\S]{0,40}연결 그림을 넣으면/.test(t), '홍교사 이름으로 댓글');
@@ -50,7 +50,7 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) process
   await click('[data-act=demoWho]'); ok((await p.textContent('#sheet')).includes('누구로 체험할까요'), '설정에서 누구로 체험할지 바꾸기');
   // 권한: 부원(박준서)로 바꾸면 남의 실험은 읽기만, 비공개는 안 보임, 검토 요청이 내 할 일에
   await click('#sheet [data-act=closeSheet]').catch(() => {});
-  await click('#demoPill'); await click('#sheet [data-act=demoMe][data-name="박준서"]');
+  await click('#demoPill'); await click('#sheet [data-act=demoMe][data-name^="박준서"]');
   await click('.tabs [data-tab="home"]'); t = await body(); ok(t.includes('내가 할 일') && t.includes('검토 요청'), '부원: 내가 할 일에 검토 요청');
   ok(!t.includes('동아리 챙길 것'), '부원: 동아리 챙길 것은 안 보임');
   await click('.tabs [data-tab="find"]'); await p.fill('#q', 'T² 그래프'); await p.waitForTimeout(100); await click('.day-list .srow');
@@ -59,7 +59,7 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) process
   ok(!(await p.textContent('.day-list')).includes('내부 저항 정밀'), '부원: 비공개 실험 안 보임');
   await click('.tabs [data-tab="find"]'); await click('[data-ty=mine]'); await p.fill('#q', ''); await p.waitForTimeout(100);
   t = await p.textContent('.day-list'); ok(t.includes('건전지 방전') && !t.includes('진자로 중력'), '‘내 것’: 내 실험만');
-  await click('#demoPill'); await click('#sheet [data-act=demoMe][data-name="이하늘"]');
+  await click('#demoPill'); await click('#sheet [data-act=demoMe][data-name^="이하늘"]');
   await click('.tabs [data-tab="find"]'); await click('[data-ty=all]'); await p.fill('#q', '과학전람회'); await p.waitForTimeout(100);
   ok((await p.textContent('.day-list')).includes('내부 저항 정밀'), '이하늘(담당): 비공개 실험 보임');
   ok(!errs.length, '화면 오류 없음 ' + errs.join(' / '));

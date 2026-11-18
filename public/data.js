@@ -3,7 +3,7 @@
 // 날짜는 2026-11-16 기준으로 적었고, 앱이 오늘 날짜에 맞춰 옮겨서 보여 줍니다.
 window.GAJI_SAMPLE = {
   base: '2026-11-16',
-  ver: '2026-11-18-gajihs',
+  ver: '2026-11-18-sidname',
   events: [
     { id: 'ev1', date: '2026-11-27', title: '전지 연구 발표회 (7교시 · 과학실)', scope: 'club', by: '김기장', at: '2026-11-10T08:00:00.000Z' },
     { id: 'ev2', date: '2026-12-04', title: '과학탐구대회 원서 마감', scope: 'club', by: '홍교사', at: '2026-11-12T08:00:00.000Z' },
@@ -368,3 +368,22 @@ window.GAJI_SAMPLE = {
   ];
 })(window.GAJI_SAMPLE);
 
+
+// 부원 이름은 '이름(학번)'으로 (실제 동아리와 같은 모양): 기록 속 이름까지 모두 바꿈
+(function (S) {
+  var SID = { '김기장': '20301', '홍교사': 'T01', '이하늘': '20315', '박준서': '20208', '최윤아': '20112', '정다온': '20219', '오세린': '20103', '한결': '20221', '윤서연': '20110' };
+  var map = {}; Object.keys(SID).forEach(function (n) { map[n] = n + '(' + SID[n] + ')'; });
+  var deep = function (v) {
+    if (typeof v === 'string') {
+      if (map[v]) return map[v];
+      if (/^\s*[\[{]/.test(v)) { try { var o = JSON.parse(v); return JSON.stringify(deep(o)); } catch (e) { return v; } }
+      return v;
+    }
+    if (Array.isArray(v)) return v.map(deep);
+    if (v && typeof v === 'object') { var r = {}; Object.keys(v).forEach(function (k) { r[k] = deep(v[k]); }); return r; }
+    return v;
+  };
+  ['nodes', 'comments', 'files', 'history', 'events', 'links'].forEach(function (k) { if (S[k]) S[k] = deep(S[k]); });
+  if (S.notice) S.notice = deep(S.notice);
+  S.members.forEach(function (m) { if (SID[m.name]) { m.studentId = SID[m.name]; m.name = map[m.name]; } });
+})(window.GAJI_SAMPLE);
