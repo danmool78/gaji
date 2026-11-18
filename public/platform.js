@@ -61,7 +61,7 @@ async function landing() {
     '<div class="p-video"><div class="vimeo"><iframe src="https://player.vimeo.com/video/1247842965?title=0&amp;byline=0&amp;portrait=0&amp;dnt=1" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" referrerpolicy="strict-origin-when-cross-origin" title="가지 소개 영상" loading="lazy"></iframe></div><span class="muted">가지 소개 영상 · 1분 34초</span></div>' +
     '<div class="p-actions"><a class="btn primary" href="/c/demo">체험해 보기</a><button type="button" class="btn" data-p="create">우리 동아리 만들기</button></div>' +
     mine +
-    '<div class="card p-note p-note-drive"><svg class="p-drive" viewBox="0 0 87.3 78" aria-label="구글 드라이브" role="img"><path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/><path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/><path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg><div><b>데이터는 각 동아리 구글 드라이브에만</b><span>가지 서버에는 동아리 이름 · 로고와 마스터 한 명의 계정 ID, 사용 현황 숫자만 저장돼요. 제작자도 동아리 기록을 볼 수 없습니다.</span></div></div>' +
+    '<div class="card p-note p-note-drive"><svg class="p-drive" viewBox="0 0 87.3 78" aria-label="구글 드라이브" role="img"><path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/><path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/><path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg><div><b>데이터는 각 동아리 구글 드라이브에만</b><span>가지 서버에는 동아리 이름 · 로고와 마스터 한 명의 계정 ID, 사용 현황 숫자만 저장돼요. 가지 서버는 동아리 기록을 받지도 보관하지도 않아요.</span></div></div>' +
     '<p class="p-foot">가지 ' + VERSION + ' · 동아리 주소는 운영진에게 받으세요</p>');
 }
 
@@ -92,7 +92,7 @@ async function submitCreate(f) {
     b.set(doc(db, 'masters', user.uid), { slugs: arrayUnion(slug) }, { merge: true });
     await b.commit();
     location.href = '/c/' + slug + '?welcome=1';
-  } catch (e) { console.error(e); btn.disabled = false; toast('만들지 못했어요 · 다시 시도해 주세요'); }
+  } catch (e) { console.error(e); btn.disabled = false; toast(/permission/i.test(String(e && e.code || e)) ? '만들지 못했어요 · 한 계정으로 만들거나 넘겨받을 수 있는 동아리는 30개까지예요' : '만들지 못했어요 · 다시 시도해 주세요'); }
 }
 
 /* ---------- 동아리 주소 ---------- */
@@ -113,12 +113,14 @@ async function clubPage(slug) {
       updateDoc(info.ref, { 'stats.lastActive': serverTimestamp(), 'stats.version': VERSION }).catch(() => {});
       const k = await getDoc(doc(db, 'clubs', slug, 'secret', 'key')).catch(() => null);
       club.masterKey = k && k.exists() ? k.data().masterKey : '';
-      if (k && k.exists() && (k.data().pendingKey || k.data().keyUid !== user.uid)) { try { club.masterKey = await rekey(slug); } catch (e) { club.rekeyErr = e.message; setTimeout(() => window.GAJI_APP && window.GAJI_APP.toast('마스터 키: ' + e.message), 1500); } } }
+      let keyless = false; if (club.connector && k && k.exists()) { try { const pg = await fetch(club.connector, { method: 'POST', body: JSON.stringify({ action: 'ping' }) }).then((x) => x.json()); keyless = !!(pg && pg.ok && pg.data && pg.data.initialized && pg.data.keyed === false); } catch (e) {} }   // 시트 주인이 키를 지웠으면
+      if (k && k.exists() && (k.data().pendingKey || k.data().keyUid !== user.uid || keyless)) { try { club.masterKey = await rekey(slug); } catch (e) { club.rekeyErr = e.message; setTimeout(() => window.GAJI_APP && window.GAJI_APP.toast('마스터 키: ' + e.message), 1500); } } }
   }
   const api = {
     savePublic: (patch) => { const p = {}; if ('name' in patch) p.name = patch.name; if ('color' in patch) p.color = patch.color; if ('color2' in patch) p.color2 = patch.color2; if ('logo' in patch) p.logo = patch.logo; return updateDoc(doc(db, 'clubs', slug), p); },
     saveInfo: (patch) => updateDoc(doc(db, 'clubs', slug, 'private', 'info'), patch.domain ? { domain: patch.domain } : { domain: '' }),
     newKey: () => randomCode(40),
+    saveKey: (key) => setDoc(doc(db, 'clubs', slug, 'secret', 'key'), { masterKey: key, keyUid: user.uid }).then(() => { club.masterKey = key; }),
     saveConnector: async (url, key) => {
       const b = writeBatch(db);
       b.update(doc(db, 'clubs', slug), { connector: url });
@@ -138,7 +140,7 @@ async function clubPage(slug) {
     cancelHandover: () => deleteDoc(doc(db, 'clubs', slug, 'handover', 'current')),
     createHandover: async () => {
       const code = randomCode(28), until = new Date(Date.now() + 23 * 3600e3);   // 기기 시계가 조금 빨라도 되게 23시간
-      await setDoc(doc(db, 'clubs', slug, 'handover', 'current'), { code, expiresAt: Timestamp.fromDate(until) });
+      await setDoc(doc(db, 'clubs', slug, 'handover', 'current'), { code, expiresAt: Timestamp.fromDate(until), by: user.uid });
       return { link: location.origin + '/c/' + slug + '?handover=' + code, until: until.toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) };
     }
   };
@@ -160,11 +162,15 @@ function handoverPage(slug, club, code) {
 // 넘겨받은 뒤 연결기 마스터 키를 새로 바꿈: 예전 마스터가 가진 키로는 더 이상 마스터가 될 수 없게
 async function rekey(slug) {
   const [pub, sec] = await Promise.all([getDoc(doc(db, 'clubs', slug)), getDoc(doc(db, 'clubs', slug, 'secret', 'key'))]);
-  const url = pub.exists() && pub.data().connector, old = sec.exists() ? sec.data().masterKey : '', key = (sec.exists() && sec.data().pendingKey) || randomCode(40);
-  if (!url || !old) { if (old) await setDoc(doc(db, 'clubs', slug, 'secret', 'key'), { masterKey: randomCode(40), keyUid: user.uid }); return old ? (await getDoc(doc(db, 'clubs', slug, 'secret', 'key'))).data().masterKey : old; }   // 드라이브 연결 전: 새 키만 정함
-  if (!sec.data().pendingKey) await setDoc(doc(db, 'clubs', slug, 'secret', 'key'), { masterKey: old, pendingKey: key, keyUid: user.uid });   // 1) 새 키를 먼저 저장 (끊겨도 잃지 않게)
-  const r = await fetch(url, { method: 'POST', body: JSON.stringify({ action: 'rekey', masterKey: old, newKey: key }) }).then((x) => x.json());   // 2) 연결기를 새 키로
-  if (!r || !r.ok) { const e = new Error(r && r.code === 'wrong_key' ? '연결기 마스터 키가 이미 다른 키로 바뀌었어요. 시트 주인이 가지 데이터 시트의 설정 탭에서 masterKeyHash 값을 지우고 다시 열면 맞춰져요' : (r && r.message) || '연결기 키를 바꾸지 못했어요'); e.code = r && r.code; throw e; }
+  const url = pub.exists() && pub.data().connector, old = sec.exists() ? sec.data().masterKey : '', pend = sec.exists() ? sec.data().pendingKey : '', mine = sec.exists() && sec.data().keyUid === user.uid;
+  if (!old) return '';
+  if (!url) { if (!mine) await setDoc(doc(db, 'clubs', slug, 'secret', 'key'), { masterKey: old, keyUid: user.uid }); return old; }   // 드라이브 연결 전: 연결할 때 새 키를 정함
+  const key = pend && mine ? pend : randomCode(40);   // 남(예전 마스터)이 정해 둔 pendingKey 는 쓰지 않음
+  if (!(pend && mine)) await setDoc(doc(db, 'clubs', slug, 'secret', 'key'), { masterKey: old, pendingKey: key, keyUid: user.uid });   // 1) 새 키를 먼저 저장 (끊겨도 잃지 않게)
+  const call = (cur) => fetch(url, { method: 'POST', body: JSON.stringify({ action: 'rekey', masterKey: cur, newKey: key }) }).then((x) => x.json());
+  let r = await call(old);   // 2) 연결기를 새 키로
+  if (r && !r.ok && r.code === 'wrong_key' && pend && pend !== key) r = await call(pend);   // 예전 마스터가 바꾸던 중이었으면 그 키로
+  if (!r || !r.ok) { const e = new Error(r && r.code === 'wrong_key' ? '연결기 마스터 키가 이미 다른 키로 바뀌었어요. 시트 주인이 가지 데이터 시트의 설정 탭에서 masterKeyHash 값을 지운 뒤, 곧바로 이 마스터 계정으로 가지를 다시 열면 새 키로 맞춰져요' : (r && r.message) || '연결기 키를 바꾸지 못했어요'); e.code = r && r.code; throw e; }
   await setDoc(doc(db, 'clubs', slug, 'secret', 'key'), { masterKey: key, keyUid: user.uid });   // 3) 확정
   return key;
 }

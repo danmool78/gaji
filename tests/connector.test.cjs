@@ -183,7 +183,7 @@ const mc2 = call({ action: 'myCode', device: r9b.data.device });
 ok('old code renewed', mc2.ok && mc2.data.renewed && /^\d{4}$/.test(mc2.data.code), mc2);
 ok('device kept after renew', call({ action: 'load', device: r9b.data.device }).ok);
 ok('new code works', call({ action: 'register', studentId: '20399', code: mc2.data.code }).ok);
-ok('ping version', call({ action: 'ping' }).data.version === '2.22.2');
+ok('ping version', call({ action: 'ping' }).data.version === '2.23.0');
 
 // 실수 되돌리기: 내가 10분 안에 옮긴 단계는 한 단계 되돌리기 가능
 setRule('approvePeers', 0); setRule('approveTeacher', 'none');
@@ -624,7 +624,7 @@ ok('load has no self rev', !call({ action: 'load', device: ADM }).rev);
 
 // ===== 2.18.2: 시스템 현황 숫자 =====
 const sysStat = call({ action: 'stats', device: ADM });
-ok('stats: numbers only', sysStat.ok && typeof sysStat.data.done === 'number' && typeof sysStat.data.running === 'number' && typeof sysStat.data.devices === 'number' && /^\d{4}-\d\d-\d\d$|^$/.test(sysStat.data.lastEdit) && sysStat.data.core === '2.22.2', sysStat.data);
+ok('stats: numbers only', sysStat.ok && typeof sysStat.data.done === 'number' && typeof sysStat.data.running === 'number' && typeof sysStat.data.devices === 'number' && /^\d{4}-\d\d-\d\d$|^$/.test(sysStat.data.lastEdit) && sysStat.data.core === '2.23.0', sysStat.data);
 ok('stats: no names', !JSON.stringify(sysStat.data).match(/[가-힣]{2,}/));
 ok('stats: member refused', call({ action: 'stats', device: MEM }).code === 'not_admin');
 
@@ -802,6 +802,39 @@ ok('stats: member refused', call({ action: 'stats', device: MEM }).code === 'not
   const sd = store._t.devices.find((d) => d.id === MEM.id); sd.shared = 'true';
   ok('myCode refused on shared device', call({ action: 'myCode', device: MEM }).code === 'shared');
   sd.shared = 'false';
+}
+
+
+// ===== 2.23.0: 네 번째 점검 =====
+{
+  const MS4 = call({ action: 'masterRegister', masterKey: 'NEWKEY'.repeat(5), studentId: '20301', label: 'audit4' }).data.device;
+  const meM = call({ action: 'load', device: MEM }).data.me;
+  // 1. 지어낸 부모 연결로 남의 줄기 바꾸기 막음
+  store._t.nodes.push({ id: 'V1', no: 990, type: 'exp', title: 'victim', status: '계획 작성', line: 'Lv', owner: '운영(70001)', createdBy: '운영(70001)', created: '2026-01-01' });
+  const hj = call({ action: 'sync', device: MEM, nodes: [{ id: 'B1x', type: 'idea', title: 'mine', line: 'HIJACK' }, { id: 'V1', title: 'victim', line: 'HIJACK' }], links: [{ s: 'B1x', t: 'V1', k: 'next' }] });
+  ok('fake parent link cannot change others line', store._t.nodes.find((n) => n.id === 'V1').line === 'Lv', hj.data);
+  // 2. 취소된 실험 되살리기 막음
+  store._t.nodes.push({ id: 'C9', no: 991, type: 'exp', title: 'c', status: '취소', plan: PL, owner: meM.name, createdBy: meM.name, created: '2026-01-01' });
+  call({ action: 'sync', device: MEM, nodes: [{ id: 'C9', title: 'c', status: '준비 중' }] });
+  ok('member cannot revive cancelled', store._t.nodes.find((n) => n.id === 'C9').status === '취소');
+  // 3. 새로 만들 때 같이 해요 999 막음
+  call({ action: 'sync', device: MEM, nodes: [{ id: 'I99', type: 'idea', title: 'popular', fans: 999 }] });
+  ok('create fans reset', store._t.nodes.find((n) => n.id === 'I99').fans === 1);
+  // 4. 들어갈 수 없는 학번으로 부원 추가 막음
+  ok('addMember: bad sid refused', call({ action: 'addMember', device: MS4, studentId: '2026 0101', name: 'x' }).code === 'bad');
+  // 5. 이상한 상태 값 막음
+  const anyM = store._t.members.find((m) => m.status === '활동' && m.role === '부원');
+  ok('setMember: odd status refused', call({ action: 'setMember', device: MS4, id: anyM.id, status: 'xyz' }).code === 'bad');
+  // 6. 남의 보관 항목을 빈 수정으로 꺼내지 못함
+  store._t.nodes.push({ id: 'R9', no: 992, type: 'res', title: '자료', status: '', arch: 'true', owner: '운영(70001)', createdBy: '운영(70001)', created: '2020-01-01' });
+  store._t.archive.push({ id: 'R9', data: { desc: '무거운 내용' }, comments: [], at: '2026-01-01' });
+  call({ action: 'sync', device: MEM, nodes: [{ id: 'R9', title: '자료' }] });
+  ok('non-team cannot unarchive', store._t.archive.some((a) => a.id === 'R9'));
+  // 연결기 키가 비어 있으면 마스터가 다시 맞춤
+  const kh = store._t.settings.find((x) => x.key === 'masterKeyHash'); const keep = kh.value; kh.value = '';
+  const rs = call({ action: 'rekey', masterKey: 'whatever'.repeat(3), newKey: 'FRESHKEY'.repeat(4) });
+  ok('rekey sets key when hash cleared', rs.ok && rs.data.reset && store._t.settings.find((x) => x.key === 'masterKeyHash').value !== '', rs);
+  kh.value = keep;
 }
 
 console.log(`connector: ${pass} passed, ${fail} failed`);

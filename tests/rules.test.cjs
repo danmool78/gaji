@@ -47,9 +47,9 @@ async function createClub(db, uid, slug, name) {
 
   // 마스터 넘기기
   const CODE = 'k3J9xQ2mZr7Vt8LpW4sN';
-  await t('다른 사람은 넘기기 코드를 만들 수 없다', () => assertFails(setDoc(doc(user('bob'), 'clubs', 'bukil-sci', 'handover', 'current'), { code: CODE, expiresAt: Timestamp.fromMillis(Date.now() + 3600e3) })));
-  await t('마스터가 넘기기 코드를 만든다 (24시간)', () => assertSucceeds(setDoc(doc(user('alice'), 'clubs', 'bukil-sci', 'handover', 'current'), { code: CODE, expiresAt: Timestamp.fromMillis(Date.now() + 24 * 3600e3) })));
-  await t('넘기기 코드 유효기간은 하루를 넘길 수 없다', () => assertFails(setDoc(doc(user('alice'), 'clubs', 'bukil-sci', 'handover', 'current'), { code: CODE, expiresAt: Timestamp.fromMillis(Date.now() + 72 * 3600e3) })));
+  await t('다른 사람은 넘기기 코드를 만들 수 없다', () => assertFails(setDoc(doc(user('bob'), 'clubs', 'bukil-sci', 'handover', 'current'), { code: CODE, by: 'alice', expiresAt: Timestamp.fromMillis(Date.now() + 3600e3) })));
+  await t('마스터가 넘기기 코드를 만든다 (24시간)', () => assertSucceeds(setDoc(doc(user('alice'), 'clubs', 'bukil-sci', 'handover', 'current'), { code: CODE, by: 'alice', expiresAt: Timestamp.fromMillis(Date.now() + 24 * 3600e3) })));
+  await t('넘기기 코드 유효기간은 하루를 넘길 수 없다', () => assertFails(setDoc(doc(user('alice'), 'clubs', 'bukil-sci', 'handover', 'current'), { code: CODE, by: 'alice', expiresAt: Timestamp.fromMillis(Date.now() + 72 * 3600e3) })));
   await t('넘겨받을 사람은 코드를 읽을 수 없다', () => assertFails(getDoc(doc(user('bob'), 'clubs', 'bukil-sci', 'handover', 'current'))));
   await t('틀린 코드로는 넘겨받을 수 없다', async () => { const db = user('mallory'); const b = writeBatch(db); b.set(doc(db, 'clubs', 'bukil-sci', 'claims', 'mallory'), { code: 'wrong-code-wrong-code' }); b.update(doc(db, 'clubs', 'bukil-sci', 'private', 'info'), { masterUid: 'mallory' }); await assertFails(b.commit()); });
   await t('코드를 지우지 않으면 넘겨받을 수 없다 (한 번만 쓰기)', async () => { const db = user('bob'); const b = writeBatch(db); b.set(doc(db, 'clubs', 'bukil-sci', 'claims', 'bob'), { code: CODE }); b.update(doc(db, 'clubs', 'bukil-sci', 'private', 'info'), { masterUid: 'bob' }); await assertFails(b.commit()); });
@@ -57,12 +57,12 @@ async function createClub(db, uid, slug, name) {
   await t('넘긴 뒤 예전 마스터는 비공개 정보를 못 읽는다', () => assertFails(getDoc(doc(user('alice'), 'clubs', 'bukil-sci', 'private', 'info'))));
   await t('쓴 코드로 다른 사람이 또 넘겨받을 수 없다', async () => { const db = user('carol'); const b = writeBatch(db); b.set(doc(db, 'clubs', 'bukil-sci', 'claims', 'carol'), { code: CODE }); b.update(doc(db, 'clubs', 'bukil-sci', 'private', 'info'), { masterUid: 'carol' }); b.delete(doc(db, 'clubs', 'bukil-sci', 'handover', 'current')); await assertFails(b.commit()); });
   await t('예전 마스터가 쓴 코드로 되찾을 수 없다', async () => { const db = user('alice'); const b = writeBatch(db); b.set(doc(db, 'clubs', 'bukil-sci', 'claims', 'alice'), { code: CODE }); b.update(doc(db, 'clubs', 'bukil-sci', 'private', 'info'), { masterUid: 'alice' }); await assertFails(b.commit()); });
-  await t('남이 아무 때나 넘기기 코드를 지울 수 없다', async () => { await env.withSecurityRulesDisabled(async (c) => { await setDoc(doc(c.firestore(), 'clubs/bukil-sci/handover/current'), { code: CODE, expiresAt: Timestamp.fromMillis(Date.now() + 3600e3) }); }); await assertFails(deleteDoc(doc(user('mallory'), 'clubs', 'bukil-sci', 'handover', 'current'))); });
+  await t('남이 아무 때나 넘기기 코드를 지울 수 없다', async () => { await env.withSecurityRulesDisabled(async (c) => { await setDoc(doc(c.firestore(), 'clubs/bukil-sci/handover/current'), { code: CODE, by: 'bob', expiresAt: Timestamp.fromMillis(Date.now() + 3600e3) }); }); await assertFails(deleteDoc(doc(user('mallory'), 'clubs', 'bukil-sci', 'handover', 'current'))); });
   await t('새 마스터는 넘기기 코드를 지운다', () => assertSucceeds(deleteDoc(doc(user('bob'), 'clubs', 'bukil-sci', 'handover', 'current'))));
   await t('만료된 코드로는 넘겨받을 수 없다', async () => {
-    await env.withSecurityRulesDisabled(async (c) => { await setDoc(doc(c.firestore(), 'clubs/bukil-sci/handover/current'), { code: CODE, expiresAt: Timestamp.fromMillis(Date.now() - 1000) }); });
+    await env.withSecurityRulesDisabled(async (c) => { await setDoc(doc(c.firestore(), 'clubs/bukil-sci/handover/current'), { code: CODE, by: 'bob', expiresAt: Timestamp.fromMillis(Date.now() - 1000) }); });
     const db = user('eve'); const b = writeBatch(db); b.set(doc(db, 'clubs', 'bukil-sci', 'claims', 'eve'), { code: CODE }); b.update(doc(db, 'clubs', 'bukil-sci', 'private', 'info'), { masterUid: 'eve' }); await assertFails(b.commit()); });
-  await t('시스템 마스터는 복구를 위해 마스터를 바꿀 수 있다', () => assertSucceeds(updateDoc(doc(user('sys'), 'clubs', 'bukil-sci', 'private', 'info'), { masterUid: 'carol' })));
+  await t('시스템 마스터는 복구를 위해 마스터를 바꿀 수 있다 (남은 넘기기 링크는 같이 지움)', async () => { const db = user('sys'); const b = writeBatch(db); b.update(doc(db, 'clubs', 'bukil-sci', 'private', 'info'), { masterUid: 'carol' }); b.delete(doc(db, 'clubs', 'bukil-sci', 'handover', 'current')); await assertSucceeds(b.commit()); });
   await t('시스템 설정은 아무도 앱에서 못 바꾼다', () => assertFails(setDoc(doc(user('sys'), 'system/config'), { admins: ['sys', 'bob'] })));
   await t('내 동아리 목록은 본인만 읽는다', () => assertFails(getDoc(doc(user('bob'), 'masters', 'alice'))));
 
@@ -118,6 +118,14 @@ async function createClub(db, uid, slug, name) {
   await t('내 동아리 목록은 지울 수 없다', () => assertFails(deleteDoc(doc(user('sup-m'), 'masters', 'sup-m'))));
   await t('내 동아리 목록을 줄일 수 없다', () => assertFails(setDoc(doc(user('sup-m'), 'masters', 'sup-m'), { slugs: [] })));
   await t('공개 version 칸은 짧게', () => assertFails(updateDoc(doc(user('sup-m'), 'clubs', 'sup-club'), { version: 'x'.repeat(100) })));
+
+  // ---------- 네 번째 점검 뒤 ----------
+  await t('넘기기 링크에 남의 by 는 못 넣는다', () => assertFails(setDoc(doc(user('sup-m'), 'clubs', 'sup-club', 'handover', 'current'), { code: 'c'.repeat(28), by: 'someone', expiresAt: Timestamp.fromMillis(Date.now() + 3600e3) })));
+  await t('마스터가 바뀐 뒤 예전 넘기기 링크로는 못 넘겨받는다', async () => {
+    await env.withSecurityRulesDisabled(async (c) => { await setDoc(doc(c.firestore(), 'clubs/sup-club/handover/current'), { code: 'h'.repeat(28), by: 'old-master', expiresAt: Timestamp.fromMillis(Date.now() + 3600e3) }); });
+    const db = user('mal'); const b = writeBatch(db); b.set(doc(db, 'clubs', 'sup-club', 'claims', 'mal'), { code: 'h'.repeat(28) }); b.update(doc(db, 'clubs', 'sup-club', 'private', 'info'), { masterUid: 'mal' }); b.delete(doc(db, 'clubs', 'sup-club', 'handover', 'current')); await assertFails(b.commit()); });
+  await t('넘기기 링크가 남아 있으면 시스템 복구는 같은 묶음에서 지워야 한다', () => assertFails(updateDoc(doc(user('sys'), 'clubs', 'sup-club', 'private', 'info'), { masterUid: 'carol2' })));
+  await t('시스템 복구 + 링크 지우기 한 묶음', async () => { const db = user('sys'); const b = writeBatch(db); b.update(doc(db, 'clubs', 'sup-club', 'private', 'info'), { masterUid: 'sup-m' }); b.delete(doc(db, 'clubs', 'sup-club', 'handover', 'current')); await assertSucceeds(b.commit()); });
   await env.cleanup();
   let fail = 0; for (const [s, n] of results) { console.log((s === 'ok' ? '  ✓ ' : '  ✗ ') + n); if (s !== 'ok') fail++; }
   console.log(`\n${results.length - fail}/${results.length} passed`); process.exit(fail ? 1 : 0);

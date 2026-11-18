@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.22.2';
+var GAJI_CONNECTOR_VERSION = '2.23.0';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
@@ -139,7 +139,8 @@ function GajiCore(store, util, drive) {
     var kh = setting('masterKeyHash', ''), old = String(q.masterKey || ''), nk = String(q.newKey || '');
     if (nk.length < 20 || nk.length > 100) err('bad', '새 키가 짧아요');
     if (kh && kh === hash('master', nk)) return { ok: true, already: true };   // 이미 바뀜 (다시 시도)
-    if (!kh || kh !== hash('master', old)) { limit('rekey_bad', 20, 600); err('wrong_key', '이 동아리의 연결기가 아니에요'); }   // 틀린 키만 횟수 제한 (남이 막을 수 없게)
+    if (!kh) { setSetting('masterKeyHash', hash('master', nk)); log(null, '마스터 키 다시 맞춤', ''); return { ok: true, reset: true }; }   // 시트 주인이 지운 뒤 마스터가 다시 열면 바로 맞춤
+    if (kh !== hash('master', old)) { limit('rekey_bad', 20, 600); err('wrong_key', '이 동아리의 연결기가 아니에요'); }   // 틀린 키만 횟수 제한 (남이 막을 수 없게)
     setSetting('masterKeyHash', hash('master', nk)); log(null, '마스터 키 바꿈', '');
     return { ok: true };
   };
@@ -153,6 +154,7 @@ function GajiCore(store, util, drive) {
     if (q.slug) setSetting('slug', q.slug);
     var sid = String(q.studentId || '').trim(), code = '';
     if (!sid) err('bad', '학번을 넣어 주세요');
+    if (!/^[0-9A-Za-z-]{2,12}$/.test(sid)) err('bad', '학번은 숫자 · 영문 · - 로 2~12자예요');
     var mem = store.rows('members').filter(function (m) { return m.studentId === sid && m.status === '활동'; })[0];
     var ap0 = !mem && store.rows('members').filter(function (m) { return m.studentId === sid && m.status === '신청'; })[0];
     if (ap0) { code = digits(4); ap0.status = '활동'; ap0.codeHash = hash(ap0.id, code); ap0.codeEnc = seal(ap0.id, code); if (q.name) ap0.name = uniqName(q.name, sid, ap0.id); store.update('members', ap0._row, ap0); mem = store.rows('members').filter(function (m) { return m.id === ap0.id; })[0]; }
@@ -390,7 +392,8 @@ function GajiCore(store, util, drive) {
     var me = deviceOf(q), admin = !!ADMIN[me.role]; limit('sy_' + me.id, 120, 60);
     return locked(function () {
       var rows = store.rows('nodes'), byId = {}, assigned = {}, rejected = [], lineNow = {};
-      var parentLine = function (id) { var l = store.rows('links').concat((q.links || []).filter(function (x) { return x && !x.off; })).filter(function (x) { return x.t === id && (x.k === 'next' || x.k === 'follow') && !util.bool(x.off); }).pop(); if (!l) return null; return lineNow[l.s] !== undefined ? lineNow[l.s] : (byId[l.s] || {}).line; };
+      var preIds = {}; rows.forEach(function (r) { preIds[r.id] = 1; });
+      var parentLine = function (id) { var l = store.rows('links').filter(function (x) { return x.t === id && (x.k === 'next' || x.k === 'follow') && !util.bool(x.off) && preIds[x.s]; }).pop(); if (!l) return null; return lineNow[l.s] !== undefined ? lineNow[l.s] : (byId[l.s] || {}).line; };   // 저장돼 있던 연결 · 원래 있던 부모만
       rows.forEach(function (r) { byId[r.id] = r; });
       (q.nodes || []).slice(0, 50).forEach(function (c0) {
         var c = cleanIn(c0, rejected); if (!c || !c.title) return;
@@ -398,6 +401,7 @@ function GajiCore(store, util, drive) {
         var old = byId[c.id];
         if (old && util.bool(old.private) && !admin && !inTeam(old, me)) { rejected.push(old.id + ':team'); return; }   // 볼 수 없는 비공개 항목 (보관에서 꺼내기 전에)
         var wasArch = !!(old && old.arch);
+        if (wasArch && !admin && !inTeam(old, me)) { rejected.push(old.id + ':team'); return; }   // 보관된 남의 항목은 꺼내지 않음
         if (wasArch) { old = unarchive(old); byId[c.id] = old; }
         if (!old) {
           var fam = c.type === 'q' ? 'q' : c.type === 'res' ? 'res' : 'exp', no = Number(setting('no_' + fam, 0)) + 1;
@@ -406,6 +410,7 @@ function GajiCore(store, util, drive) {
           NODE_FIELDS.forEach(function (f) { if (Object.prototype.hasOwnProperty.call(c, f)) n[f] = c[f]; });
           if (!namesOk([n.owner, n.volunteer].concat(n.team || []))) { n.owner = namesOk([n.owner]) ? n.owner : me.name; n.volunteer = ''; n.team = (n.team || []).filter(function (x) { return namesOk([x]); }); rejected.push(n.id + ':name'); }
           if (!admin && n.volunteer && n.volunteer !== me.name) n.volunteer = '';   // 담당 지원은 본인만
+          if (!admin) { delete n.fanBy; n.fans = n.type === 'idea' ? 1 : 0; if (n.type === 'idea') n.fanBy = [me.name]; n.signal = 0; }   // 같이 해요는 만든 사람 한 명부터
           if (!admin) { n.verdict = ''; delete n.review; if (n.report && typeof n.report === 'object' && n.report.final) { n.report = JSON.parse(JSON.stringify(n.report)); delete n.report.final; } }
           if (n.type !== 'exp' && STAGES.indexOf(n.status) > 0) n.status = '';   // 아이디어 · 질문 · 자료는 실험 단계를 가질 수 없음
           if (n.type === 'exp' && !admin && STAGES.indexOf(n.status) > 2) { n.status = '검토 중'; rejected.push(n.id + ':stage:review'); }   // 운영진은 지난 기록 옮겨 오기(끝난 실험)를 위해 그대로   // 새로 만들 때 검토를 건너뛸 수 없음
@@ -437,7 +442,7 @@ function GajiCore(store, util, drive) {
             var mine = old.updatedBy === me.name && (Date.parse(util.now()) - Date.parse(old.updatedAt || 0)) < 10 * 60000 && STAGES.indexOf(c.status) === STAGES.indexOf(old.status) - 1;
             if (!mine) { rejected.push(old.id + ':status'); return; }
           }
-          if (!admin && f === 'status' && c.status === '취소') { rejected.push(old.id + ':cancel'); return; }
+          if (!admin && f === 'status' && (c.status === '취소' || old.status === '취소')) { rejected.push(old.id + ':cancel'); return; }
           if (f === 'status' && (old.type === 'exp' || c.type === 'exp') && STAGES.indexOf(c.status) < 0 && c.status !== '취소') { rejected.push(old.id + ':status'); return; }   // 실험에 질문 단계 같은 값 막기
           if (f === 'type' && !((old.type === 'idea' && c.type === 'exp') || old.type === c.type)) return;
 
@@ -842,6 +847,7 @@ function GajiCore(store, util, drive) {
     var me = deviceOf(q); needAdmin(me);
     var sid = String(q.studentId || '').trim(), name = String(q.name || '').trim().slice(0, 20);
     if (!sid || !name) err('bad', '학번과 이름을 넣어 주세요');
+    if (!/^[0-9A-Za-z-]{2,12}$/.test(sid)) err('bad', '학번은 숫자 · 영문 · - 로 2~12자예요');
     var all = store.rows('members');
     var dupm = all.filter(function (m) { return m.studentId === sid && (m.status === '활동' || m.status === '중지'); })[0]; if (dupm) err('dup', dupm.status === '중지' ? '활동 중지된 부원이에요: ' + dupm.name + '. 부원 명단에서 활동으로 되돌려 주세요' : '이미 가입된 부원이에요: ' + dupm.name);
     if (all.some(function (m) { return m.studentId === sid && m.status === '신청'; })) err('dup', '초대 링크로 가입 신청한 학번이에요. 부원 · 기기의 승인 기다리는 기기에서 승인해 주세요');
@@ -867,6 +873,8 @@ function GajiCore(store, util, drive) {
     if (m.role === '마스터') err('bad', '마스터는 바꿀 수 없어요');
     if (q.role && q.role !== m.role) { if (me.role !== '마스터') err('not_master', '역할은 마스터만 바꿀 수 있어요'); if (['부원', '관리자', '교사'].indexOf(q.role) < 0) err('bad'); m.role = q.role; }
     if (q.status && q.status !== m.status && (m.role === '관리자' || m.role === '교사') && me.role !== '마스터') err('not_master', '운영진 · 선생님의 활동은 마스터만 바꿀 수 있어요');
+    if (q.status && q.status !== '활동' && q.status !== '중지') err('bad', '활동 또는 중지만 고를 수 있어요');
+    if (q.status && m.status !== '활동' && m.status !== '중지') err('bad', '가입 신청은 부원 · 기기에서 승인하거나 거절해 주세요');
     if (q.status === '활동' && m.status !== '활동' && store.rows('members').some(function (x) { return x.id !== m.id && x.status === '활동' && x.studentId === m.studentId; })) err('dup', '같은 학번의 부원이 이미 활동 중이에요');
     if (q.status && q.status !== m.status) { m.status = q.status === '중지' ? '중지' : '활동';
       if (m.status === '중지') store.rows('devices').forEach(function (d) { if (d.memberId === m.id && d.status !== '차단') { d.status = '차단'; store.update('devices', d._row, d); } }); }
@@ -920,6 +928,7 @@ function GajiCore(store, util, drive) {
       lastEdit: String(last).slice(0, 10), backupAt: String(setting('backupAt', '')).slice(0, 10), backupErr: !!setting('backupErr', ''), core: GAJI_CONNECTOR_VERSION };
   };
 
+  ['addMember', 'apply', 'approve', 'setMember', 'resetCode', 'block'].forEach(function (k) { var f = A[k]; A[k] = function (q) { return locked(function () { return f(q); }); }; });   // 부원 명단을 바꾸는 요청은 한 번에 하나씩
   return {
     handle: function (q) {
       try {
