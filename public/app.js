@@ -171,6 +171,7 @@
     busyEnd(quiet, btnBusy);
     if (j && !j.ok && (j.code === 'core' || j.code === 'core_perm')) { PF.connAuth = 'core'; const x = new Error(j.code === 'core_perm' || /permission|권한/i.test(j.message || '') ? '연결기에 외부 연결 권한이 없어요 · 설정 → 드라이브 연결의 안내대로 권한허용을 실행해 주세요' : (j.message || '연결기가 가지 본체를 받지 못했어요')); x.code = j.code; throw x; }
     if (!j || !j.ok) { const x = new Error(j && j.code === 'unknown' ? '연결기가 예전 판이라 이 기능이 없어요. 마스터가 연결기를 업데이트해야 해요 (설정 → 드라이브 연결)' : (j && j.message) || '연결기에서 문제가 생겼어요'); x.code = (j && j.code) || 'error'; throw x; }
+    if (j.rev && j.rev.from === PF.rev) PF.rev = j.rev.to;   // 내 저장으로만 바뀐 것이면 15초 확인 때 다시 받지 않음
     return j.data;
   }
   // 기기가 끊긴 경우 공통 처리

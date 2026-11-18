@@ -180,7 +180,7 @@ const mc2 = call({ action: 'myCode', device: r9b.data.device });
 ok('old code renewed', mc2.ok && mc2.data.renewed && /^\d{4}$/.test(mc2.data.code), mc2);
 ok('device kept after renew', call({ action: 'load', device: r9b.data.device }).ok);
 ok('new code works', call({ action: 'register', studentId: '20399', code: mc2.data.code }).ok);
-ok('ping version', call({ action: 'ping' }).data.version === '2.18.0');
+ok('ping version', call({ action: 'ping' }).data.version === '2.18.1');
 
 // 실수 되돌리기: 내가 10분 안에 옮긴 단계는 한 단계 되돌리기 가능
 call({ action: 'sync', device: M, nodes: [{ id: 'u1', type: 'exp', title: '되돌리기 시험', status: '검토 중', owner: '정다온', plan: PL, review: 2 }] });
@@ -606,6 +606,13 @@ ok('reject: shows in people as 거절', call({ action: 'people', device: ADM }).
 ok('invite: off', call({ action: 'invite', device: ADM, op: 'off' }).data.invite === '');
 ok('apply: refused after off', call({ action: 'apply', invite: INV, studentId: '30103', name: '늦은사람' }).code === 'invite_off');
 ok('invite: new link differs', call({ action: 'invite', device: ADM, op: 'make' }).data.invite !== INV);
+
+
+// ===== 2.18.1: 내가 바꾼 것은 다시 받지 않게 rev 알려 줌 =====
+const rv0 = call({ action: 'rev', device: ADM }).data.rev;
+const ns = call({ action: 'noticeSet', device: ADM, text: 'rev 시험' });
+ok('noticeSet returns rev from/to', ns.rev && ns.rev.from === rv0 && ns.rev.to === rv0 + 1, ns.rev);
+ok('load has no self rev', !call({ action: 'load', device: ADM }).rev);
 
 console.log(`connector: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

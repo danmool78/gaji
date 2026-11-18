@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.18.0';
+var GAJI_CONNECTOR_VERSION = '2.18.1';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
@@ -16,6 +16,7 @@ function GajiCore(store, util, drive) {
   function err(code, msg) { var e = new Error(msg || code); e.code = code; throw e; }
   function setting(k, d) { var r = store.rows('settings').filter(function (x) { return x.key === k; })[0]; return r ? r.value : d; }
   function setSetting(k, v) { var r = store.rows('settings').filter(function (x) { return x.key === k; })[0]; if (r) store.update('settings', r._row, { key: k, value: String(v) }); else store.append('settings', { key: k, value: String(v) }); }
+  var SELF_REV = { noticeSet: 1, eventSet: 1, rulesSet: 1 };   // 응답으로 화면을 바로 고치는 요청
   function bump() { setSetting('rev', Number(setting('rev', '0')) + 1); }
   function log(me, action, detail) { store.append('log', { at: util.now(), member: me ? me.name : '', device: me ? me.deviceId : '', action: action, detail: String(detail || '').slice(0, 200) }); }
   function hash(salt, v) { return util.sha256(salt + ':' + v); }
@@ -784,7 +785,9 @@ function GajiCore(store, util, drive) {
     handle: function (q) {
       try {
         var fn = A[q && q.action]; if (!fn) err('unknown', '알 수 없는 요청이에요');
-        return { ok: true, data: fn(q) };
+        var r0 = Number(setting('rev', '0')), data = fn(q), r1 = Number(setting('rev', '0')), out = { ok: true, data: data };
+        if (r1 !== r0 && SELF_REV[q.action]) out.rev = { from: r0, to: r1 };   // 내가 바꾼 것(화면에 이미 들어감) → 다시 받지 않게
+        return out;
       } catch (e) { return { ok: false, code: e.code || 'error', message: e.code ? e.message : '연결기에서 문제가 생겼어요' }; }
     }
   };
