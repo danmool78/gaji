@@ -2575,7 +2575,8 @@
     if (act === 'shareCode') { const t = a.dataset.text; if (navigator.share) navigator.share({ text: t }).catch(() => {}); else (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('복사했어요'), () => {}); }
   });
   $('#screen').addEventListener('submit', (e) => { if (flowSubmit(e)) return;
-    const id = e.target.id; if (!['joinForm', 'applyForm', 'masterJoinForm', 'connectForm'].includes(id)) return;
+    if (e.target.id === 'supForm') { e.preventDefault(); return supSend(e.target); }
+    const id = e.target.id; if (!['joinForm', 'applyForm', 'masterJoinForm', 'connectForm'].includes(id)) { e.preventDefault(); return; }   // 앱 안 입력칸은 절대 페이지를 새로 열지 않음 (처리는 아래 공통 처리에서)
     e.preventDefault(); if (id === 'applyForm') submitApply(e.target); else if (id === 'joinForm') submitJoin(e.target); else if (id === 'masterJoinForm') submitMasterJoin(e.target); else submitConnect(e.target);
   });
   document.addEventListener('change', (e) => { if (e.target.matches && e.target.matches('[data-bk-mail]')) return backupSet({ mail: e.target.checked });
@@ -2598,7 +2599,6 @@
     if (e.target.id === 'recordForm') { e.preventDefault(); return saveRecord(e.target, e.submitter); }
     if (e.target.id === 'evForm') { e.preventDefault(); return evSave(new FormData(e.target)); }
     if (e.target.id === 'noticeForm') { e.preventDefault(); return noticeSave(new FormData(e.target).get('text')); }
-    if (e.target.id === 'supForm') { e.preventDefault(); return supSend(e.target); }
     if (e.target.id === 'restoreForm') { e.preventDefault(); return restoreDo(e.target); }
     if (e.target.id === 'backupToForm') { e.preventDefault(); closeSheet(); return backupSet({ to: String(new FormData(e.target).get('to') || '').trim() }); }
     if (e.target.id === 'addMemberForm') {
