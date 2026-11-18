@@ -353,6 +353,9 @@
         '<rect x="104" y="60" width="182" height="22" rx="5" fill="#fff" stroke="#98A2B3"/>' + T(112, 75, '가지 연결기', { s: 10.5, c: '#1D2939' }) + ring(100, 56, 190, 30) +
         fld(106, '다음 사용자 인증 정보로 실행', '나(내 계정)', true) + ring(100, 102, 190, 34) + fld(154, '액세스 권한이 있는 사용자', '모든 사용자', true) + ring(100, 150, 190, 34) +
         '<line x1="1" y1="190" x2="299" y2="190" stroke="#E4E7EC"/><rect x="234" y="195" width="54" height="20" rx="4" fill="#1A73E8"/>' + T(261, 209, '배포', { s: 10, c: '#fff', mid: 1 })); }
+    if (k === 'url') return box(150, T(14, 24, '새 배포', { s: 13, w: 700, c: '#1D2939' }) + '<line x1="1" y1="36" x2="299" y2="36" stroke="#E4E7EC"/>' +
+      T(14, 54, '배포 ID', { s: 9.5 }) + T(14, 68, 'AKfycbz…', { s: 9.5, w: 500 }) + T(14, 84, '⧉ 복사', { s: 10, c: '#98A2B3' }) + '<path d="M12 76l50 12M62 76l-50 12" stroke="#E5383B" stroke-width="2.5" stroke-linecap="round" opacity=".8"/>' +
+      T(14, 106, '웹 앱 · URL', { s: 9.5, w: 700, c: '#1D2939' }) + T(14, 120, 'https://script.google.com/macros/s/…/exec', { s: 9.5, c: '#1A73E8', w: 500 }) + T(14, 138, '⧉ 복사', { s: 10, c: '#1A73E8', w: 700 }) + ring(8, 125, 60, 20));
     if (k === 'log') return box(96, T(14, 22, '실행 로그', { s: 12, w: 700, c: '#1D2939' }) + '<line x1="1" y1="32" x2="299" y2="32" stroke="#E4E7EC"/>' +
       T(14, 52, '오후 3:02:11  알림  실행이 시작됨', { s: 10, w: 500 }) + T(14, 70, '오후 3:02:14  정보  가지 연결기 준비 완료 · 본체 2.23', { s: 10, w: 700, c: '#1F8F5A' }) + ring(8, 58, 284, 18) + T(14, 88, '오후 3:02:14  알림  실행이 완료됨', { s: 10, w: 500 }));
     const fn = k === 'fn', bar = '<rect x="10" y="16" width="10" height="10" rx="2" fill="#D0D5DD"/><rect x="26" y="16" width="10" height="10" rx="2" fill="#D0D5DD"/><rect x="42" y="16" width="12" height="12" rx="2" fill="#98A2B3"/>' +
@@ -585,7 +588,7 @@
       step(9, '유형: 웹 앱', '‘유형 선택’ 옆 <b>톱니바퀴</b>를 눌러요.<br>목록에서 <b>웹 앱</b>을 골라요.') +
       step(10, '설명 · 실행 · 액세스 고르고 배포', '<b>설명</b>: <b>가지 연결기</b> (아무 말이나 괜찮아요 · 비워도 돼요)<br><b>다음 사용자 인증 정보로 실행</b>: <b>나</b> (그대로)<br><b>액세스 권한이 있는 사용자</b>: ‘나만’을 눌러 <b>모든 사용자</b>로 바꿔요<br>그다음 오른쪽 아래 <b>배포</b>를 눌러요.<br><small>‘나만’으로 두면 부원 기기가 연결되지 않아요. 부원은 코드와 승인으로 보호돼요.</small>', toolPic('deploy')) +
       step(11, '‘액세스 승인’이 나오면', '배포를 누른 뒤 파란 <b>액세스 승인</b> 단추가 나오면 눌러요.<br>내 계정 → 경고의 <b>가지 연결기(안전하지 않음) 앱으로 이동</b> → <b>모두 선택</b> 체크 → <b>계속</b>.<br>6단계와 똑같아요. 안 나오면 넘어가요.', '<button type="button" class="chipbtn" data-act="authGuide">그림 안내 다시 보기</button>') +
-      step(12, '웹 앱 URL 붙여 넣기', '마지막 창의 <b>웹 앱 URL</b> 옆 <b>복사</b>를 눌러요.<br>아래 칸에 붙여 넣고 <b>연결하기</b>를 눌러요.',
+      step(12, '웹 앱 URL 붙여 넣기', '‘배포가 업데이트되었습니다’ 창에서 <b>배포 ID</b>가 아니라 아래쪽 <b>웹 앱 · URL</b> 밑의 <b>복사</b>를 눌러요.<br>아래 칸에 붙여 넣고 <b>연결하기</b>를 눌러요.<br><small>https://script.google.com/macros/s/…/exec 모양이에요.</small>', toolPic('url') +
         '<form id="connectForm" style="display:flex;flex-direction:column;gap:10px;margin-top:6px"><label class="field">웹 앱 URL<input name="url" required placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" spellcheck="false"></label>' +
         '<div class="grid2"><label class="field">내 학번<input name="sid" autocapitalize="characters" maxlength="12" required></label><label class="field">내 이름<input name="name" maxlength="20" required></label></div>' +
         '<button type="submit" class="btn primary">연결하기</button>' + (PF.rewire ? '<button type="button" class="chipbtn" data-act="rewireCancel">취소</button>' : '') + '</form>') +
@@ -611,7 +614,7 @@
     else fail();
   }
   async function submitConnect(f) {
-    const fd = new FormData(f), url = String(fd.get('url')).trim(), sid = String(fd.get('sid')).trim(), name = String(fd.get('name')).trim(), btn = f.querySelector('[type=submit]');
+    const fd = new FormData(f), u0 = String(fd.get('url')).trim(), url = /^AKfy[\w-]{20,}$/.test(u0) ? 'https://script.google.com/macros/s/' + u0 + '/exec' : u0, sid = String(fd.get('sid')).trim(), name = String(fd.get('name')).trim(), btn = f.querySelector('[type=submit]');
     if (!URL_RE.test(url)) return toast('웹 앱 주소는 https://script.google.com/…/exec 모양이에요');
     btn.disabled = true; btn.textContent = '연결하는 중…';
     const done = () => { btn.disabled = false; btn.textContent = '연결하기'; };
