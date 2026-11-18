@@ -338,6 +338,8 @@
         : (PF.api && !PF.isMaster ? '<button type="button" class="chipbtn" data-act="pfLogin">동아리 마스터라면 구글로 로그인</button>' : '')));
   }
 
+  // 구글 드라이브 아이콘
+  const GDRIVE = '<svg class="gdrive" viewBox="0 0 87.3 78" aria-hidden="true" viewBox="0 0 87.3 78"><path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/><path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/><path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg>';
   // Apps Script 아이콘 (글 속에서 바로 알아보게)
   const ASI = '<span class="asi-w"><svg class="asi" viewBox="3 5 21 17" aria-hidden="true"><path d="M6 19L14.4 19" stroke="#EA4335" stroke-width="4.6" stroke-linecap="round"/><path d="M7.8 12.6L13.8 18.6" stroke="#FBBC04" stroke-width="4.6" stroke-linecap="round"/><path d="M13.8 8.4L14.4 18.6" stroke="#34A853" stroke-width="4.6" stroke-linecap="round"/><path d="M20.4 8.4L16.8 19.2" stroke="#4285F4" stroke-width="4.6" stroke-linecap="round"/><circle cx="6" cy="19" r="1.15" fill="#fff"/><circle cx="7.8" cy="12.6" r="1.15" fill="#fff"/><circle cx="13.8" cy="8.4" r="1.15" fill="#fff"/><circle cx="20.4" cy="8.4" r="1.15" fill="#fff"/><circle cx="16.8" cy="19.2" r="1.15" fill="#fff"/></svg>Apps Script</span>';
   /* Apps Script 도구 줄 그림 (어디를 누르는지 빨간 테두리) */
@@ -551,7 +553,7 @@
   }
   function connectCard() {
     const c = PF.club;
-    if (c.connector && !PF.rewire) return '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">드라이브 연결</b><span class="badge t-ok">● 연결됨</span></div>' +
+    if (c.connector && !PF.rewire) return '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg);display:inline-flex;align-items:center;gap:8px">' + GDRIVE + '드라이브 연결</b><span class="badge t-ok">● 연결됨</span></div>' +
       '<span class="code muted" style="font-size:12px;word-break:break-all">' + esc(c.connector) + '</span>' +
       (PF.connAuth === 'core' ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기가 가지 본체를 받지 못해요 · 권한 허용이 필요해요</span><span style="font-weight:400;line-height:1.7">① ' + ASI + ' 화면 위쪽 <b>▷ 실행</b> 버튼 왼쪽의 함수 목록에서 <b>권한허용</b>(없으면 <b>doGet</b>) 고르기<br>② <b>▷ 실행</b> → <b>권한 검토</b> → 내 계정 → <b>고급 → 이동 → 허용</b><br>③ 여기서 <b>연결 시험</b> (다시 배포할 필요 없어요)</span></div>' : '') +
       (PF.connAuth === true ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기가 응답하지 않아요 · 권한 허용이 필요할 수 있어요</span><span style="font-weight:400;line-height:1.7">① <b>연결기 권한 확인</b>을 눌러 새 창 열기<br>② ‘권한 필요’ 또는 ‘액세스 승인’이 나오면 → <b>권한 검토</b> → 내 계정 → <b>고급 → 이동 → 허용</b><br>③ 새 창에 <b>"gaji":true</b> 글자가 보이면 성공 → 여기서 <b>연결 시험</b></span></div>' : '') +
@@ -569,7 +571,7 @@
     const codeBox = '<textarea id="gsCode" class="gs-code" readonly spellcheck="false" aria-label="연결기 코드">' + esc(PF.gs || '불러오는 중…') + '</textarea>' +
       '<span class="muted" style="font-size:12px">버튼이 안 되면 상자를 한 번 누르고 <b>Ctrl+C</b> (맥은 ⌘+C)</span>' +
       '<div class="btn-row"><button type="button" class="btn primary" data-act="copyGs">코드 전체 복사</button><a class="btn" href="/connector.gs?v=6" target="_blank" rel="noopener">새 창에서 보기</a></div>';
-    return '<div class="card" style="display:flex;flex-direction:column;gap:12px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">드라이브 연결</b><span class="badge t-warn">● 연결 전</span></div>' +
+    return '<div class="card" style="display:flex;flex-direction:column;gap:12px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg);display:inline-flex;align-items:center;gap:8px">' + GDRIVE + '드라이브 연결</b><span class="badge t-warn">● 연결 전</span></div>' +
       '<span class="muted" style="font-size:13px;line-height:1.6">동아리 기록은 우리 드라이브의 시트에 저장돼요. <b>동아리마다 한 번만</b> 하면 되고, 부원들은 할 일이 없어요. 한 번 연결하면 새 기능은 자동으로 들어와요. 컴퓨터에서 하는 게 편해요 (5분).</span>' +
       '<div class="warn-pre"><b>시작 전에: 구글 경고 화면이 2~3번 나와요. 정상이에요.</b>' +
         '<ul><li><b>왜 나오나요?</b> 사본을 만들면 그 시트에 붙은 연결기는 <b>내 계정이 만든 앱</b>이 돼요. 구글이 따로 검사하지 않은 앱이라 ‘Google에서 인증하지 않은 앱’ 경고가 떠요. 경고 속 <b>개발자 이메일이 내 이메일</b>이면 맞게 하고 있는 거예요.</li>' +
@@ -2153,7 +2155,7 @@
   }
   /* 설정 맨 위: 드라이브 연결 (동아리마다 따로) */
   function driveCard() {
-    const box = (badge, body) => '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">드라이브 연결</b>' + badge + '</div>' + body + '</div>';
+    const box = (badge, body) => '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg);display:inline-flex;align-items:center;gap:8px">' + GDRIVE + '드라이브 연결</b>' + badge + '</div>' + body + '</div>';
     if (!PF.club) return box('<span class="badge t-neutral">체험</span>', '<span class="muted" style="font-size:13px;line-height:1.7">지금은 <b>체험용 가상 동아리(가지고등학교 실험 동아리)</b>예요. 드라이브 연결 없이 바로 써 볼 수 있어요. 바꾼 내용은 이 브라우저에만 저장되고 <b>매일 처음 상태로 돌아가요.</b></span><button type="button" class="btn" data-act="demoWho" style="align-self:flex-start">누구로 체험할지 바꾸기 · 처음 상태로</button>');
     if (PF.isMaster) { fetchGs(); return renameCard() + linksCard() + backupCard() + connectCard(); }
     return linksCard() + backupCard();   // 운영진: 바로 열기만 · 부원에게는 보이지 않음
