@@ -303,7 +303,7 @@
       const core = PF.connAuth === 'core';
       return gateCard('<div class="card gate-box"><b>연결하지 못했어요</b><p class="muted">' + esc(PF.error) + '</p>' +
         (core ? (PF.isMaster
-          ? '<div class="gate-note card" style="text-align:left;line-height:1.8;font-weight:400"><b>연결기 권한 허용이 필요해요 (마스터)</b><br>① 가지 데이터 시트 → 확장 프로그램 → <b>Apps Script</b><br>② 아래 <b>연결기 코드 복사</b> → 코드 전체 지우고 붙여 넣기 → <b>저장</b><br>③ 위쪽 도구 줄 <b>디버그</b> 오른쪽 함수 칸에서 <b>권한허용</b>을 골라요<br>④ <b>▷ 실행</b>을 눌러요<br>⑤ <b>권한 검토</b> → 내 계정<br>⑥ 경고 창의 <b>가지 연결기(안전하지 않음) 앱으로 이동</b>(또는 고급 → 이동)<br>⑦ <b>모두 선택</b>에 꼭 체크 → 맨 아래 <b>계속</b> <button type="button" class="chipbtn" data-act="authGuide">그림으로 보기</button><br>⑧ 아래 <b>실행 로그</b>에 ‘준비 완료’가 보이면 여기서 <b>다시 시도</b><br>빨간 오류가 보이면 그 화면을 캡처해 주세요.</div>' +
+          ? '<div class="gate-note card" style="text-align:left;line-height:1.8;font-weight:400"><b>연결기 권한 허용이 필요해요 (마스터)</b><br>① 가지 데이터 시트 → 확장 프로그램 → <b>' + ASI + '</b><br>② 아래 <b>연결기 코드 복사</b> → 코드 전체 지우고 붙여 넣기 → <b>저장</b><br>③ 위쪽 도구 줄 <b>디버그</b> 오른쪽 함수 칸에서 <b>권한허용</b>을 골라요<br>④ <b>▷ 실행</b>을 눌러요<br>⑤ <b>권한 검토</b> → 내 계정<br>⑥ 경고 창의 <b>가지 연결기(안전하지 않음) 앱으로 이동</b>(또는 고급 → 이동)<br>⑦ <b>모두 선택</b>에 꼭 체크 → 맨 아래 <b>계속</b> <button type="button" class="chipbtn" data-act="authGuide">그림으로 보기</button><br>⑧ 아래 <b>실행 로그</b>에 ‘준비 완료’가 보이면 여기서 <b>다시 시도</b><br>빨간 오류가 보이면 그 화면을 캡처해 주세요.</div>' +
             '<button type="button" class="btn" data-act="copyGs">연결기 코드 복사</button><textarea id="gsCode" class="gs-code" readonly spellcheck="false" style="height:90px">' + esc(PF.gs || '불러오는 중…') + '</textarea>'
           : '<p class="muted" style="font-size:13px">동아리 마스터가 연결기를 손보는 중이에요. 잠시 뒤 다시 열어 주세요.</p>') : '') +
         '<button type="button" class="btn primary" data-act="retry">다시 시도</button></div>');
@@ -338,6 +338,8 @@
         : (PF.api && !PF.isMaster ? '<button type="button" class="chipbtn" data-act="pfLogin">동아리 마스터라면 구글로 로그인</button>' : '')));
   }
 
+  // Apps Script 아이콘 (글 속에서 바로 알아보게)
+  const ASI = '<span class="asi-w"><svg class="asi" viewBox="3 5 21 17" aria-hidden="true"><path d="M6 19L14.4 19" stroke="#EA4335" stroke-width="4.6" stroke-linecap="round"/><path d="M7.8 12.6L13.8 18.6" stroke="#FBBC04" stroke-width="4.6" stroke-linecap="round"/><path d="M13.8 8.4L14.4 18.6" stroke="#34A853" stroke-width="4.6" stroke-linecap="round"/><path d="M20.4 8.4L16.8 19.2" stroke="#4285F4" stroke-width="4.6" stroke-linecap="round"/><circle cx="6" cy="19" r="1.15" fill="#fff"/><circle cx="7.8" cy="12.6" r="1.15" fill="#fff"/><circle cx="13.8" cy="8.4" r="1.15" fill="#fff"/><circle cx="20.4" cy="8.4" r="1.15" fill="#fff"/><circle cx="16.8" cy="19.2" r="1.15" fill="#fff"/></svg>Apps Script</span>';
   /* Apps Script 도구 줄 그림 (어디를 누르는지 빨간 테두리) */
   function toolPic(k) {
     const T = (x, y, txt, o) => '<text x="' + x + '" y="' + y + '" font-size="' + ((o && o.s) || 11) + '" font-weight="' + ((o && o.w) || 600) + '" fill="' + ((o && o.c) || '#475467') + '"' + (o && o.mid ? ' text-anchor="middle"' : '') + '>' + txt + '</text>';
@@ -542,13 +544,13 @@
     const c = PF.club;
     if (c.connector && !PF.rewire) return '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg)">드라이브 연결</b><span class="badge t-ok">● 연결됨</span></div>' +
       '<span class="code muted" style="font-size:12px;word-break:break-all">' + esc(c.connector) + '</span>' +
-      (PF.connAuth === 'core' ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기가 가지 본체를 받지 못해요 · 권한 허용이 필요해요</span><span style="font-weight:400;line-height:1.7">① Apps Script 화면 위쪽 <b>▷ 실행</b> 버튼 왼쪽의 함수 목록에서 <b>권한허용</b>(없으면 <b>doGet</b>) 고르기<br>② <b>▷ 실행</b> → <b>권한 검토</b> → 내 계정 → <b>고급 → 이동 → 허용</b><br>③ 여기서 <b>연결 시험</b> (다시 배포할 필요 없어요)</span></div>' : '') +
+      (PF.connAuth === 'core' ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기가 가지 본체를 받지 못해요 · 권한 허용이 필요해요</span><span style="font-weight:400;line-height:1.7">① ' + ASI + ' 화면 위쪽 <b>▷ 실행</b> 버튼 왼쪽의 함수 목록에서 <b>권한허용</b>(없으면 <b>doGet</b>) 고르기<br>② <b>▷ 실행</b> → <b>권한 검토</b> → 내 계정 → <b>고급 → 이동 → 허용</b><br>③ 여기서 <b>연결 시험</b> (다시 배포할 필요 없어요)</span></div>' : '') +
       (PF.connAuth === true ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기가 응답하지 않아요 · 권한 허용이 필요할 수 있어요</span><span style="font-weight:400;line-height:1.7">① <b>연결기 권한 확인</b>을 눌러 새 창 열기<br>② ‘권한 필요’ 또는 ‘액세스 승인’이 나오면 → <b>권한 검토</b> → 내 계정 → <b>고급 → 이동 → 허용</b><br>③ 새 창에 <b>"gaji":true</b> 글자가 보이면 성공 → 여기서 <b>연결 시험</b></span></div>' : '') +
-      (PF.connVer && !verOld(PF.connVer, LATEST_VER) && PF.connShell !== undefined && Number(PF.connShell || 0) < 6 ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>사진 올리기를 쓰려면 연결기를 한 번 더 배포해야 해요</span><span style="font-weight:400;line-height:1.7">① 아래 <b>연결기 코드 복사</b> → Apps Script에 덮어쓰고 저장<br>② 함수 목록에서 <b>권한허용</b> → ▷ 실행 → 허용<br>③ <b>배포 → 배포 관리</b> → 연필 모양 → 버전: <b>새 버전</b> → 배포 (주소는 그대로)<br>④ 여기서 <b>연결 시험</b></span></div>' : '') +
+      (PF.connVer && !verOld(PF.connVer, LATEST_VER) && PF.connShell !== undefined && Number(PF.connShell || 0) < 6 ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>사진 올리기를 쓰려면 연결기를 한 번 더 배포해야 해요</span><span style="font-weight:400;line-height:1.7">① 아래 <b>연결기 코드 복사</b> → ' + ASI + '에 덮어쓰고 저장<br>② 함수 목록에서 <b>권한허용</b> → ▷ 실행 → 허용<br>③ <b>배포 → 배포 관리</b> → 연필 모양 → 버전: <b>새 버전</b> → 배포 (주소는 그대로)<br>④ 여기서 <b>연결 시험</b></span></div>' : '') +
       (PF.connVer ? (verOld(PF.connVer)
-        ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기 업데이트 필요 · 지금 ' + esc(PF.connVer) + ' → 새 판 ' + NEED_VER + '</span><span style="font-weight:400;line-height:1.7">① 아래 <b>연결기 코드 복사</b> → Apps Script에 덮어쓰고 저장<br>② <b>배포 → 배포 관리</b> → 연필 모양(수정) → 버전: <b>새 버전</b> → 배포<br>③ 여기서 <b>연결 시험</b> → ' + NEED_VER + ' 확인</span></div>'
+        ? '<div class="card gate-note" style="display:flex;flex-direction:column;gap:6px;text-align:left"><span>연결기 업데이트 필요 · 지금 ' + esc(PF.connVer) + ' → 새 판 ' + NEED_VER + '</span><span style="font-weight:400;line-height:1.7">① 아래 <b>연결기 코드 복사</b> → ' + ASI + '에 덮어쓰고 저장<br>② <b>배포 → 배포 관리</b> → 연필 모양(수정) → 버전: <b>새 버전</b> → 배포<br>③ 여기서 <b>연결 시험</b> → ' + NEED_VER + ' 확인</span></div>'
         : verOld(PF.connVer, LATEST_VER)
-          ? '<div class="card" style="display:flex;flex-direction:column;gap:6px;background:var(--info-bg);border-color:transparent;font-size:13px;line-height:1.7"><b style="color:var(--info)">마지막 한 번만: 자동 업데이트 연결기로 바꾸기 (권장)</b><span>지금 연결기 ' + esc(PF.connVer) + '는 정상이에요. 한 번만 바꿔 두면 앞으로 기능이 추가돼도 <b>다시 배포할 일이 없어요.</b></span><span>① 아래 <b>연결기 코드 복사</b> (짧아졌어요) → Apps Script에서 전체 지우고 붙여 넣기 → 저장<br>② <b>배포 → 배포 관리</b> → 연필 모양 → 버전: <b>새 버전</b> → 배포<br>③ <b>연결기 권한 확인</b> → ‘권한 필요’가 나오면 권한 검토 → 고급 → 이동 → 허용 (외부 연결 권한이 하나 늘어요)<br>④ <b>연결 시험</b> → 연결기 ' + LATEST_VER + ' 확인</span></div>'
+          ? '<div class="card" style="display:flex;flex-direction:column;gap:6px;background:var(--info-bg);border-color:transparent;font-size:13px;line-height:1.7"><b style="color:var(--info)">마지막 한 번만: 자동 업데이트 연결기로 바꾸기 (권장)</b><span>지금 연결기 ' + esc(PF.connVer) + '는 정상이에요. 한 번만 바꿔 두면 앞으로 기능이 추가돼도 <b>다시 배포할 일이 없어요.</b></span><span>① 아래 <b>연결기 코드 복사</b> (짧아졌어요) → ' + ASI + '에서 전체 지우고 붙여 넣기 → 저장<br>② <b>배포 → 배포 관리</b> → 연필 모양 → 버전: <b>새 버전</b> → 배포<br>③ <b>연결기 권한 확인</b> → ‘권한 필요’가 나오면 권한 검토 → 고급 → 이동 → 허용 (외부 연결 권한이 하나 늘어요)<br>④ <b>연결 시험</b> → 연결기 ' + LATEST_VER + ' 확인</span></div>'
           : '<span class="muted" style="font-size:12px">● 연결기 ' + esc(PF.connVer) + ' · 자동 업데이트 중</span>') : '') +
       '<div class="btn-row"><button type="button" class="btn" data-act="testConn">연결 시험</button><a class="btn" href="' + esc(c.connector) + '" target="_blank" rel="noopener">연결기 권한 확인</a><button type="button" class="btn" data-act="copyGs">연결기 코드 복사</button></div>' +
       '<span class="muted" style="font-size:12px;line-height:1.6">새 기능은 가지에서 자동으로 받아요. 받는 본체는 <a href="/core.js" target="_blank" rel="noopener">누구나 볼 수 있게 공개</a>돼 있고, 멈추려면 시트 ‘설정’ 탭에 <span class="code">autoUpdate</span> · <span class="code">off</span> 를 넣으면 돼요.</span>' +
@@ -565,15 +567,15 @@
         ? step(1, '가지 데이터 시트 만들기', '버튼을 누르면 구글이 ‘사본을 만드시겠어요?’라고 물어요. <b>사본 만들기</b>를 눌러요. 연결기가 이미 들어 있는 시트가 내 드라이브에 생겨요.',
             '<a class="btn primary" href="https://docs.google.com/spreadsheets/d/' + esc(tpl) + '/copy?title=' + encodeURIComponent('가지 데이터') + '" target="_blank" rel="noopener">가지 데이터 시트 만들기</a>' +
             '<span class="muted" style="font-size:12px">학교 공유 드라이브에 두고 싶으면, 만든 뒤 드라이브에서 그 공유 드라이브로 옮기면 돼요.</span>') +
-          step(2, 'Apps Script 열기', '방금 만든 시트에서 메뉴 <b>확장 프로그램 → Apps Script</b>를 눌러요.<br>코드가 이미 들어 있으니 <b>아무것도 고치지 않아요.</b>')
+          step(2, ASI + ' 열기', '방금 만든 시트에서 메뉴 <b>확장 프로그램 → ' + ASI + '</b>를 눌러요.<br>코드가 이미 들어 있으니 <b>아무것도 고치지 않아요.</b>')
         : step(1, '가지 데이터 시트 만들기', '새 구글 시트를 만들고 이름을 <b>가지 데이터</b>로 바꿔요.', '<a class="btn" href="https://docs.google.com/spreadsheets/create" target="_blank" rel="noopener">새 시트 열기</a>') +
-          step(2, '연결기 코드 붙여 넣기', '시트 메뉴 <b>확장 프로그램 → Apps Script</b>를 열어요.<br>원래 있던 코드를 모두 지우고 붙여 넣은 뒤 <b>저장</b>(Ctrl+S)해요.', codeBox)) +
+          step(2, '연결기 코드 붙여 넣기', '시트 메뉴 <b>확장 프로그램 → ' + ASI + '</b>를 열어요.<br>원래 있던 코드를 모두 지우고 붙여 넣은 뒤 <b>저장</b>(Ctrl+S)해요.', codeBox)) +
       step(3, '함수 칸에서 ‘권한허용’ 고르기', '위쪽 도구 줄에서 <b>디버그</b> 오른쪽 함수 칸을 눌러요.<br>목록에서 <b>권한허용</b>을 골라요.', toolPic('fn')) +
       step(4, '▷ 실행 누르기', '같은 줄의 <b>▷ 실행</b>을 눌러요.', toolPic('run')) +
       step(5, '권한 검토 → 내 계정', '‘승인 필요’ 창이 뜨면 <b>권한 검토</b>를 눌러요.<br>그다음 <b>시트를 만든 내 구글 계정</b>을 골라요.', toolPic('review')) +
       step(6, '경고 넘기고 허용', '‘Google에서 인증하지 않은 앱’ 경고가 나와요.<br>그림 순서대로 눌러요.', authGuide()) +
       step(7, '실행 로그 확인', '아래쪽 <b>실행 로그</b>에 <b>가지 연결기 준비 완료</b>가 보이면 성공이에요.<br>빨간 오류가 보이면 그 화면을 캡처해서 문의해 주세요.', toolPic('log')) +
-      step(8, '배포 → 새 배포', 'Apps Script 화면 오른쪽 위 파란 <b>배포</b> 버튼을 눌러요.<br>그다음 <b>새 배포</b>를 눌러요.') +
+      step(8, '배포 → 새 배포', ASI + ' 화면 오른쪽 위 파란 <b>배포</b> 버튼을 눌러요.<br>그다음 <b>새 배포</b>를 눌러요.') +
       step(9, '유형: 웹 앱', '‘유형 선택’ 옆 <b>톱니바퀴</b>를 눌러요.<br>목록에서 <b>웹 앱</b>을 골라요.') +
       step(10, '실행: 나 · 액세스: 모든 사용자', '<b>다음 사용자 인증 정보로 실행</b>: <b>나</b><br><b>액세스 권한이 있는 사용자</b>: <b>모든 사용자</b><br>그다음 <b>배포</b>를 눌러요.<br><small>‘모든 사용자’여야 부원 기기가 연결돼요. 부원은 코드와 승인으로 보호돼요.</small>') +
       step(11, '권한 묻기가 또 나오면', '<b>액세스 승인</b>이 나오면 6단계와 똑같이 해요 (<b>모두 선택</b> 체크 → <b>계속</b>).<br>안 나오면 넘어가요.', '<button type="button" class="chipbtn" data-act="authGuide">그림 안내 다시 보기</button>') +
@@ -581,7 +583,7 @@
         '<form id="connectForm" style="display:flex;flex-direction:column;gap:10px;margin-top:6px"><label class="field">웹 앱 URL<input name="url" required placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" spellcheck="false"></label>' +
         '<div class="grid2"><label class="field">내 학번<input name="sid" autocapitalize="characters" maxlength="12" required></label><label class="field">내 이름<input name="name" maxlength="20" required></label></div>' +
         '<button type="submit" class="btn primary">연결하기</button>' + (PF.rewire ? '<button type="button" class="chipbtn" data-act="rewireCancel">취소</button>' : '') + '</form>') +
-      '</ol>' + (tpl ? '<details class="wmore"><summary>코드를 직접 붙여 넣을래요 (원본 시트를 쓸 수 없을 때)</summary><span class="muted" style="font-size:13px">새 구글 시트 → 확장 프로그램 → Apps Script → 원래 코드를 지우고 붙여 넣기 → 저장. 그다음 3단계부터 똑같아요.</span>' + codeBox + '</details>' : '') + '</div>';
+      '</ol>' + (tpl ? '<details class="wmore"><summary>코드를 직접 붙여 넣을래요 (원본 시트를 쓸 수 없을 때)</summary><span class="muted" style="font-size:13px">새 구글 시트 → 확장 프로그램 → ' + ASI + ' → 원래 코드를 지우고 붙여 넣기 → 저장. 그다음 3단계부터 똑같아요.</span>' + codeBox + '</details>' : '') + '</div>';
   }
 
 

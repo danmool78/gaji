@@ -844,3 +844,5 @@ details.sup-box[open] .sup-last { display: none; }
 /* 달력 그날 목록: 버튼이 많으면 제목 아래로 내려가게 (폰에서 제목이 한 글자씩 세로로 서던 것) */
 .ev-row { flex-wrap: wrap; } .ev-row b { flex: 1 1 10em; min-width: 10em; }
 .tool-svg { max-width: 380px; }
+.asi { width: 1.15em; height: 1.15em; vertical-align: -0.2em; margin-right: 3px; display: inline-block; }
+.asi-w { white-space: nowrap; }
