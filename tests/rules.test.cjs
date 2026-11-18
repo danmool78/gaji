@@ -1,7 +1,7 @@
 // 동아리 명부 보안 규칙 시험: firebase emulators:exec --only firestore "node tests/rules.test.cjs"
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const { initializeTestEnvironment, assertFails, assertSucceeds } = require('@firebase/rules-unit-testing');
-const { doc, getDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, Timestamp, collectionGroup, query, where, getDocs } = require('firebase/firestore');
+const { doc, getDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, Timestamp, collectionGroup, query, where, getDocs, addDoc, collection } = require('firebase/firestore');
 
 let env; const results = [];
 async function t(name, fn) { try { await fn(); results.push(['ok', name]); } catch (e) { results.push(['FAIL', name + ' :: ' + (e && e.message)]); } }
@@ -71,6 +71,22 @@ async function createClub(db, uid, slug, name) {
     await assertFails(updateDoc(doc(db, 'clubs', 'logo-club'), { color2: 'red' }));
   });
 
+
+  // ---------- 가지에 문의하기 (마스터 ↔ 시스템) ----------
+  await t('문의용 동아리 만들기', () => assertSucceeds(createClub(user('sup-m'), 'sup-m', 'sup-club', '문의 동아리')));
+  const msg = (from, uid, text) => ({ from, text: text || '백업 메일이 안 와요', at: serverTimestamp(), uid });
+  await t('마스터는 문의를 쓴다', () => assertSucceeds(addDoc(collection(user('sup-m'), 'clubs', 'sup-club', 'support'), msg('master', 'sup-m'))));
+  await t('마스터는 문의를 읽는다', () => assertSucceeds(getDocs(collection(user('sup-m'), 'clubs', 'sup-club', 'support'))));
+  await t('다른 사람은 문의를 못 읽는다', () => assertFails(getDocs(collection(user('eve'), 'clubs', 'sup-club', 'support'))));
+  await t('로그인 안 하면 못 읽는다', () => assertFails(getDocs(collection(anon(), 'clubs', 'sup-club', 'support'))));
+  await t('다른 사람은 문의를 못 쓴다', () => assertFails(addDoc(collection(user('eve'), 'clubs', 'sup-club', 'support'), msg('master', 'eve'))));
+  await t('마스터는 운영자 이름으로 못 쓴다', () => assertFails(addDoc(collection(user('sup-m'), 'clubs', 'sup-club', 'support'), msg('system', 'sup-m'))));
+  await t('남의 uid 로 못 쓴다', () => assertFails(addDoc(collection(user('sup-m'), 'clubs', 'sup-club', 'support'), msg('master', 'sys'))));
+  await t('2000자 넘으면 못 쓴다', () => assertFails(addDoc(collection(user('sup-m'), 'clubs', 'sup-club', 'support'), msg('master', 'sup-m', 'x'.repeat(2001)))));
+  await t('시스템 마스터는 답장을 쓴다', () => assertSucceeds(addDoc(collection(user('sys'), 'clubs', 'sup-club', 'support'), msg('system', 'sys', '확인해 볼게요'))));
+  await t('시스템 마스터는 모든 문의를 모아 읽는다', () => assertSucceeds(getDocs(collectionGroup(user('sys'), 'support'))));
+  await t('마스터는 모든 동아리 문의를 모아 못 읽는다', () => assertFails(getDocs(collectionGroup(user('sup-m'), 'support'))));
+  await t('문의는 고칠 수 없다', async () => { const ds = await getDocs(collection(user('sup-m'), 'clubs', 'sup-club', 'support')); await assertFails(updateDoc(ds.docs[0].ref, { text: '바꿈' })); });
   await env.cleanup();
   let fail = 0; for (const [s, n] of results) { console.log((s === 'ok' ? '  ✓ ' : '  ✗ ') + n); if (s !== 'ok') fail++; }
   console.log(`\n${results.length - fail}/${results.length} passed`); process.exit(fail ? 1 : 0);

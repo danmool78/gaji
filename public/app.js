@@ -1941,6 +1941,7 @@
       mi('map', 'var(--q)', 'M12 12m-2.5 0a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0 -5 0M5 5m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M19 6m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M6 19m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M10.2 10.2L6.4 6.4M13.8 11l3.6-3.6M10.3 13.8L7.4 17.4', '전체 지도', '동아리 연구 전체를 한 장으로 (발표용)') +
       (db.nodes.some(isDel) ? mi('trash', 'var(--muted)', 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13', '휴지통', '지운 항목 ' + db.nodes.filter(isDel).length + '개 · 되살리기') : '') +
       mi('about', 'var(--idea)', 'M6 7v10M18 11c0 4-6 3-12 6', '가지 소개', '소개 영상 · 기능 · 기록을 지키는 방법') +
+      (PF.isMaster && PF.api && PF.api.supportList ? mi('support', 'var(--exp)', 'M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z', '가지에 문의하기', '오류 · 궁금한 점 · 바라는 기능을 가지 운영자에게') : '') +
       (PF.mode === 'demo' ? '<button type="button" class="menu-item" data-tour-again><span class="mi" style="background:var(--exp)"><svg viewBox="0 0 24 24"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg></span><span class="tx"><b>화면 안내 다시 보기</b><small>화면 구성 안내 · 색 설명 카드</small></span></button>' : '') +
       '</div>';
   }
@@ -2241,7 +2242,7 @@
   }
 
   /* ---------- 그리기 ---------- */
-  const TITLES = { line: '', item: '', board: '보드', map: '전체 지도', settings: '설정', about: '가지 소개', hof: '명예의 전당', club: '동아리 관리', people: '부원 · 기기', run: '진행 도우미', report: '보고서', trash: '휴지통' };
+  const TITLES = { support: '가지에 문의하기', line: '', item: '', board: '보드', map: '전체 지도', settings: '설정', about: '가지 소개', hof: '명예의 전당', club: '동아리 관리', people: '부원 · 기기', run: '진행 도우미', report: '보고서', trash: '휴지통' };
   const GAJI_MARK = '<svg viewBox="96 56 340 396" class="gaji-mark"><g fill="currentColor" fill-opacity=".72" stroke="none"><path d="M0 0C26-30 74-34 104-6C74 22 28 26 0 0Z" transform="translate(138 222) rotate(-132)"/><path d="M0 0C26-30 74-34 104-6C74 22 28 26 0 0Z" transform="translate(402 290) rotate(28)"/><path d="M0 0C22-26 62-28 88-6C62 18 24 22 0 0Z" transform="translate(330 182) rotate(-12)"/></g><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M164 432C190 356 228 304 284 254C326 216 356 176 368 128" stroke-width="42"/><path d="M232 318C196 292 164 262 140 222" stroke-width="30"/><path d="M298 240C334 246 368 262 400 288" stroke-width="28"/></g><g fill="#E9FF8F" stroke="none"><path d="M0 0C16-20 48-24 68-6C48 12 18 16 0 0Z" transform="translate(366 122) rotate(-128)"/><path d="M0 0C16-20 48-24 68-6C48 12 18 16 0 0Z" transform="translate(370 122) rotate(-58)"/></g></svg>';
   function logoInner() { const st = brand(); return st.logo ? '<img src="' + esc(st.logo) + '" alt="">' : GAJI_MARK; }
   /* 동아리 색 두 가지: 주도 색(main) + 밝은 색(light). 예: 녹색 & 흰색, 버건디 & 연노랑
@@ -2272,7 +2273,21 @@
     const th = prefs.theme || 'system'; if (th === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', th);
   }
   const titleOf = (e) => e.s === 'line' ? lineName(e.arg) : e.s === 'item' ? (byId(e.arg) ? TYPE[byId(e.arg).type].label + ' 상세' : '') : TITLES[e.s] || '';
-  function viewFor(e) { return ({ home: viewHome, tree: viewTree, find: viewFind, more: viewMore, line: () => viewLine(e.arg), item: () => viewItem(e.arg), board: viewBoard, map: viewMap, settings: viewSettings, about: viewAbout, hof: () => hallOfFame() || '<div class="card empty">기록이 더 쌓이면 명예의 전당이 채워져요.</div>', club: viewClub, people: viewPeople, run: () => viewRun(e.arg), report: () => viewReport(e.arg), trash: viewTrash }[e.s] || (() => ''))(); }
+  /* 가지에 문의하기 (마스터만): 운영자와 주고받는 대화 */
+  function viewSupport() {
+    if (!(PF.isMaster && PF.api && PF.api.supportList)) return '<div class="card empty">동아리 마스터만 문의할 수 있어요. 구글로 로그인한 마스터 계정으로 열어 주세요.</div>';
+    if (!PF.sup) { PF.api.supportList().then((l) => { PF.sup = l; render(); }, (e) => { PF.sup = []; toast('불러오지 못했어요: ' + (e.message || e)); render(); }); return '<div class="card empty loading-line">' + SPIN + '불러오는 중…</div>'; }
+    const when = (iso) => iso ? md(iso) + ' ' + hm(iso) : '보내는 중';
+    return '<div class="card" style="display:flex;flex-direction:column;gap:6px"><b>가지 운영자에게 문의</b><span class="muted" style="font-size:13px;line-height:1.6">오류 · 궁금한 점 · 바라는 기능을 남겨 주세요. 답장은 이 화면에 와요. 운영자는 동아리 이름과 이 대화만 볼 수 있고, 부원 · 실험 기록은 볼 수 없어요.</span></div>' +
+      '<div class="sup-thread">' + (PF.sup.length ? PF.sup.map((m) => '<div class="sup-msg ' + (m.from === 'system' ? 'system' : 'master') + '"><p>' + esc(m.text).replace(/\n/g, '<br>') + '</p><small>' + (m.from === 'system' ? '가지 운영자' : '나') + ' · ' + when(m.at) + '</small></div>').join('') : '<div class="card empty">아직 주고받은 문의가 없어요.</div>') + '</div>' +
+      '<form id="supForm" class="card" style="display:flex;flex-direction:column;gap:10px"><textarea name="text" rows="4" maxlength="2000" required placeholder="예: 백업 메일이 오지 않아요 / 보고서에 표를 하나 더 넣고 싶어요"></textarea><div class="btn-row"><button type="button" class="btn" data-act="supReload">새로 고침</button><button type="submit" class="btn primary">보내기</button></div></form>';
+  }
+  async function supSend(f) {
+    const t = String(new FormData(f).get('text') || '').trim(); if (!t) return;
+    const b = f.querySelector('[type=submit]'); b.disabled = true;
+    try { await PF.api.supportSend(t); PF.sup = null; toast('보냈어요 · 답장은 이 화면에 와요'); render(); } catch (e) { b.disabled = false; toast('보내지 못했어요: ' + (e.message || e)); }
+  }
+  function viewFor(e) { return ({ support: viewSupport, home: viewHome, tree: viewTree, find: viewFind, more: viewMore, line: () => viewLine(e.arg), item: () => viewItem(e.arg), board: viewBoard, map: viewMap, settings: viewSettings, about: viewAbout, hof: () => hallOfFame() || '<div class="card empty">기록이 더 쌓이면 명예의 전당이 채워져요.</div>', club: viewClub, people: viewPeople, run: () => viewRun(e.arg), report: () => viewReport(e.arg), trash: viewTrash }[e.s] || (() => ''))(); }
   /* 내용이 같으면 화면을 건드리지 않음 (입력 칸 · 버튼이 바뀌지 않게).
      내용이 바뀌어도 입력 중이던 칸의 글자와 커서는 그대로 살림. */
   const lastHTML = {};
@@ -2453,6 +2468,7 @@
     if (act === 'approveDev' || act === 'denyDev') return devAction(act, did);
     if (act === 'addMember') return openSheet('<h3>부원 추가</h3><form id="addMemberForm" style="display:flex;flex-direction:column;gap:12px"><label class="field">학번<input name="sid" inputmode="numeric" maxlength="12" required></label><label class="field">이름<input name="name" maxlength="20" required></label><p class="muted" style="font-size:13px;margin:0">추가하면 4자리 개인 코드가 만들어져요.</p><div class="btn-row"><button type="button" class="btn" data-act="closeSheet">취소</button><button type="submit" class="btn primary">추가</button></div></form>');
     if (act === 'authGuide') return openSheet('<h3>구글 권한 허용하는 법</h3>' + authGuide() + '<div class="btn-row"><button type="button" class="btn primary" data-act="closeSheet">알겠어요</button></div>', true);
+    if (act === 'supReload') { PF.sup = null; return render(); }
     if (act === 'useCode') { PF.useCode = true; return render(); }
     if (act === 'inviteMake' || act === 'inviteOff') { if (act === 'inviteOff' && !confirm('초대 링크를 끌까요? 이미 보낸 링크로는 더 신청할 수 없어요.')) return; if (act === 'inviteMake' && PF.people && PF.people.invite && !confirm('새 링크로 바꿀까요? 전에 보낸 링크는 더 쓸 수 없어요.')) return;
       return rpc('invite', { op: act === 'inviteMake' ? 'make' : 'off' }).then((r) => { if (PF.people) PF.people.invite = r.invite; render(); toast(r.invite ? '초대 링크를 만들었어요' : '초대 링크를 껐어요'); }, (e2) => { if (!deviceLost(e2)) toast(e2.message); }); }
@@ -2582,6 +2598,7 @@
     if (e.target.id === 'recordForm') { e.preventDefault(); return saveRecord(e.target, e.submitter); }
     if (e.target.id === 'evForm') { e.preventDefault(); return evSave(new FormData(e.target)); }
     if (e.target.id === 'noticeForm') { e.preventDefault(); return noticeSave(new FormData(e.target).get('text')); }
+    if (e.target.id === 'supForm') { e.preventDefault(); return supSend(e.target); }
     if (e.target.id === 'restoreForm') { e.preventDefault(); return restoreDo(e.target); }
     if (e.target.id === 'backupToForm') { e.preventDefault(); closeSheet(); return backupSet({ to: String(new FormData(e.target).get('to') || '').trim() }); }
     if (e.target.id === 'addMemberForm') {

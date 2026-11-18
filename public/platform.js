@@ -1,7 +1,7 @@
 // 가지 · 플랫폼 (Firebase): 첫 화면 · 동아리 만들기 · 동아리 주소 · 마스터 넘기기 · 시스템 사용 현황
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
-import { getFirestore, doc, getDoc, getDocs, collection, writeBatch, updateDoc, setDoc, deleteDoc, serverTimestamp, Timestamp, arrayUnion } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { getFirestore, doc, getDoc, getDocs, collection, writeBatch, updateDoc, setDoc, deleteDoc, serverTimestamp, Timestamp, arrayUnion, addDoc, query, orderBy, limit, collectionGroup } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
 const fb = initializeApp(window.GAJI_FIREBASE);
 const auth = getAuth(fb);
@@ -121,6 +121,9 @@ async function clubPage(slug) {
     },
     saveStats: (st) => updateDoc(doc(db, 'clubs', slug, 'private', 'info'), { 'stats.members': st.members | 0, 'stats.experiments': st.experiments | 0, 'stats.lastActive': serverTimestamp() }),
     login: () => login(),
+    // 가지에 문의하기 (마스터 ↔ 시스템)
+    supportList: async () => (await getDocs(query(collection(db, 'clubs', slug, 'support'), orderBy('at', 'asc'), limit(200)))).docs.map((d) => ({ id: d.id, from: d.data().from, text: d.data().text, at: d.data().at && d.data().at.toDate ? d.data().at.toDate().toISOString() : '' })),
+    supportSend: (text) => addDoc(collection(db, 'clubs', slug, 'support'), { from: 'master', text: String(text).slice(0, 2000), at: serverTimestamp(), uid: user.uid }),
     createHandover: async () => {
       const code = randomCode(28), until = new Date(Date.now() + 24 * 3600e3);
       await setDoc(doc(db, 'clubs', slug, 'handover', 'current'), { code, expiresAt: Timestamp.fromDate(until) });
@@ -172,9 +175,29 @@ async function systemPage() {
     '<div class="p-stats"><div class="card"><small>동아리</small><b>' + rows.length + '</b></div><div class="card"><small>최근 2주 사용</small><b>' + active + '</b></div><div class="card"><small>부원 합계</small><b>' + tot('members') + '</b></div><div class="card"><small>실험 합계</small><b>' + tot('experiments') + '</b></div></div>' +
     '<div class="card" style="padding:0;overflow-x:auto"><table class="p-table"><thead><tr><th>동아리</th><th>주소</th><th>만든 날</th><th>부원</th><th>실험</th><th>마지막 사용</th><th>버전</th></tr></thead><tbody>' +
     rows.map((r) => { const d = day(r.info.stats?.lastActive); return '<tr><td><b>' + esc(r.pub.name) + '</b></td><td class="code">' + esc(r.id) + '</td><td>' + (r.pub.createdAt?.toDate ? r.pub.createdAt.toDate().toLocaleDateString('ko-KR') : '-') + '</td><td class="code">' + (r.info.stats?.members ?? '-') + '</td><td class="code">' + (r.info.stats?.experiments ?? '-') + '</td><td>' + (d === null ? '-' : d === 0 ? '오늘' : d + '일 전') + (d !== null && d > 30 ? ' <span class="badge t-warn">오래 안 씀</span>' : '') + '</td><td class="code">' + esc(r.info.stats?.version || r.pub.version || '-') + '</td></tr>'; }).join('') +
-    '</tbody></table></div><p class="p-foot">사람 이름 · 이메일 · 실험 내용은 보이지 않아요. 숫자만 표시합니다.</p>');
+    '</tbody></table></div><p class="p-foot">사람 이름 · 이메일 · 실험 내용은 보이지 않아요. 숫자만 표시합니다.</p>' + await supportAdmin(rows));
+}
+/* 시스템: 마스터 문의 (동아리별 대화 · 답장) */
+async function supportAdmin(rows) {
+  const all = (await getDocs(query(collectionGroup(db, 'support'), orderBy('at', 'desc'), limit(300))).catch((e) => ({ docs: [], err: e }))).docs || [];
+  const by = {}; all.forEach((d) => { const slug = d.ref.parent.parent.id; (by[slug] = by[slug] || []).push({ from: d.data().from, text: d.data().text, at: d.data().at && d.data().at.toDate ? d.data().at.toDate() : null }); });
+  const name = (slug) => ((rows.find((r) => r.id === slug) || {}).pub || {}).name || slug;
+  const slugs = Object.keys(by).sort((a, b) => (by[b][0].at || 0) - (by[a][0].at || 0));
+  const when = (t) => t ? t.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  return '<h2 class="sec">마스터 문의 <small>' + (slugs.filter((s) => by[s][0].from === 'master').length ? '답장 기다리는 동아리 ' + slugs.filter((s) => by[s][0].from === 'master').length + '곳' : '모두 답했어요') + '</small></h2>' +
+    (slugs.length ? slugs.map((s) => '<div class="card sup-box"><div class="sup-h"><b>' + esc(name(s)) + '</b><span class="code muted">/c/' + esc(s) + '</span>' + (by[s][0].from === 'master' ? '<span class="badge t-warn">답장 필요</span>' : '') + '</div>' +
+      '<div class="sup-thread">' + by[s].slice(0, 20).reverse().map((m) => '<div class="sup-msg ' + m.from + '"><p>' + esc(m.text).replace(/\n/g, '<br>') + '</p><small>' + (m.from === 'system' ? '가지' : '마스터') + ' · ' + when(m.at) + '</small></div>').join('') + '</div>' +
+      '<form class="sup-form" data-sup="' + esc(s) + '"><textarea name="text" rows="2" maxlength="2000" required placeholder="답장 쓰기"></textarea><button type="submit" class="btn primary">답장</button></form></div>').join('')
+      : '<div class="card muted" style="font-size:14px">아직 문의가 없어요.</div>');
 }
 
+document.addEventListener('submit', async (e) => {
+  const f = e.target.closest && e.target.closest('form[data-sup]'); if (!f) return;
+  e.preventDefault(); const t = String(new FormData(f).get('text') || '').trim(); if (!t) return;
+  f.querySelector('button').disabled = true;
+  try { await addDoc(collection(db, 'clubs', f.dataset.sup, 'support'), { from: 'system', text: t.slice(0, 2000), at: serverTimestamp(), uid: user.uid }); toast('답장했어요'); systemPage(); }
+  catch (x) { f.querySelector('button').disabled = false; toast('보내지 못했어요: ' + (x.message || x)); }
+});
 /* ---------- 그리기 · 이벤트 ---------- */
 async function render() {
   if (route.page === 'club') return clubPage(route.slug);
