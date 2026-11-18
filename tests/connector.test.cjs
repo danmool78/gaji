@@ -183,7 +183,7 @@ const mc2 = call({ action: 'myCode', device: r9b.data.device });
 ok('old code renewed', mc2.ok && mc2.data.renewed && /^\d{4}$/.test(mc2.data.code), mc2);
 ok('device kept after renew', call({ action: 'load', device: r9b.data.device }).ok);
 ok('new code works', call({ action: 'register', studentId: '20399', code: mc2.data.code }).ok);
-ok('ping version', call({ action: 'ping' }).data.version === '2.19.0');
+ok('ping version', call({ action: 'ping' }).data.version === '2.19.1');
 
 // 실수 되돌리기: 내가 10분 안에 옮긴 단계는 한 단계 되돌리기 가능
 setRule('approvePeers', 0); setRule('approveTeacher', 'none');
@@ -622,7 +622,7 @@ ok('load has no self rev', !call({ action: 'load', device: ADM }).rev);
 
 // ===== 2.18.2: 시스템 현황 숫자 =====
 const sysStat = call({ action: 'stats', device: ADM });
-ok('stats: numbers only', sysStat.ok && typeof sysStat.data.done === 'number' && typeof sysStat.data.running === 'number' && typeof sysStat.data.devices === 'number' && /^\d{4}-\d\d-\d\d$|^$/.test(sysStat.data.lastEdit) && sysStat.data.core === '2.19.0', sysStat.data);
+ok('stats: numbers only', sysStat.ok && typeof sysStat.data.done === 'number' && typeof sysStat.data.running === 'number' && typeof sysStat.data.devices === 'number' && /^\d{4}-\d\d-\d\d$|^$/.test(sysStat.data.lastEdit) && sysStat.data.core === '2.19.1', sysStat.data);
 ok('stats: no names', !JSON.stringify(sysStat.data).match(/[가-힣]{2,}/));
 ok('stats: member refused', call({ action: 'stats', device: MEM }).code === 'not_admin');
 
@@ -655,11 +655,14 @@ ok('stats: member refused', call({ action: 'stats', device: MEM }).code === 'not
   ok('member cannot create final report', !JSON.stringify(store._t.nodes.find((n) => n.id === 'xf1').report || {}).includes('"final":true'));
   // 6 · 7. 같은 이름 · 학번 막기
   const iv2 = call({ action: 'invite', device: ADM, op: 'make' }).data.invite;
-  ok('apply: same name as active member refused', call({ action: 'apply', invite: iv2, studentId: '40001', name: meM.name }).code === 'dup_name');
+  { const sa = call({ action: 'apply', invite: iv2, studentId: '40001', name: meM.name }); ok('apply: same name gets 학번 attached', sa.ok && sa.data.name === meM.name + '(40001)', sa); }
   const apA = call({ action: 'apply', invite: iv2, studentId: '40002', name: '동명이인시험' });
   ok('addMember: sid with pending application refused', call({ action: 'addMember', device: ADM, studentId: '40002', name: '다른이름' }).code === 'dup');
-  call({ action: 'addMember', device: ADM, studentId: '40003', name: '동명이인시험' });
-  ok('approve: refused when same name already active', call({ action: 'approve', device: ADM, id: apA.data.device.id }).code === 'dup');
+  const am = call({ action: 'addMember', device: ADM, studentId: '40003', name: '동명이인시험' });
+  ok('addMember: name free → kept', am.ok && am.data.name === '동명이인시험', am);
+  const av2 = call({ action: 'approve', device: ADM, id: apA.data.device.id });
+  ok('approve: same name → 학번 attached', av2.ok && store._t.members.some((m) => m.name === '동명이인시험(40002)' && m.status === '활동'), av2);
+  ok('addMember: same name → 학번 attached', call({ action: 'addMember', device: ADM, studentId: '40004', name: '동명이인시험' }).data.name === '동명이인시험(40004)');
   // 8. 지난 단계의 내용을 지울 수 없음
   store._t.nodes.push({ id: 'xc1', no: 900, type: 'exp', title: '내용 지우기', status: '기록 완료', plan: PL, report: RP, owner: meM.name, createdBy: meM.name, created: '2026-11-01' });
   const tc = call({ action: 'sync', device: MEM, nodes: [{ id: 'xc1', title: '내용 지우기', plan: null, report: null }] });

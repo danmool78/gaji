@@ -2616,7 +2616,7 @@
     if (e.target.id === 'backupToForm') { e.preventDefault(); closeSheet(); return backupSet({ to: String(new FormData(e.target).get('to') || '').trim() }); }
     if (e.target.id === 'addMemberForm') {
       e.preventDefault(); const fd = new FormData(e.target), name = String(fd.get('name')).trim(), btn = e.target.querySelector('[type=submit]'); btn.disabled = true;
-      rpc('addMember', { studentId: String(fd.get('sid')).trim(), name }).then((r) => { PF.people = null; showCode(name, r.code); render(); }, (er) => { btn.disabled = false; if (!deviceLost(er)) toast(er.message); });
+      rpc('addMember', { studentId: String(fd.get('sid')).trim(), name }).then((r) => { PF.people = null; showCode(r.name || name, r.code); render(); if (r.name && r.name !== name) toast('같은 이름이 있어서 ' + r.name + '(으)로 넣었어요'); }, (er) => { btn.disabled = false; if (!deviceLost(er)) toast(er.message); });
       return;
     }
     e.preventDefault(); if (e.target.dataset.sent) return; e.target.dataset.sent = '1';   // 두 번 눌러도 하나만

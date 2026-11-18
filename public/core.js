@@ -5,7 +5,7 @@
  * 시트 '설정' 탭에 autoUpdate = off 를 넣으면 그 동아리는 마지막으로 받은 판에 머물러요.
  * ------------------------------------------------------------ */
 var GAJI_CORE = true;
-var GAJI_CONNECTOR_VERSION = '2.19.0';
+var GAJI_CONNECTOR_VERSION = '2.19.1';
 
 /* ================= 핵심 로직 (저장소와 분리: 시험 가능) ================= */
 function GajiCore(store, util, drive) {
@@ -20,6 +20,13 @@ function GajiCore(store, util, drive) {
   function bump() { setSetting('rev', Number(setting('rev', '0')) + 1); }
   function log(me, action, detail) { store.append('log', { at: util.now(), member: me ? me.name : '', device: me ? me.deviceId : '', action: action, detail: String(detail || '').slice(0, 200) }); }
   function hash(salt, v) { return util.sha256(salt + ':' + v); }
+  function uniqName(name, sid, selfId) {
+    name = String(name || '').trim().slice(0, 20);
+    var taken = function (nm) { return store.rows('members').some(function (m) { return m.status === '활동' && m.id !== selfId && m.name === nm; }); };
+    if (!taken(name)) return name;
+    var nm = (name.slice(0, 20 - String(sid).length - 2) + '(' + sid + ')');
+    return taken(nm) ? nm.slice(0, 16) + util.token(4) : nm;
+  }
   function digits(n) { var s = ''; for (var i = 0; i < n; i++) s += Math.floor(util.random() * 10); return s; }
   function newId(p) { return p + util.token(10); }
   function days(iso) { return iso ? (Date.parse(util.now()) - Date.parse(iso)) / 864e5 : 9999; }
@@ -102,9 +109,9 @@ function GajiCore(store, util, drive) {
     limit('apply_' + sid, 5, 600);
     var ms = store.rows('members');
     if (ms.some(function (m) { return m.studentId === sid && m.status === '활동'; })) err('dup', '이미 등록된 학번이에요. 기장님께 받은 개인 코드로 들어가 주세요');
-    if (ms.some(function (m) { return m.name === name && m.status === '활동'; })) err('dup_name', '같은 이름의 부원이 이미 있어요. 이름 뒤에 반이나 번호를 붙여 주세요 (예: 김가지2)');
     if (ms.filter(function (m) { return m.status === '신청'; }).length >= 100) err('busy', '가입 신청이 너무 많이 쌓였어요. 기장님께 알려 주세요');
     var mem = ms.filter(function (m) { return m.studentId === sid && m.status === '신청'; })[0];
+    name = uniqName(name, sid, mem && mem.id);
     if (mem) { mem.name = name; store.update('members', mem._row, mem); }
     else { mem = { id: newId('m'), studentId: sid, name: name, role: '부원', codeHash: '', codeEnc: '', status: '신청', createdAt: util.now() }; store.append('members', mem); }
     var did = newId('d'), secret = util.token(32), confirm = digits(4);
@@ -140,11 +147,11 @@ function GajiCore(store, util, drive) {
     if (!sid) err('bad', '학번을 넣어 주세요');
     var mem = store.rows('members').filter(function (m) { return m.studentId === sid && m.status === '활동'; })[0];
     var ap0 = !mem && store.rows('members').filter(function (m) { return m.studentId === sid && m.status === '신청'; })[0];
-    if (ap0) { code = digits(4); ap0.status = '활동'; ap0.codeHash = hash(ap0.id, code); ap0.codeEnc = seal(ap0.id, code); if (q.name) ap0.name = String(q.name).slice(0, 20); store.update('members', ap0._row, ap0); mem = store.rows('members').filter(function (m) { return m.id === ap0.id; })[0]; }
+    if (ap0) { code = digits(4); ap0.status = '활동'; ap0.codeHash = hash(ap0.id, code); ap0.codeEnc = seal(ap0.id, code); if (q.name) ap0.name = uniqName(q.name, sid, ap0.id); store.update('members', ap0._row, ap0); mem = store.rows('members').filter(function (m) { return m.id === ap0.id; })[0]; }
     if (!mem) {
       if (!q.name) err('need_name', '처음 쓰는 학번이에요. 이름도 넣어 주세요');
       code = digits(4); var mid = newId('m');
-      store.append('members', { id: mid, studentId: sid, name: String(q.name).slice(0, 20), role: '마스터', codeHash: hash(mid, code), codeEnc: seal(mid, code), status: '활동', createdAt: util.now() });
+      store.append('members', { id: mid, studentId: sid, name: uniqName(q.name, sid), role: '마스터', codeHash: hash(mid, code), codeEnc: seal(mid, code), status: '활동', createdAt: util.now() });
       mem = store.rows('members').filter(function (m) { return m.id === mid; })[0];
     }
     var mid2 = mem.id;
@@ -751,11 +758,11 @@ function GajiCore(store, util, drive) {
     var all = store.rows('members');
     if (all.some(function (m) { return m.studentId === sid && m.status === '활동'; })) err('dup', '이미 있는 학번이에요');
     if (all.some(function (m) { return m.studentId === sid && m.status === '신청'; })) err('dup', '초대 링크로 가입 신청한 학번이에요. 부원 · 기기의 승인 기다리는 기기에서 승인해 주세요');
-    if (all.some(function (m) { return m.name === name && m.status === '활동'; })) err('dup_name', '같은 이름의 부원이 이미 있어요. 이름 뒤에 반이나 번호를 붙여 주세요 (예: 김가지2)');
+    name = uniqName(name, sid);
     var id = newId('m'), code = digits(4);
     store.append('members', { id: id, studentId: sid, name: name, role: '부원', codeHash: hash(id, code), codeEnc: seal(id, code), status: '활동', createdAt: util.now() });
     bump(); log(me, '부원 추가', name);
-    return { id: id, code: code };
+    return { id: id, code: code, name: name };
   };
   A.resetCode = function (q) {
     var me = deviceOf(q); needAdmin(me);
@@ -787,7 +794,8 @@ function GajiCore(store, util, drive) {
     if (q.confirm && d.confirm && String(q.confirm) !== String(d.confirm)) err('confirm', '확인 숫자가 달라요');
     d.status = '승인'; d.shared = q.shared ? 'true' : 'false'; d.approvedAt = util.now(); d.approvedBy = me.name; d.confirm = ''; d.lastSeen = util.now();
     var nm0 = store.rows('members').filter(function (x) { return x.id === d.memberId && x.status === '신청'; })[0];
-    if (nm0 && store.rows('members').some(function (x) { return x.status === '활동' && (x.studentId === nm0.studentId || x.name === nm0.name); })) err('dup', '같은 학번이나 이름의 부원이 이미 있어요. 이 신청은 거절하고, 이름을 바꿔 다시 신청하게 해 주세요');
+    if (nm0 && store.rows('members').some(function (x) { return x.status === '활동' && x.studentId === nm0.studentId; })) err('dup', '같은 학번의 부원이 이미 있어요. 이 신청은 거절해 주세요');
+    if (nm0) { var un = uniqName(nm0.name, nm0.studentId, nm0.id); if (un !== nm0.name) { nm0.name = un; store.update('members', nm0._row, nm0); } }
     store.update('devices', d._row, d);
     var nm = store.rows('members').filter(function (x) { return x.id === d.memberId && x.status === '신청'; })[0], code = '';
     if (nm) { code = digits(4); nm.codeHash = hash(nm.id, code); nm.codeEnc = seal(nm.id, code); nm.status = '활동'; store.update('members', nm._row, nm); log(me, '가입 승인', nm.name); }
