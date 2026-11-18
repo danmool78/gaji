@@ -830,7 +830,7 @@
       '<button type="button" class="fold" data-tab-go="tree">줄기 ' + allLines.length + '개 · 전체 가지 보기 →</button>' +
             (reps.length ? '<h3 class="zone-sub">완성된 보고서 <span class="cnt">' + repAll + '</span><small>' + (repAll > 3 ? '최근 3개만' : '누르면 보고서가 열려요') + '</small></h3><div class="rep-list">' + reps.map((n) => '<button type="button" class="rep-card" data-report="' + esc(n.id) + '"><span class="rep-ic">' + svgIcon('res', '#fff') + '</span><span class="tx"><small class="code">' + esc(code(n)) + ' · ' + esc(n.owner || '') + '</small><b>' + fieldTag(n) + esc(n.title) + '</b><small>' + esc(lineName(lineage(n)[0].line)) + ' · ' + fmt(n.date) + '</small></span>' + (isFinal(n) ? '<span class="badge t-ok">확정</span>' : badge(n)) + '</button>').join('') + '</div>' : '') +
       (repAll > 3 ? '<button type="button" class="fold" data-act="findDone">보고서 모두 보기 (' + repAll + ') →</button>' : '') +
-      '</section></div>';
+      '</section></div>' + legendTip('home');
   }
 
   /* ---------- 가지 ---------- */
@@ -905,7 +905,7 @@
   function viewTree() {
     const mode = prefs.treeMode || 'all';
     let h = '<div class="seg" role="group" aria-label="보기" style="grid-template-columns:repeat(3,1fr)"><button type="button" data-tmode="all" aria-pressed="' + (mode === 'all') + '">전체 가지</button><button type="button" data-tmode="line" aria-pressed="' + (mode === 'line') + '">줄기별</button><button type="button" data-tmode="date" aria-pressed="' + (mode === 'date') + '">날짜별</button></div>';
-    if (mode === 'all') return h + viewAllBranches();
+    if (mode === 'all') return h + viewAllBranches() + legendTip('tree');
     if (mode === 'line') {
       const L = computeLines(), live = L.filter((l) => l.state !== 'done'), done = L.filter((l) => l.state === 'done');
       h += '<div class="grid2 wide3">' + live.map(lineCard).join('') + '</div>' || '<div class="card empty">아직 가지가 없어요. 홈에서 새 실험이나 아이디어를 올려 보세요.</div>';
@@ -922,7 +922,7 @@
       if (!t) h += '<div class="todayline">오늘 ' + fmt(TODAY) + '</div>';
       h += '</div>';
     }
-    return h;
+    return h + (mode === 'line' ? legendTip('tree') : '');
   }
   function viewLine(key) {
     const L = computeLines().find((l) => l.key === key);
@@ -1895,6 +1895,7 @@
       mi('map', 'var(--q)', 'M12 12m-2.5 0a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0 -5 0M5 5m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M19 6m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M6 19m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M10.2 10.2L6.4 6.4M13.8 11l3.6-3.6M10.3 13.8L7.4 17.4', '전체 지도', '동아리 연구 전체를 한 장으로 (발표용)') +
       (db.nodes.some(isDel) ? mi('trash', 'var(--muted)', 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13', '휴지통', '지운 항목 ' + db.nodes.filter(isDel).length + '개 · 되살리기') : '') +
       mi('about', 'var(--idea)', 'M6 7v10M18 11c0 4-6 3-12 6', '가지 소개', '소개 영상 · 기능 · 기록을 지키는 방법') +
+      (PF.mode === 'demo' ? '<button type="button" class="menu-item" data-tour-again><span class="mi" style="background:var(--exp)"><svg viewBox="0 0 24 24"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg></span><span class="tx"><b>화면 안내 다시 보기</b><small>화면 구성 안내 · 색 설명 카드</small></span></button>' : '') +
       '</div>';
   }
   function viewBoard() {
@@ -1909,7 +1910,7 @@
     return '<p class="muted" style="margin:0 2px;font-size:13px">동아리 연구 전체를 3D로 봐요. <b>끌어서 돌리고</b>, 휠이나 두 손가락으로 확대해요. 별을 한 번 누르면 요약, <b>두 번 누르면 상세</b>로 들어가요.</p>' +
       '<div class="map3d" id="map3dBox"><canvas id="map3d"></canvas>' +
       '<div class="map-ctl"><button type="button" data-m3="in" aria-label="크게">+</button><button type="button" data-m3="out" aria-label="작게">−</button><button type="button" data-m3="spin" aria-pressed="' + !(PF.m3 && PF.m3.still) + '">회전</button><button type="button" data-m3="fit">처음</button></div>' +
-      '<div class="m3-legend"><span><i style="background:#3DDC97"></i>끝난 실험</span><span><i style="background:#5B9BFF"></i>진행 중</span><span><i class="ring"></i>아이디어</span><span><i style="background:#B58CFF"></i>질문 · 자료</span></div>' +
+      '<div class="m3-legend"><span><i style="background:#3DDC97"></i>끝난 실험</span><span><i style="background:#5B9BFF"></i>하는 중</span><span><i class="ring"></i>아이디어</span><span><i style="background:#B58CFF"></i>질문</span><span><i style="background:#3FD0C9"></i>자료</span></div>' +
       (sel ? '<div class="map-tip"><span class="code muted">' + esc(code(sel)) + '</span><b>' + fieldTag(sel) + esc(sel.title) + '</b><span class="muted">' + esc([sel.status, sel.owner, lineName(sel.line)].filter(Boolean).join(' · ')) + '</span><div class="btn-row" style="margin-top:6px"><button type="button" class="btn primary" data-go="' + esc(sel.id) + '">상세 보기</button><button type="button" class="btn" data-m3="close">닫기</button></div></div>' : '') + '</div>';
   }
   // 3D 배치 (데이터가 바뀔 때만 다시 계산)
@@ -1918,21 +1919,22 @@
     if (PF.m3L && PF.m3L.key === key) return PF.m3L;
     const F = ['생명', '화학', '물리', '지구', '융합', '공통'], C = {};
     F.forEach((f, i) => { const a = i / F.length * Math.PI * 2; C[f] = [Math.cos(a) * 320, (i % 2 ? 90 : -90), Math.sin(a) * 320]; });
+    const home = (n) => n.field;
     let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5;
-    const P = {}; ns.forEach((n) => { const c = C[n.field] || [0, 0, 0]; P[n.id] = [c[0] + rnd() * 120, c[1] + rnd() * 120, c[2] + rnd() * 120]; });
+    const P = {}; ns.forEach((n) => { const c = C[home(n)] || [0, 0, 0]; P[n.id] = [c[0] + rnd() * 120, c[1] + rnd() * 120, c[2] + rnd() * 120]; });
     const L = db.links.filter((l) => P[l.s] && P[l.t]);
     for (let it = 0; it < 180; it++) {
       for (let i = 0; i < ns.length; i++) for (let j = i + 1; j < ns.length; j++) { const p = P[ns[i].id], q = P[ns[j].id], d = [p[0] - q[0], p[1] - q[1], p[2] - q[2]], d2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2] + .01, f = 2600 / d2; for (let k = 0; k < 3; k++) { p[k] += d[k] * f * .02; q[k] -= d[k] * f * .02; } }
       L.forEach((l) => { const p = P[l.s], q = P[l.t], d = [q[0] - p[0], q[1] - p[1], q[2] - p[2]], len = Math.hypot(...d) + .01, f = (len - 70) * .03 / len; for (let k = 0; k < 3; k++) { p[k] += d[k] * f; q[k] -= d[k] * f; } });
-      ns.forEach((n) => { const c = C[n.field] || [0, 0, 0], p = P[n.id]; for (let k = 0; k < 3; k++) p[k] += (c[k] - p[k]) * .03; });
+      ns.forEach((n) => { const c = C[home(n)] || [0, 0, 0], p = P[n.id], w = .03; for (let k = 0; k < 3; k++) p[k] += (c[k] - p[k]) * w; });
     }
-    return (PF.m3L = { key, ns, P, L, C, F });
+    return (PF.m3L = { key, ns, P, L, C, F, home });
   }
   function map3dStart() {
     const cv = $('#map3d'); if (!cv || cv.dataset.on) return; cv.dataset.on = '1';
     const M = map3dLayout(), S = (PF.m3 = PF.m3 || { yaw: .6, pitch: -.35, dist: 720, sel: null, still: false, idle: 0 });
     const ctx = cv.getContext('2d'), stars = Array.from({ length: 160 }, (_, i) => [((i * 97) % 1000) / 1000, ((i * 61 + 13) % 1000) / 1000, ((i * 37) % 10) / 10]);
-    const col = (n) => n.type === 'idea' ? '#FFB547' : n.type === 'q' || n.type === 'res' ? '#B58CFF' : n.status === '기록 완료' ? '#3DDC97' : '#5B9BFF';
+    const col = (n) => n.type === 'idea' ? '#FFB547' : n.type === 'q' ? '#B58CFF' : n.type === 'res' ? '#3FD0C9' : n.status === '기록 완료' ? '#3DDC97' : '#5B9BFF';
     let W = 0, H = 0, dpr = 1, proj = [];
     const wrap = (t, per) => { const w = String(t).split(' '), out = ['']; w.forEach((x) => { const c = out[out.length - 1]; if ((c + ' ' + x).trim().length <= per || !c) out[out.length - 1] = (c + ' ' + x).trim(); else out.push(x); }); const r = out.slice(0, 2); if (out.length > 2) r[1] = r[1].slice(0, per - 1) + '…'; return r; };
     function frame() {
@@ -1948,7 +1950,7 @@
       const pj = (v) => { const x = v[0] * cy - v[2] * sy, z0 = v[0] * sy + v[2] * cy, y = v[1] * cp - z0 * sp, z = v[1] * sp + z0 * cp + S.dist; const k = fl / Math.max(60, z); return { x: W / 2 + x * k, y: H / 2 + y * k, k, z }; };
       // 분야 이름 (떠 있는 큰 글자)
       ctx.textAlign = 'center';
-      M.F.forEach((f) => { if (!M.ns.some((n) => n.field === f)) return; const p = pj([M.C[f][0], M.C[f][1] - 150, M.C[f][2]]); ctx.font = '900 ' + Math.round(26 * p.k) + 'px "Noto Sans KR", sans-serif'; ctx.fillStyle = 'rgba(160,190,255,' + Math.min(.32, .5 * p.k) + ')'; ctx.fillText(f, p.x, p.y); });
+      M.F.forEach((f) => { if (!M.ns.some((n) => M.home(n) === f)) return; const p = pj([M.C[f][0], M.C[f][1] - 150, M.C[f][2]]); ctx.font = '900 ' + Math.round(26 * p.k) + 'px "Noto Sans KR", sans-serif'; ctx.fillStyle = 'rgba(160,190,255,' + Math.min(.32, .5 * p.k) + ')'; ctx.fillText(f, p.x, p.y); });
       const hot = new Set(S.sel && byId(S.sel) ? lineage(byId(S.sel)).concat(treeRows([byId(S.sel)]).map((r) => r.n)).map((x) => x.id) : []);
       proj = M.ns.map((n) => Object.assign(pj(M.P[n.id]), { n })); const pm = {}; proj.forEach((p) => { pm[p.n.id] = p; });
       M.L.forEach((l) => { const a = pm[l.s], b = pm[l.t]; if (!a || !b) return; const on = hot.has(l.s) && hot.has(l.t), al = Math.max(.08, Math.min(.6, 1.6 * (a.k + b.k) / 2 - .35));
@@ -2260,6 +2262,60 @@
     if (nav.length - 1 > mainIndex()) { const p = cur(), sel = p.s === 'item' ? '[data-item="' + p.arg + '"]' : '[data-line="' + p.arg + '"]'; document.querySelectorAll('#screen ' + sel).forEach((el) => el.classList.add('sel-ring')); }
     if (PF.mode === 'live') setTimeout(loadThumbs, 0);
   }
+
+  /* ---------- 체험에서만: 색 설명 카드(반투명, 닫으면 다시 안 뜸) · 처음 화면 안내 ---------- */
+  const legDot = (c, kind) => '<i class="lg-' + (kind || 'dot') + '" style="--c:' + c + '"></i>';
+  function legendTip(k) {
+    if (PF.mode !== 'demo' || (prefs.legOff || {})[k]) return '';
+    const row = (a, t) => '<span>' + a + t + '</span>';
+    const dots = {
+      home: [row(legDot('var(--exp)', 'ico'), '실험'), row(legDot('var(--idea)', 'ring'), '아이디어'), row(legDot('var(--q)', 'ico'), '질문'), row(legDot('var(--res)', 'ico'), '자료')],
+      tree: [row(legDot('var(--done)'), '끝난 실험'), row(legDot('var(--exp)'), '하는 중'), row(legDot('var(--exp)', 'ring'), '앞으로 할 실험'), row(legDot('var(--idea)', 'ring'), '아이디어')].concat(prefs.treeMode === 'all' || !prefs.treeMode ? [row('<i class="lg-today"></i>', '오늘')] : []),
+      map: [row(legDot('#3DDC97'), '끝난 실험'), row(legDot('#5B9BFF'), '하는 중'), row(legDot('#FFB547', 'ring'), '아이디어'), row(legDot('#B58CFF'), '질문'), row(legDot('#3FD0C9'), '자료')],
+    }[k];
+    const more = {
+      home: '<p><span class="badge t-warn">● 준비 55%</span> 실험 준비가 얼마나 됐는지 · <span class="badge t-bad">● 급함</span> 실험이 7일 안인데 덜 준비됨 · <span class="badge t-ok">● GO</span> 준비 끝</p>',
+      tree: '<p>왼쪽에서 오른쪽으로 시간이 흘러요. 한 실험에서 나온 다음 실험이 가지처럼 이어지고, 점선은 아직 하지 않은 실험이에요.</p>',
+      map: '<p>큰 글자는 분야예요. 실험 · 질문 · 자료가 분야별로 모이고, 선은 서로 이어진 것이에요.</p>',
+    }[k];
+    return '<div class="leg-tip' + (k === 'tree' ? ' lift' : '') + '" role="note"><div class="lg-h"><b>색 설명</b><button type="button" class="lg-x" data-legoff="' + k + '" aria-label="색 설명 닫기">✕</button></div><div class="lg-row">' + dots.join('') + '</div>' + more + '</div>';
+  }
+  const TOUR = [
+    ['#demoPill', '체험 중이에요', '가지고등학교 실험 동아리는 체험용 가상 동아리예요. 여기를 누르면 기장 · 부원 · 선생님으로 바꿔 볼 수 있어요.'],
+    ['.notice-board', '공지판', '기장 · 선생님이 쓰는 동아리 공지예요. 모두에게 바로 보여요.'],
+    ['.zone-do', '해야 할 일', '내가 할 일 · 동아리 챙길 것 · 새로 올리기 · 달력. 지금 무엇을 하면 되는지 여기만 보면 돼요.'],
+    ['.zone-done', '쌓인 기록', '연구 줄기와 완성된 보고서예요. 실험이 끝나면 여기에 쌓여요.'],
+    ['.tabs [data-tab="tree"]', '가지', '실험이 어떻게 이어졌는지 타임라인 · 줄기 · 3D 지도로 봐요.'],
+    ['.tabs [data-tab="find"]', '찾기', '제목 · 번호 · 내용 · 사람 · 연도로 지난 실험을 찾아요.'],
+    ['.tabs [data-tab="more"]', '더 보기', '설정 · 명예의 전당이 있어요. 이 안내와 색 설명은 여기서 다시 볼 수 있어요.'],
+  ];
+  function tourShow(i) {
+    tourEnd(true);
+    const steps = TOUR.filter((t) => { const el = $(t[0]); return el && el.getBoundingClientRect().width > 0; });
+    const t = steps[i]; if (!t) return tourEnd();
+    const el = $(t[0]); el.scrollIntoView({ block: 'nearest' });
+    const r = el.getBoundingClientRect(), pad = 6, box = document.createElement('div');
+    box.className = 'tour'; box.dataset.i = i;
+    const below = r.bottom + 220 < innerHeight || r.top < 240, cw = Math.min(340, innerWidth - 24), left = Math.max(12, Math.min(innerWidth - cw - 12, r.left));
+    box.innerHTML = '<div class="tour-hole" style="left:' + (r.left - pad) + 'px;top:' + (r.top - pad) + 'px;width:' + (r.width + pad * 2) + 'px;height:' + (r.height + pad * 2) + 'px"></div>' +
+      '<div class="tour-card" role="dialog" aria-label="화면 안내" style="left:' + left + 'px;width:' + cw + 'px;' + (below ? 'top:' + Math.min(innerHeight - 200, r.bottom + 14) : 'bottom:' + (innerHeight - r.top + 14)) + 'px">' +
+      '<small>' + (i + 1) + ' / ' + steps.length + '</small><b>' + t[1] + '</b><p>' + t[2] + '</p>' +
+      '<div class="tour-btns"><button type="button" class="btn" data-tour="end">닫기</button>' + (i ? '<button type="button" class="btn" data-tour="' + (i - 1) + '">이전</button>' : '') +
+      '<button type="button" class="btn primary" data-tour="' + (i + 1 < steps.length ? i + 1 : 'end') + '">' + (i + 1 < steps.length ? '다음' : '시작하기') + '</button></div></div>';
+    document.body.appendChild(box); box.querySelector('.btn.primary').focus();
+  }
+  function tourEnd(keep) { document.querySelectorAll('.tour').forEach((x) => x.remove()); if (!keep) { prefs.tourDone = 1; savePrefs(); } }
+  function tourMaybe() {
+    if (PF.mode !== 'demo' || prefs.tourDone || PF.tourOn || nav[0].s !== 'home' || nav.length > 1 || !$('#sheet').hidden) return;
+    PF.tourOn = 1; setTimeout(() => { PF.tourOn = 0; if (!prefs.tourDone && !document.querySelector('.tour') && $('#sheet').hidden && nav[0].s === 'home') tourShow(0); }, 600);
+  }
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-tour-again]')) { prefs.tourDone = 0; prefs.legOff = {}; savePrefs(); tab('home'); return; }
+    const b = e.target.closest('[data-tour]'); if (b) { const v = b.dataset.tour; return v === 'end' ? tourEnd() : tourShow(+v); }
+    if (e.target.classList && e.target.classList.contains('tour-hole')) return tourEnd();
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && document.querySelector('.tour')) tourEnd(); });
+  addEventListener('resize', () => { const t = document.querySelector('.tour'); if (t) tourShow(+t.dataset.i); });
   function render(scrollTop) {
     renderWatch(); dbg('그리기'); dbg('모드', PF.mode);
     applyBrand();
@@ -2282,6 +2338,7 @@
     }
     if (scrollTop) window.scrollTo(0, 0);
     if (PF.mode === 'live') setTimeout(loadThumbs, 0);
+    tourMaybe();
   }
 
   /* ---------- 이벤트 ---------- */
@@ -2298,6 +2355,7 @@
   function onClick(e, src) {
     const t = e.target;
     const ed = t.closest('[data-evdel]'); if (ed) return evDel(ed.dataset.evdel);
+    const lo = t.closest('[data-legoff]'); if (lo) { prefs.legOff = Object.assign({}, prefs.legOff, { [lo.dataset.legoff]: 1 }); savePrefs(); return render(); }
     const eo = t.closest('[data-evok]'); if (eo) return evDecide(eo.dataset.evok, true);
     const en = t.closest('[data-evno]'); if (en) { if (confirm('이 실험일을 거절할까요?')) evDecide(en.dataset.evno, false); return; }
     const eg = t.closest('[data-evgo]'); if (eg) { const w = curEvents().find((e) => e.id === eg.dataset.evgo); if (w) { PF.calDay = w.date; const d = new Date(w.date + 'T00:00:00'); PF.calOff = (d.getFullYear() - TODAY.getFullYear()) * 12 + d.getMonth() - TODAY.getMonth(); render(); const c = document.querySelector('.cal'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'center' }); } return; }
