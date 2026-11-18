@@ -183,9 +183,17 @@
     if (e.code === 'pending') { dropCacheOnly(); PF.mode = 'loading'; liveLoad(); return true; }
     return false;
   }
+  // 드라이브 연결 전 마스터: 지금 보이는 건 예시이고, 연결해야 쓸 수 있다고 알림
+  function previewNotice() {
+    if (PF.mode !== 'preview' || nav[nav.length - 1].s === 'settings' || !$('#sheet').hidden) return;
+    openSheet('<h3 style="display:flex;align-items:center;gap:8px">' + GDRIVE + '드라이브를 연결해야 쓸 수 있어요</h3>' +
+      '<p class="muted" style="line-height:1.7;margin:0">지금 보이는 실험 · 공지 · 기록은 <b>예시 화면</b>이에요. 동아리 구글 드라이브를 연결하면 우리 동아리 기록으로 바뀌고, 부원들도 들어올 수 있어요.</p>' +
+      '<p class="muted" style="font-size:13px;line-height:1.7;margin:0">동아리마다 한 번만 하면 돼요 · 컴퓨터에서 10분</p>' +
+      '<div class="btn-row" style="margin-top:6px"><button type="button" class="btn primary" data-act="goConnect">드라이브 연결하러 가기</button><button type="button" class="btn" data-act="closeSheet">예시 먼저 둘러보기</button></div>');
+  }
   async function startClub() {
     const c = PF.club; PF.notice = PF.notice || '';
-    if (!c.connector) { PF.mode = PF.isMaster ? 'preview' : 'closed'; return render(); }
+    if (!c.connector) { PF.mode = PF.isMaster ? 'preview' : 'closed'; render(); if (PF.mode === 'preview') setTimeout(previewNotice, 400); return; }
     let d = getDev(); if (d && d.url !== c.connector) { dropDev(); d = null; }
     if (!d) { PF.mode = 'join'; return render(); }
     PF.dev = d;
@@ -282,7 +290,7 @@
   }
   // 저장이 끝나기 전에 창을 닫으려 하면 붙잡기 (연결기 저장은 몇 초 걸림)
   // 체험: 누구로 써 볼지 고르기 (이름만 바뀜)
-  $('#demoPill').addEventListener('click', () => { if (PF.mode !== 'demo') return; demoWho(); });
+  $('#demoPill').addEventListener('click', () => { if (PF.mode === 'preview') { closeSheet(); nav = [{ s: 'more' }, { s: 'settings' }]; render(true); return; } if (PF.mode !== 'demo') return; demoWho(); });   // 연결 전이면 드라이브 연결로
   function demoWho() {
     const ms = db.members || [{ name: '김기장(20301)', role: '마스터', note: '기장' }];
     openSheet('<h3>누구로 체험할까요?</h3><p class="muted" style="margin:0;font-size:13px">가지고등학교 실험 동아리는 체험용 가상 동아리예요. 바꾼 내용은 이 브라우저에만 저장되고 <b>매일 처음 상태로 돌아가요.</b></p><div class="move-list">' +
@@ -2678,6 +2686,7 @@
     if (['fileFull', 'fileCap', 'fileDel'].includes(act)) return fileAct(act, a.dataset.fid);
     if (flowAct(act, a, ['item', 'run', 'report'].includes(cur().s) ? byId(cur().arg) : null)) return;
     if (act === 'demoWho') return demoWho();
+    if (act === 'goConnect') { closeSheet(); nav = [{ s: 'more' }, { s: 'settings' }]; render(true); return; }
     if (act === 'demoMe') { prefs.demoMe = a.dataset.name; savePrefs(); closeSheet(); nav = [{ s: nav[0].s === 'item' ? 'home' : nav[0].s }]; render(true); return toast(a.dataset.name + '(으)로 체험해요'); }
     if (act === 'demoReset') { if (!confirm('체험 데이터를 처음 상태로 되돌릴까요?')) return; db = freshSample(); save(); closeSheet(); nav = [{ s: 'home' }]; render(true); return toast('처음 상태로 되돌렸어요'); }
     if (act === 'shareCode') { const t = a.dataset.text; if (navigator.share) navigator.share({ text: t }).catch(() => {}); else (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('복사했어요'), () => {}); }
