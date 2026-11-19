@@ -861,11 +861,6 @@ details.sup-box[open] .sup-last { display: none; }
 .gtool { display: inline-flex; align-items: center; gap: 4px; padding: 0 9px; border-radius: 4px; border: 1px solid #DADCE0; background: #fff; color: #3C4043; font-size: 0.9em; font-weight: 600; line-height: 1.7; white-space: nowrap; vertical-align: 0.05em; }
 .gtool svg { width: 11px; height: 11px; }
 .tour-card .btn:not(.primary) { background: #fff; color: #1D2939; border: 1px solid #D0D5DD; }
-.conn-key { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 14px; background: var(--brand-soft); border-left: 5px solid var(--brand); }
-.conn-key > b { font-size: 15px; color: var(--fg); }
-.ck-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.ck-chips span { padding: 6px 12px; border-radius: 999px; background: var(--surface); font-size: 13.5px; color: var(--fg); white-space: nowrap; }
-.ck-chips em { font-style: normal; font-weight: 800; color: var(--brand); }
 details.why-drive > summary { cursor: pointer; list-style: none; line-height: 1.6; }
 details.why-drive > summary::-webkit-details-marker, .warn-pre summary::-webkit-details-marker { display: none; }
 details.why-drive[open] > summary { margin-bottom: 4px; }
@@ -873,3 +868,12 @@ details.why-drive[open] > summary { margin-bottom: 4px; }
 .warn-pre summary { list-style: none; }
 .warn-pre details ul { margin-top: 8px; }
 .warn-pre .warn-no { margin-top: 0; }
+.conn-key { display: flex; align-items: center; gap: 16px; padding: 20px 22px; border-radius: 18px; background: var(--brand); color: var(--on-brand); box-shadow: 0 10px 30px rgba(0,0,0,.18); }
+.conn-key > div { display: flex; flex-direction: column; gap: 6px; }
+.ck-ic { flex: none; width: 56px; height: 56px; border-radius: 16px; background: #fff; display: grid; place-items: center; }
+.ck-ic .gdrive { width: 32px; height: 29px; }
+.conn-key b { font-size: 21px; line-height: 1.35; font-weight: 800; }
+.ck-ask { font-size: 17px; font-weight: 600; }
+.ck-ask em { font-style: normal; font-weight: 900; font-size: 1.25em; padding: 0 4px; border-radius: 6px; background: rgba(255,255,255,.22); }
+.ck-sub { font-size: 13px; opacity: .85; line-height: 1.6; }
+@media (max-width: 480px) { .conn-key { padding: 16px; gap: 12px; } .ck-ic { width: 44px; height: 44px; } .conn-key b { font-size: 18px; } .ck-ask { font-size: 15px; } }
