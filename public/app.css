@@ -891,3 +891,4 @@ details.why-drive[open] > summary { margin-bottom: 4px; }
 .wstep.wcur > div { background: var(--brand-soft); border-radius: 12px; padding: 10px 12px; margin: -10px -12px; }
 .wstep.wcur .wchk { border-color: var(--brand); color: var(--brand); }
 .p-biz { margin: 4px 0 0; padding-top: 14px; border-top: 1px solid var(--line); text-align: center; color: var(--muted); font-size: 11.5px; line-height: 1.8; word-break: keep-all; } .p-biz a { color: inherit; }
+.p-biz span { white-space: nowrap; }
