@@ -366,6 +366,12 @@
     if (k === 'url') return box(150, T(14, 24, '새 배포', { s: 13, w: 700, c: '#1D2939' }) + '<line x1="1" y1="36" x2="299" y2="36" stroke="#E4E7EC"/>' +
       T(14, 54, '배포 ID', { s: 9.5 }) + T(14, 68, 'AKfycbz…', { s: 9.5, w: 500 }) + T(14, 84, '⧉ 복사', { s: 10, c: '#98A2B3' }) + '<path d="M12 76l50 12M62 76l-50 12" stroke="#E5383B" stroke-width="2.5" stroke-linecap="round" opacity=".8"/>' +
       T(14, 106, '웹 앱 · URL', { s: 9.5, w: 700, c: '#1D2939' }) + T(14, 120, 'https://script.google.com/macros/s/…/exec', { s: 9.5, c: '#1A73E8', w: 500 }) + T(14, 138, '⧉ 복사', { s: 10, c: '#1A73E8', w: 700 }) + ring(8, 125, 60, 20));
+    if (k === 'menu') {
+      const asi = (x, y) => '<g transform="translate(' + x + ' ' + y + ') scale(.62)"><path d="M6 19L14.4 19" stroke="#EA4335" stroke-width="4.6" stroke-linecap="round"/><path d="M7.8 12.6L13.8 18.6" stroke="#FBBC04" stroke-width="4.6" stroke-linecap="round"/><path d="M13.8 8.4L14.4 18.6" stroke="#34A853" stroke-width="4.6" stroke-linecap="round"/><path d="M20.4 8.4L16.8 19.2" stroke="#4285F4" stroke-width="4.6" stroke-linecap="round"/></g>';
+      return box(150, '<rect x="12" y="10" width="20" height="20" rx="4" fill="#0F9D58"/>' + T(40, 25, '가지 데이터', { s: 12, w: 700, c: '#1D2939' }) +
+        T(40, 44, '파일  수정  보기  삽입  서식  데이터  도구', { s: 9, w: 500 }) + '<rect x="196" y="33" width="70" height="16" rx="4" fill="#E8EAED"/>' + T(201, 45, '확장 프로그램', { s: 9, c: '#1D2939' }) + ring(193, 30, 76, 22) +
+        '<rect x="150" y="56" width="140" height="86" rx="6" fill="#fff" stroke="#D0D5DD"/>' + T(176, 76, '부가기능', { s: 9.5, w: 500 }) + T(176, 96, '매크로', { s: 9.5, w: 500 }) +
+        '<rect x="152" y="102" width="136" height="22" fill="#E8F0FE"/>' + asi(156, 99) + T(176, 117, 'Apps Script', { s: 10, w: 700, c: '#1D2939' }) + ring(150, 100, 140, 26) + T(176, 136, 'AppSheet', { s: 9.5, w: 500 })); }
     if (k === 'log') return box(96, T(14, 22, '실행 로그', { s: 12, w: 700, c: '#1D2939' }) + '<line x1="1" y1="32" x2="299" y2="32" stroke="#E4E7EC"/>' +
       T(14, 52, '오후 3:02:11  알림  실행이 시작됨', { s: 10, w: 500 }) + T(14, 70, '오후 3:02:14  정보  가지 연결기 준비 완료 · 본체 2.23', { s: 10, w: 700, c: '#1F8F5A' }) + ring(8, 58, 284, 18) + T(14, 88, '오후 3:02:14  알림  실행이 완료됨', { s: 10, w: 500 }));
     const fn = k === 'fn', bar = '<rect x="10" y="16" width="10" height="10" rx="2" fill="#D0D5DD"/><rect x="26" y="16" width="10" height="10" rx="2" fill="#D0D5DD"/><rect x="42" y="16" width="12" height="12" rx="2" fill="#98A2B3"/>' +
@@ -574,7 +580,9 @@
       '<div class="btn-row"><button type="button" class="btn" data-act="testConn">연결 시험</button><a class="btn" href="' + esc(c.connector) + '" target="_blank" rel="noopener">연결기 권한 확인</a><button type="button" class="btn" data-act="copyGs">연결기 코드 복사</button></div>' +
       '<span class="muted" style="font-size:12px;line-height:1.6">새 기능은 가지에서 자동으로 받아요. 받는 본체는 <a href="/core.js" target="_blank" rel="noopener">누구나 볼 수 있게 공개</a>돼 있고, 멈추려면 시트 ‘설정’ 탭에 <span class="code">autoUpdate</span> · <span class="code">off</span> 를 넣으면 돼요.</span>' +
       '<span class="muted" style="font-size:12px;line-height:1.6">연결기를 새로 배포했거나 다른 시트로 옮길 때만 주소를 바꿔요.</span><button type="button" class="chipbtn" data-act="rewire">연결기 주소 바꾸기</button></div>';
-    const step = (n, t, d, extra) => '<li class="wstep"><span class="wnum">' + n + '</span><div><b>' + t + '</b><span class="muted">' + d + '</span>' + (extra || '') + '</div></li>';
+    const wd = new Set(prefs['wiz:' + PF.slug] || []), cur = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].find((k) => !wd.has(k)) || 12;   // 한 단계씩 체크 (이 기기에 기억)
+    const step = (n, t, d, extra) => '<li class="wstep' + (wd.has(n) ? ' wdone' : '') + (n === cur ? ' wcur' : '') + '" data-wn="' + n + '"><span class="wnum">' + (wd.has(n) ? '✓' : n) + '</span><div><div class="wst-h"><b>' + t + '</b>' +
+      (n < 12 ? '<button type="button" class="wchk" data-act="wizCheck" data-n="' + n + '" aria-pressed="' + wd.has(n) + '">' + (wd.has(n) ? '✓ 했어요' : '했어요') + '</button>' : '') + '</div><span class="muted">' + d + '</span>' + (extra || '') + '</div></li>';
     const tpl = window.GAJI_TEMPLATE_ID || '';
     const codeBox = '<textarea id="gsCode" class="gs-code" readonly spellcheck="false" aria-label="연결기 코드">' + esc(PF.gs || '불러오는 중…') + '</textarea>' +
       '<span class="muted" style="font-size:12px">버튼이 안 되면 상자를 한 번 누르고 <b>Ctrl+C</b> (맥은 ⌘+C)</span>' +
@@ -606,7 +614,7 @@
         ? step(1, '가지 데이터 시트 만들기', '버튼을 누르면 구글이 ‘사본을 만드시겠어요?’라고 물어요. <b>사본 만들기</b>를 눌러요. 연결기가 이미 들어 있는 시트가 내 드라이브에 생겨요.',
             '<span class="muted" style="font-size:12px">학교 공유 드라이브에 두고 싶으면, 만든 뒤 드라이브에서 그 공유 드라이브로 옮기면 돼요.</span>' +
             '<a class="btn primary" href="https://docs.google.com/spreadsheets/d/' + esc(tpl) + '/copy?title=' + encodeURIComponent('가지 데이터') + '" target="_blank" rel="noopener">가지 데이터 시트 만들기</a>') +
-          step(2, ASI + ' 열기', '방금 만든 시트에서 메뉴 <b>확장 프로그램 → ' + ASI + '</b>를 눌러요.<br>코드가 이미 들어 있으니 <b>아무것도 고치지 않아요.</b>')
+          step(2, ASI + ' 열기', '방금 만든 시트에서 메뉴 <b>확장 프로그램 → ' + ASI + '</b>를 눌러요.<br>코드가 이미 들어 있으니 <b>아무것도 고치지 않아요.</b>', toolPic('menu'))
         : step(1, '가지 데이터 시트 만들기', '새 구글 시트를 만들고 이름을 <b>가지 데이터</b>로 바꿔요.', '<a class="btn" href="https://docs.google.com/spreadsheets/create" target="_blank" rel="noopener">새 시트 열기</a>') +
           step(2, '연결기 코드 붙여 넣기', '시트 메뉴 <b>확장 프로그램 → ' + ASI + '</b>를 열어요.<br>원래 있던 코드를 모두 지우고 붙여 넣은 뒤 <b>저장</b>(Ctrl+S)해요.', codeBox)) +
       step(3, '함수 칸에서 ‘권한허용’ 고르기', '위쪽 도구 줄에서 <b>디버그</b> 오른쪽 함수 칸을 눌러요.<br>목록에서 <b>권한허용</b>을 골라요.', toolPic('fn')) +
@@ -2608,6 +2616,8 @@
       if (act === 'notMe') rpc('block', { id: did }).then(() => toast('그 기기를 막았어요 · 운영진에게도 알려 주세요'), (er) => toast(er.message));
       return render();
     }
+    if (act === 'wizCheck') { const k = 'wiz:' + PF.slug, n = Number(a.dataset.n), set = new Set(prefs[k] || []); if (set.has(n)) set.delete(n); else for (let i = 1; i <= n; i++) set.add(i);   // 체크하면 그 앞 단계도 함께
+      prefs[k] = [...set]; savePrefs(); const y = scrollY; render(); scrollTo(0, y); const c = $('.wstep.wcur'); if (c && set.has(n)) c.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
     if (act === 'copyGs') return copyGs();
     if (act === 'testConn') { rpc('ping').then((p) => { PF.connVer = p.version; PF.connShell = p.shell || ''; PF.connAuth = false; render(); toast('연결 정상 · 연결기 ' + p.version + (verOld(p.version) ? ' · 업데이트 필요' : '')); }, (er) => { if (er.code === 'network') { PF.connAuth = true; } render(); toast(er.code === 'network' ? '연결기가 응답하지 않아요 · 아래 안내대로 권한을 허용해 주세요' : er.message); }); return; }
     if (act === 'rewire') { PF.rewire = true; return render(); }

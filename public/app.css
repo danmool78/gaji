@@ -882,3 +882,11 @@ details.why-drive[open] > summary { margin-bottom: 4px; }
 .cflow-steps li:not(:last-child)::after { content: '→'; position: absolute; right: -9px; top: 50%; transform: translateY(-50%); font-size: 13px; color: var(--muted); background: var(--surface); line-height: 1; padding: 2px 0; }
 @media (max-width: 700px) { .cflow-steps { grid-template-columns: 1fr; } .cflow-steps li:not(:last-child)::after { content: '↓'; right: auto; left: 50%; top: auto; bottom: -11px; transform: translateX(-50%); padding: 0 4px; } }
 .cflow-go { margin: 4px 0 0; font-size: 16px; font-weight: 800; color: var(--fg); }
+.wst-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.wchk { flex: none; border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.wchk[aria-pressed="true"] { background: color-mix(in srgb, var(--done) 18%, transparent); color: var(--done); border-color: transparent; }
+.wstep.wdone .wnum { background: var(--done); }
+.wstep.wdone > div > :not(.wst-h) { display: none; }
+.wstep.wdone .wst-h b { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 1px; }
+.wstep.wcur > div { background: var(--brand-soft); border-radius: 12px; padding: 10px 12px; margin: -10px -12px; }
+.wstep.wcur .wchk { border-color: var(--brand); color: var(--brand); }
