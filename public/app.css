@@ -870,4 +870,4 @@ details.why-drive[open] > summary { margin-bottom: 4px; }
 .warn-pre .warn-no { margin-top: 0; }
 .conn-key { margin: 0; font-size: 14px; line-height: 1.7; color: var(--muted); }
 .conn-key b { color: var(--fg); }
-.ck-10 { font-size: 1.3em; color: var(--brand); }
+.ck-10 { font-size: 1.3em; }
