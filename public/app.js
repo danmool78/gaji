@@ -581,17 +581,19 @@
       '<div class="btn-row"><button type="button" class="btn primary" data-act="copyGs">코드 전체 복사</button><a class="btn" href="/connector.gs?v=6" target="_blank" rel="noopener">새 창에서 보기</a></div>';
     return '<div class="card" style="display:flex;flex-direction:column;gap:12px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg);display:inline-flex;align-items:center;gap:8px">' + GDRIVE + '드라이브 연결</b><span class="badge t-warn">● 연결 전</span></div>' +
       '<div class="conn-key"><b>동아리 기록은 우리 드라이브의 시트에 저장돼요.</b><div class="ck-chips"><span>동아리마다 <em>딱 한 번</em></span><span>부원은 <em>할 일 없음</em></span><span>새 기능은 <em>자동으로</em></span><span>컴퓨터에서 <em>10분</em></span></div></div>' +
-      '<div class="why-drive"><b>왜 가지 서버가 아니라 우리 구글 드라이브에 저장하나요?</b><ul>' +
+      '<details class="why-drive"><summary><b>왜 우리 드라이브에?</b> 학생 정보가 학교 밖으로 나가지 않아요. 그래서 무료 · 광고 없이 쓸 수 있어요. <span class="more-link">자세히</span></summary><ul>' +
         '<li><b>학생 정보가 학교 밖으로 나가지 않아요.</b> 부원 이름 · 학번 · 실험 기록 · 사진이 외부 업체 서버가 아니라 선생님(동아리) 드라이브에만 있어요.</li>' +
         '<li><b>기록의 주인은 동아리예요.</b> 가지를 그만 써도 기록은 시트와 사진 폴더로 그대로 남고, 엑셀로 내려받아 볼 수 있어요.</li>' +
         '<li><b>선배에서 후배로 이어져요.</b> 해마다 기장 · 부원이 바뀌어도 기록은 동아리 시트에 계속 쌓여서, 후배가 선배의 실험을 이어 볼 수 있어요.</li>' +
-        '<li><b>그래서 무료 · 광고 없이 쓸 수 있어요.</b> 기록을 가지 서버에 쌓지 않으니 서버 비용이 거의 들지 않아요. 덕분에 가지는 모든 동아리가 무료로, 광고 없이 쓸 수 있어요.</li></ul></div>' +
-      '<div class="warn-pre"><b>시작 전에: 구글 경고 화면이 2~3번 나와요. 정상이에요.</b>' +
-        '<ul><li><b>왜 나오나요?</b> 사본을 만들면 그 시트에 붙은 연결기는 <b>내 계정이 만든 앱</b>이 돼요. 구글이 따로 검사하지 않은 앱이라 ‘Google에서 인증하지 않은 앱’ 경고가 떠요. 경고 속 <b>개발자 이메일이 내 이메일</b>이면 맞게 하고 있는 거예요.</li>' +
-        '<li><b>언제 나오나요?</b> 권한허용을 실행할 때, 배포 뒤 액세스 승인할 때, 그리고 가끔 한 번 더. <b>몇 번이 나와도 매번 같은 방법</b>으로 넘어가요.</li>' +
-        '<li><b>매번 이렇게:</b> 빨간 상자 안 <b>가지 연결기(안전하지 않음) 앱으로 이동</b> → <b>모두 선택</b> 체크 → 맨 아래 <b>계속</b>.<br><span class="warn-no">파란 ‘안전한 환경으로 돌아가기’는 절대 누르지 마세요. 누르면 허용이 안 되고 처음부터 다시 해야 해요.</span></li>' +
-        '<li><b>내 데이터는?</b> 동아리 기록은 이 시트(내 드라이브)에만 저장되고 가지 서버로 보내지 않아요. 허용은 구글 계정의 연결된 앱 화면(myaccount.google.com/connections)에서 언제든 해제할 수 있어요.</li></ul>' +
-        '<span class="muted">처음 한 번만 하는 과정이에요. 컴퓨터에서 천천히 10분이면 돼요. 막히면 그 화면을 캡처해서 <b>더 보기 › 가지에 문의하기</b>로 보내 주세요.</span></div>' +
+        '<li><b>그래서 무료 · 광고 없이 쓸 수 있어요.</b> 기록을 가지 서버에 쌓지 않으니 서버 비용이 거의 들지 않아요. 덕분에 가지는 모든 동아리가 무료로, 광고 없이 쓸 수 있어요.</li></ul></details>' +
+      '<div class="warn-pre"><b>구글 경고 화면이 2~3번 나와요. 정상이에요.</b>' +
+        '<span>매번 똑같이: <b>가지 연결기(안전하지 않음) 앱으로 이동</b> → <b>모두 선택</b> → <b>계속</b></span>' +
+        '<span class="warn-no">파란 ‘안전한 환경으로 돌아가기’는 누르지 마세요. 처음부터 다시 해야 해요.</span>' +
+        '<details><summary class="more-link">왜 경고가 나오나요?</summary><ul>' +
+        '<li>사본을 만들면 연결기는 <b>내 계정이 만든 앱</b>이 돼요. 구글이 따로 검사하지 않은 앱이라 경고가 떠요. 경고 속 <b>개발자 이메일이 내 이메일</b>이면 맞게 하고 있는 거예요.</li>' +
+        '<li>권한허용을 실행할 때, 배포 뒤 액세스 승인할 때, 가끔 한 번 더 나와요.</li>' +
+        '<li>기록은 이 시트(내 드라이브)에만 저장되고 가지 서버로 보내지 않아요. 허용은 myaccount.google.com/connections 에서 언제든 해제할 수 있어요.</li>' +
+        '<li>막히면 그 화면을 캡처해서 <b>더 보기 › 가지에 문의하기</b>로 보내 주세요.</li></ul></details></div>' +
       '<ol class="wizard">' +
       (tpl
         ? step(1, '가지 데이터 시트 만들기', '버튼을 누르면 구글이 ‘사본을 만드시겠어요?’라고 물어요. <b>사본 만들기</b>를 눌러요. 연결기가 이미 들어 있는 시트가 내 드라이브에 생겨요.',

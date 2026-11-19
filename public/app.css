@@ -866,3 +866,10 @@ details.sup-box[open] .sup-last { display: none; }
 .ck-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .ck-chips span { padding: 6px 12px; border-radius: 999px; background: var(--surface); font-size: 13.5px; color: var(--fg); white-space: nowrap; }
 .ck-chips em { font-style: normal; font-weight: 800; color: var(--brand); }
+details.why-drive > summary { cursor: pointer; list-style: none; line-height: 1.6; }
+details.why-drive > summary::-webkit-details-marker, .warn-pre summary::-webkit-details-marker { display: none; }
+details.why-drive[open] > summary { margin-bottom: 4px; }
+.more-link { color: var(--brand); font-weight: 700; cursor: pointer; white-space: nowrap; }
+.warn-pre summary { list-style: none; }
+.warn-pre details ul { margin-top: 8px; }
+.warn-pre .warn-no { margin-top: 0; }
