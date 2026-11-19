@@ -580,7 +580,7 @@
       '<span class="muted" style="font-size:12px">버튼이 안 되면 상자를 한 번 누르고 <b>Ctrl+C</b> (맥은 ⌘+C)</span>' +
       '<div class="btn-row"><button type="button" class="btn primary" data-act="copyGs">코드 전체 복사</button><a class="btn" href="/connector.gs?v=6" target="_blank" rel="noopener">새 창에서 보기</a></div>';
     return '<div class="card" style="display:flex;flex-direction:column;gap:12px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg);display:inline-flex;align-items:center;gap:8px">' + GDRIVE + '드라이브 연결</b><span class="badge t-warn">● 연결 전</span></div>' +
-      '<p class="conn-key"><b>드라이브를 연결해야 시작할 수 있어요. 딱 한 번, 10분만 투자해 주세요.</b><br>그 뒤로는 다시 할 일이 없고, 부원은 할 일이 없어요. 새 기능은 자동으로 들어와요.</p>' +
+      '<p class="conn-key"><b>드라이브를 연결해야 시작할 수 있어요. 딱 한 번, <span class=\"ck-10\">10분</span>만 투자해 주세요.</b><br>그 뒤로는 다시 할 일이 없고, 부원은 할 일이 없어요. 새 기능은 자동으로 들어와요.</p>' +
       '<details class="why-drive"><summary><b>왜 우리 드라이브에?</b> 학생 정보가 학교 밖으로 나가지 않아요. 그래서 무료 · 광고 없이 쓸 수 있어요. <span class="more-link">자세히</span></summary><ul>' +
         '<li><b>학생 정보가 학교 밖으로 나가지 않아요.</b> 부원 이름 · 학번 · 실험 기록 · 사진이 외부 업체 서버가 아니라 선생님(동아리) 드라이브에만 있어요.</li>' +
         '<li><b>기록의 주인은 동아리예요.</b> 가지를 그만 써도 기록은 시트와 사진 폴더로 그대로 남고, 엑셀로 내려받아 볼 수 있어요.</li>' +
