@@ -881,3 +881,4 @@ details.why-drive[open] > summary { margin-bottom: 4px; }
 .cf-n { font-size: 11.5px; font-weight: 700; color: var(--brand); }
 .cflow-steps li:not(:last-child)::after { content: '→'; position: absolute; right: -9px; top: 50%; transform: translateY(-50%); font-size: 13px; color: var(--muted); background: var(--surface); line-height: 1; padding: 2px 0; }
 @media (max-width: 700px) { .cflow-steps { grid-template-columns: 1fr; } .cflow-steps li:not(:last-child)::after { content: '↓'; right: auto; left: 50%; top: auto; bottom: -11px; transform: translateX(-50%); padding: 0 4px; } }
+.cflow-go { margin: 4px 0 0; font-size: 16px; font-weight: 800; color: var(--fg); }
