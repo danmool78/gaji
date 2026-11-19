@@ -580,7 +580,7 @@
       '<span class="muted" style="font-size:12px">버튼이 안 되면 상자를 한 번 누르고 <b>Ctrl+C</b> (맥은 ⌘+C)</span>' +
       '<div class="btn-row"><button type="button" class="btn primary" data-act="copyGs">코드 전체 복사</button><a class="btn" href="/connector.gs?v=6" target="_blank" rel="noopener">새 창에서 보기</a></div>';
     return '<div class="card" style="display:flex;flex-direction:column;gap:12px"><div class="panel-title" style="margin:0"><b style="font-size:16px;color:var(--fg);display:inline-flex;align-items:center;gap:8px">' + GDRIVE + '드라이브 연결</b><span class="badge t-warn">● 연결 전</span></div>' +
-      '<span class="muted" style="font-size:13px;line-height:1.6">동아리 기록은 우리 드라이브의 시트에 저장돼요. <b>동아리마다 한 번만</b> 하면 되고, 부원들은 할 일이 없어요. 한 번 연결하면 새 기능은 자동으로 들어와요. 컴퓨터에서 하는 게 편해요 (5분).</span>' +
+      '<div class="conn-key"><b>동아리 기록은 우리 드라이브의 시트에 저장돼요.</b><div class="ck-chips"><span>동아리마다 <em>딱 한 번</em></span><span>부원은 <em>할 일 없음</em></span><span>새 기능은 <em>자동으로</em></span><span>컴퓨터에서 <em>10분</em></span></div></div>' +
       '<div class="why-drive"><b>왜 가지 서버가 아니라 우리 구글 드라이브에 저장하나요?</b><ul>' +
         '<li><b>학생 정보가 학교 밖으로 나가지 않아요.</b> 부원 이름 · 학번 · 실험 기록 · 사진이 외부 업체 서버가 아니라 선생님(동아리) 드라이브에만 있어요.</li>' +
         '<li><b>기록의 주인은 동아리예요.</b> 가지를 그만 써도 기록은 시트와 사진 폴더로 그대로 남고, 엑셀로 내려받아 볼 수 있어요.</li>' +

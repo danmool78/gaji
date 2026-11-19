@@ -861,3 +861,8 @@ details.sup-box[open] .sup-last { display: none; }
 .gtool { display: inline-flex; align-items: center; gap: 4px; padding: 0 9px; border-radius: 4px; border: 1px solid #DADCE0; background: #fff; color: #3C4043; font-size: 0.9em; font-weight: 600; line-height: 1.7; white-space: nowrap; vertical-align: 0.05em; }
 .gtool svg { width: 11px; height: 11px; }
 .tour-card .btn:not(.primary) { background: #fff; color: #1D2939; border: 1px solid #D0D5DD; }
+.conn-key { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 14px; background: var(--brand-soft); border-left: 5px solid var(--brand); }
+.conn-key > b { font-size: 15px; color: var(--fg); }
+.ck-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.ck-chips span { padding: 6px 12px; border-radius: 999px; background: var(--surface); font-size: 13.5px; color: var(--fg); white-space: nowrap; }
+.ck-chips em { font-style: normal; font-weight: 800; color: var(--brand); }
