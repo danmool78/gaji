@@ -594,6 +594,12 @@
         '<li>권한허용을 실행할 때, 배포 뒤 액세스 승인할 때, 가끔 한 번 더 나와요.</li>' +
         '<li>기록은 이 시트(내 드라이브)에만 저장되고 가지 서버로 보내지 않아요. 허용은 myaccount.google.com/connections 에서 언제든 해제할 수 있어요.</li>' +
         '<li>막히면 그 화면을 캡처해서 <b>더 보기 › 가지에 문의하기</b>로 보내 주세요.</li></ul></details></div>' +
+      '<div class="cflow"><b class="cflow-t">전체 흐름</b><ol class="cflow-steps">' +
+        '<li><span class="cf-n">1단계</span><b>시트 만들기</b><small>동아리 기록을 담을 <b>저장소</b>예요. 내 드라이브에 생겨요.</small></li>' +
+        '<li><span class="cf-n">2~7단계</span><b>연결기 허용</b><small>시트 안의 <b>연결기</b>는 가지와 시트를 잇는 작은 프로그램이에요. 내 계정으로 움직이게 허용해요.</small></li>' +
+        '<li><span class="cf-n">8~11단계</span><b>웹 앱으로 배포</b><small>부원 폰 · 컴퓨터가 연결기에 닿을 수 있게 <b>주소</b>를 열어요.</small></li>' +
+        '<li><span class="cf-n">12단계</span><b>주소 붙여 넣기</b><small>그 주소를 가지에 넣으면 끝. 이제 우리 동아리 기록이 시트에 쌓여요.</small></li>' +
+        '</ol></div>' +
       '<ol class="wizard">' +
       (tpl
         ? step(1, '가지 데이터 시트 만들기', '버튼을 누르면 구글이 ‘사본을 만드시겠어요?’라고 물어요. <b>사본 만들기</b>를 눌러요. 연결기가 이미 들어 있는 시트가 내 드라이브에 생겨요.',
