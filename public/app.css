@@ -902,3 +902,10 @@ details.why-drive[open] > summary { margin-bottom: 4px; }
 .pm-body p { margin: 6px 0; } .pm-body ul { margin: 6px 0; padding-left: 20px; } .pm-body li { margin: 4px 0; }
 .pm-body a { color: var(--brand); }
 .pm-date { margin-top: 18px !important; color: var(--muted); font-size: 13px; }
+/* 창(시트): 반투명 유리 + 위쪽 동아리 색 띠 (배경과 구분되게) */
+.sheet { border-top: 3px solid var(--brand); background: rgba(245, 246, 248, .86); -webkit-backdrop-filter: blur(18px) saturate(1.3); backdrop-filter: blur(18px) saturate(1.3); }
+.sheet-bg { -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .sheet { background: rgba(44, 52, 66, .72); border-left: 1px solid rgba(255,255,255,.08); border-right: 1px solid rgba(255,255,255,.08); box-shadow: 0 24px 70px rgba(0,0,0,.6); }
+  :root:not([data-theme="light"]) .sheet-bg { background: rgba(0,0,0,.5); } }
+:root[data-theme="dark"] .sheet { background: rgba(44, 52, 66, .72); border-left: 1px solid rgba(255,255,255,.08); border-right: 1px solid rgba(255,255,255,.08); box-shadow: 0 24px 70px rgba(0,0,0,.6); }
+:root[data-theme="dark"] .sheet-bg { background: rgba(0,0,0,.5); }
