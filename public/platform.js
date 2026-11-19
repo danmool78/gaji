@@ -102,7 +102,7 @@ async function landing() {
     mine +
     '<div class="card p-note p-note-drive"><svg class="p-drive" viewBox="0 0 87.3 78" aria-label="구글 드라이브" role="img"><path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/><path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/><path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg><div><b>데이터는 각 동아리 구글 드라이브에만</b><span>가지 서버에는 동아리 이름 · 로고와 마스터 한 명의 계정 ID, 사용 현황 숫자만 저장돼요. 가지 서버는 동아리 기록을 받지도 보관하지도 않아요. 그래서 가지는 무료 · 광고 없이 쓸 수 있어요.</span></div></div>' +
     '<p class="p-foot">가지 ' + VERSION + ' · 동아리 주소는 운영진에게 받으세요</p>' +
-    '<footer class="p-biz"><span>상호 <a href="https://sssoft-idea.web.app" target="_blank" rel="noopener">에스에스소프트(SSSOFT)</a></span> · <span>대표 김성수</span> · <span>사업자등록번호 772-01-03846</span> · <span>통신판매업신고 2026-대전유성-0413</span><br><span>운영자 김성수</span> · <a href="mailto:sssoft1004@gmail.com">sssoft1004@gmail.com</a></footer>');
+    '<footer class="p-biz"><span>상호 <a href="https://sssoft-idea.web.app" target="_blank" rel="noopener">에스에스소프트(SSSOFT)</a></span> · <span>대표 김성수</span> · <span>사업자등록번호 772-01-03846</span> · <span>통신판매업신고 2026-대전유성-0413</span><br><a href="#" data-p="privacy">개인정보처리방침</a> · <span>운영자 김성수</span> · <a href="mailto:sssoft1004@gmail.com">sssoft1004@gmail.com</a></footer>');
 }
 
 /* ---------- 동아리 만들기 (마스터) ---------- */
@@ -305,6 +305,31 @@ document.addEventListener('submit', async (e) => {
   try { await addDoc(collection(db, 'clubs', f.dataset.sup, 'support'), { from: 'system', text: t.slice(0, 2000), at: serverTimestamp(), uid: user.uid }); toast('답장했어요'); f.reset(); f.querySelector('button').disabled = false; }
   catch (x) { f.querySelector('button').disabled = false; toast('보내지 못했어요: ' + (x.message || x)); }
 });
+/* ---------- 개인정보처리방침 (모달) ---------- */
+function privacy() {
+  if ($('#pmodal')) return;
+  const sec = (t, body) => '<h3>' + t + '</h3>' + body;
+  const ul = (items) => '<ul>' + items.map((x) => '<li>' + x + '</li>').join('') + '</ul>';
+  const m = document.createElement('div'); m.id = 'pmodal'; m.className = 'pmodal';
+  m.innerHTML = '<div class="pm-bg" data-p="pclose"></div><div class="pm-box" role="dialog" aria-modal="true" aria-label="개인정보처리방침"><div class="pm-head"><b>가지 개인정보처리방침</b><button type="button" class="chipbtn" data-p="pclose">닫기</button></div><div class="pm-body">' +
+    '<p>에스에스소프트(SSSOFT, 이하 ‘회사’)는 고등학교 실험 동아리 연구 관리 도구 ‘가지’(gaji-lab.web.app)를 운영하며, 개인정보 보호법에 따라 이용자의 개인정보를 다음과 같이 처리합니다.</p>' +
+    sec('1. 가지의 기본 구조', '<p>동아리 기록(부원 이름 · 학번 · 실험 계획서 · 사진 · 댓글 · 보고서 등)은 <b>각 동아리 마스터의 구글 드라이브(구글 시트)</b>에 저장되며, 회사 서버로 전송되거나 보관되지 않습니다. 이 기록의 수집 · 이용 · 보관은 해당 동아리(학교)가 정하고 관리합니다.</p>') +
+    sec('2. 회사가 처리하는 개인정보', ul([
+      '<b>동아리 마스터 · 시스템 관리자</b>: 구글 로그인 시 구글 계정 식별자(ID) · 이메일 · 이름 — 로그인과 동아리 관리 권한 확인',
+      '<b>동아리 공개 정보</b>: 동아리 이름 · 주소 · 로고 · 색, 연결기(구글 Apps Script) 주소 — 동아리 화면 표시와 연결',
+      '<b>사용 현황 숫자</b>: 부원 수 · 실험 수 · 마지막 사용일 등 — 서비스 운영 · 장애 대응 (사람 이름 · 학번 · 실험 내용은 포함하지 않음)',
+      '<b>가지에 문의하기</b>: 마스터가 보낸 문의 내용 — 답변과 처리 기록'])) +
+    sec('3. 부원(학생)의 정보', '<p>부원은 구글 계정 없이 학번 · 이름과 개인 코드로 들어옵니다. 이 정보와 기기 이름(예: Windows PC)은 동아리 드라이브에만 저장되고, 기기 연결 정보는 그 기기의 브라우저에만 저장됩니다. 회사는 이 정보를 받거나 열람하지 않습니다. 만 14세 미만 학생의 정보는 동아리(학교)가 법정대리인 동의 등 필요한 절차를 거쳐 관리해야 합니다.</p>') +
+    sec('4. 보유 기간과 파기', '<p>마스터 계정 정보와 동아리 정보는 동아리를 운영하는 동안 보관하며, 삭제를 요청하면 지체 없이 파기합니다. 동아리 드라이브의 기록은 동아리가 직접 삭제합니다.</p>') +
+    sec('5. 처리를 맡기는 곳', ul(['Google LLC (Firebase 인증 · 데이터베이스 · 호스팅, 구글 드라이브 · Apps Script) — 서비스 제공과 데이터 저장. 데이터는 국외(구글 데이터센터)에 저장될 수 있습니다.', 'Vimeo — 첫 화면 소개 영상 재생 (추적 안 함 설정)'])) +
+    sec('6. 광고 · 추적', '<p>가지는 광고를 싣지 않으며, 이용자를 추적하는 분석 도구를 쓰지 않습니다.</p>') +
+    sec('7. 이용자의 권리', '<p>이용자는 언제든 자신의 개인정보 열람 · 정정 · 삭제 · 처리정지를 요청할 수 있습니다. 구글 로그인 허용은 구글 계정의 연결된 앱 화면(myaccount.google.com/connections)에서 직접 해제할 수 있습니다.</p>') +
+    sec('8. 개인정보 보호책임자', '<p>김성수 (에스에스소프트 대표) · <a href="mailto:sssoft1004@gmail.com">sssoft1004@gmail.com</a></p>') +
+    '<p class="pm-date">시행일: 2026년 11월 19일</p></div></div>';
+  document.body.appendChild(m);
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#pmodal')) $('#pmodal').remove(); });
+
 /* ---------- 그리기 · 이벤트 ---------- */
 async function render() {
   if (route.page === 'club') return clubPage(route.slug);
@@ -317,6 +342,8 @@ document.addEventListener('click', (e) => {
   if (c) { document.querySelectorAll('[data-pc]').forEach((x) => x.setAttribute('aria-pressed', String(x === c))); return; }
   if (!b) return;
   const a = b.dataset.p;
+  if (a === 'privacy') { e.preventDefault(); return privacy(); }
+  if (a === 'pclose') return void ($('#pmodal') && $('#pmodal').remove());
   if (a === 'login') return login();
   if (a === 'logout') return signOut(auth).then(() => location.reload());
   if (a === 'create') { if (location.pathname !== '/new') location.href = '/new'; return; }
