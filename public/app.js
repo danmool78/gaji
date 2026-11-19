@@ -745,8 +745,8 @@
   // 세로 가지 (상세 · 줄기 화면)
   // 지금 보는 실험 제목: 자르지 않고 긴 제목은 옆으로 흐름
   function flowTitle(t, x, y, avail, color, id) {
-    let w = t.length * 14.5; try { const cx = (flowTitle.c || (flowTitle.c = document.createElement('canvas').getContext('2d'))); cx.font = '800 14.5px ' + (getComputedStyle(document.body).fontFamily || 'sans-serif'); w = cx.measureText(t).width; } catch (e) {}
-    const txt = '<text x="' + x + '" y="' + y + '" font-size="14.5" font-weight="800" style="fill:' + color + '">' + esc(t) + '</text>';
+    let w = t.length * 14.5; try { const cx = (flowTitle.c || (flowTitle.c = document.createElement('canvas').getContext('2d'))); cx.font = '700 14.5px ' + (getComputedStyle(document.body).fontFamily || 'sans-serif'); w = cx.measureText(t).width; } catch (e) {}
+    const txt = '<text x="' + x + '" y="' + y + '" font-size="14.5" font-weight="700" style="fill:var(--fg)">' + esc(t) + '</text>';
     if (w <= avail) return txt;
     const d = Math.ceil(w - avail + 12), dur = Math.max(6, Math.round(d / 18) + 4), cid = 'ft-' + String(id).replace(/[^\w-]/g, '');
     return '<clipPath id="' + cid + '"><rect x="' + x + '" y="' + (y - 16) + '" width="' + avail + '" height="22"/></clipPath><g clip-path="url(#' + cid + ')"><g>' +
@@ -772,7 +772,7 @@
         '<rect x="0" y="' + (r.y - RH / 2) + '" width="' + W + '" height="' + RH + '" fill="transparent"/>' +
         (sel ? '<circle cx="' + r.x + '" cy="' + r.y + '" r="17" fill="var(--halo)"/>' : '') +
         '<circle cx="' + r.x + '" cy="' + r.y + '" r="' + (sel ? 11 : 9) + '" fill="' + (hol ? 'var(--surface)' : c) + '" stroke="' + c + '" stroke-width="3"' + (hol ? ' stroke-dasharray="4 3"' : '') + '/>' +
-        '<text x="' + (r.x + 20) + '" y="' + (r.y - 5) + '" font-size="11.5" style="fill:var(--muted);font-family:var(--f-num)">' + (sel ? '<tspan style="font-weight:800" fill="' + c + '">지금 보는 실험 · </tspan>' : '') + esc(code(n)) + ' · ' + fmt(n.date) + ' · ' + esc(tone(n)[1].replace('● ', '')) + '</text>' +
+        '<text x="' + (r.x + 20) + '" y="' + (r.y - 5) + '" font-size="11.5" style="fill:var(--muted);font-family:var(--f-num)">' + esc(code(n)) + ' · ' + fmt(n.date) + ' · ' + esc(tone(n)[1].replace('● ', '')) + '</text>' +
         (sel ? flowTitle(n.title, r.x + 20, r.y + 13, W - 8 - (r.x + 20), c, n.id) : '<text x="' + (r.x + 20) + '" y="' + (r.y + 13) + '" font-size="14.5" font-weight="' + (chain.has(n.id) || !selId ? 700 : 500) + '" style="fill:var(--fg)">' + esc(ttl) + '</text>') + '</g>';
     });
     return '<svg class="branch-svg" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto" role="group" aria-label="가지 그림">' + lines + dots + '</svg>';
