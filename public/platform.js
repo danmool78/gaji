@@ -102,7 +102,7 @@ async function landing() {
     mine +
     '<div class="card p-note p-note-drive"><svg class="p-drive" viewBox="0 0 87.3 78" aria-label="구글 드라이브" role="img"><path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/><path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/><path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg><div><b>데이터는 각 동아리 구글 드라이브에만</b><span>가지 서버에는 동아리 이름 · 로고와 마스터 한 명의 계정 ID, 사용 현황 숫자만 저장돼요. 가지 서버는 동아리 기록을 받지도 보관하지도 않아요. 그래서 가지는 무료 · 광고 없이 쓸 수 있어요.</span></div></div>' +
     '<p class="p-foot">가지 ' + VERSION + ' · 동아리 주소는 운영진에게 받으세요</p>' +
-    '<footer class="p-biz"><span>상호 <a href="https://sssoft-idea.web.app" target="_blank" rel="noopener">에스에스소프트(SSSOFT)</a></span> · <span>대표 김성수</span> · <span>사업자등록번호 772-01-03846</span> · <span>통신판매업신고 2026-대전유성-0413</span><br><a href="#" data-p="privacy">개인정보처리방침</a> · <span>운영자 김성수</span> · <a href="mailto:sssoft1004@gmail.com">sssoft1004@gmail.com</a></footer>');
+    '<footer class="p-biz"><span>상호 <a href="https://sssoft-idea.web.app" target="_blank" rel="noopener">에스에스소프트(SSSOFT)</a></span> · <span>대표 김성수</span> · <span>사업자등록번호 772-01-03846</span> · <span>통신판매업신고 2026-대전유성-0413</span><br><a href="#" data-p="terms">이용약관</a> · <a href="#" data-p="privacy"><b>개인정보처리방침</b></a> · <span>운영자 김성수</span> · <a href="mailto:sssoft1004@gmail.com">sssoft1004@gmail.com</a></footer>');
 }
 
 /* ---------- 동아리 만들기 (마스터) ---------- */
@@ -308,11 +308,18 @@ document.addEventListener('submit', async (e) => {
 /* ---------- 개인정보처리방침 (모달) ---------- */
 function privacy() {
   if ($('#pmodal')) return;
-  const sec = (t, body) => '<h3>' + t + '</h3>' + body;
-  const ul = (items) => '<ul>' + items.map((x) => '<li>' + x + '</li>').join('') + '</ul>';
+  return pmodal('가지 개인정보처리방침', privacyBody());
+}
+function pmodal(title, body) {
+  if ($('#pmodal')) return;
   const m = document.createElement('div'); m.id = 'pmodal'; m.className = 'pmodal';
-  m.innerHTML = '<div class="pm-bg" data-p="pclose"></div><div class="pm-box" role="dialog" aria-modal="true" aria-label="개인정보처리방침"><div class="pm-head"><b>가지 개인정보처리방침</b><button type="button" class="chipbtn" data-p="pclose">닫기</button></div><div class="pm-body">' +
-    '<p>에스에스소프트(SSSOFT, 이하 ‘회사’)는 고등학교 실험 동아리 연구 관리 도구 ‘가지’(gaji-lab.web.app)를 운영하며, 개인정보 보호법에 따라 이용자의 개인정보를 다음과 같이 처리합니다.</p>' +
+  m.innerHTML = '<div class="pm-bg" data-p="pclose"></div><div class="pm-box" role="dialog" aria-modal="true" aria-label="' + esc(title) + '"><div class="pm-head"><b>' + esc(title) + '</b><button type="button" class="chipbtn" data-p="pclose">닫기</button></div><div class="pm-body">' + body + '</div></div>';
+  document.body.appendChild(m);
+}
+const sec = (t, body) => '<h3>' + t + '</h3>' + body;
+const ul = (items) => '<ul>' + items.map((x) => '<li>' + x + '</li>').join('') + '</ul>';
+function privacyBody() {
+  return     '<p>에스에스소프트(SSSOFT, 이하 ‘회사’)는 고등학교 실험 동아리 연구 관리 도구 ‘가지’(gaji-lab.web.app)를 운영하며, 개인정보 보호법에 따라 이용자의 개인정보를 다음과 같이 처리합니다.</p>' +
     sec('1. 가지의 기본 구조', '<p>동아리 기록(부원 이름 · 학번 · 실험 계획서 · 사진 · 댓글 · 보고서 등)은 <b>각 동아리 마스터의 구글 드라이브(구글 시트)</b>에 저장되며, 회사 서버로 전송되거나 보관되지 않습니다. 이 기록의 수집 · 이용 · 보관은 해당 동아리(학교)가 정하고 관리합니다.</p>') +
     sec('2. 회사가 처리하는 개인정보', ul([
       '<b>동아리 마스터 · 시스템 관리자</b>: 구글 로그인 시 구글 계정 식별자(ID) · 이메일 · 이름 — 로그인과 동아리 관리 권한 확인',
@@ -325,8 +332,29 @@ function privacy() {
     sec('6. 광고 · 추적', '<p>가지는 광고를 싣지 않으며, 이용자를 추적하는 분석 도구를 쓰지 않습니다.</p>') +
     sec('7. 이용자의 권리', '<p>이용자는 언제든 자신의 개인정보 열람 · 정정 · 삭제 · 처리정지를 요청할 수 있습니다. 구글 로그인 허용은 구글 계정의 연결된 앱 화면(myaccount.google.com/connections)에서 직접 해제할 수 있습니다.</p>') +
     sec('8. 개인정보 보호책임자', '<p>김성수 (에스에스소프트 대표) · <a href="mailto:sssoft1004@gmail.com">sssoft1004@gmail.com</a></p>') +
-    '<p class="pm-date">시행일: 2026년 11월 19일</p></div></div>';
-  document.body.appendChild(m);
+    '<p class="pm-date">시행일: 2026년 11월 19일</p>';
+}
+function terms() {
+  return pmodal('가지 이용약관',
+    '<p>이 약관은 에스에스소프트(SSSOFT, 이하 ‘회사’)가 제공하는 고등학교 실험 동아리 연구 관리 도구 ‘가지’(gaji-lab.web.app, 이하 ‘서비스’)의 이용 조건을 정합니다.</p>' +
+    sec('1. 서비스', '<p>가지는 동아리의 실험 계획 · 검토 · 준비 · 진행 · 기록 · 보고서를 관리하는 도구입니다. 서비스는 <b>무료</b>이며 광고를 싣지 않습니다.</p>') +
+    sec('2. 이용자', ul([
+      '<b>마스터</b>: 구글 계정으로 동아리를 만든 사람이며, 동아리 드라이브를 연결하고 동아리를 관리합니다. 마스터는 다른 사람에게 넘길 수 있습니다.',
+      '<b>운영진 · 부원</b>: 마스터나 운영진이 추가하거나 승인한 사람이며, 학번과 개인 코드로 이용합니다.',
+      '개인 코드와 승인된 기기는 본인만 사용하며 다른 사람에게 빌려주지 않습니다.'])) +
+    sec('3. 동아리 기록', ul([
+      '동아리 기록은 마스터의 구글 드라이브에 저장되며, 그 기록의 권리와 관리 책임은 작성자와 해당 동아리에 있습니다.',
+      '회사는 동아리 기록을 받거나 열람하지 않습니다. 기록의 보관 · 공유 · 삭제는 동아리가 구글 드라이브에서 직접 관리합니다.',
+      '구글 계정 · 드라이브의 설정 변경, 시트 삭제, 권한 해제 등으로 생긴 기록 손실은 회사가 되살릴 수 없습니다. 중요한 기록은 동아리가 따로 백업해 두기를 권합니다.'])) +
+    sec('4. 이용자가 지킬 일', ul([
+      '다른 사람의 정보를 동의 없이 올리거나, 법령 · 학교 규정에 어긋나는 내용을 올리지 않습니다.',
+      '학생 개인정보는 관련 법령과 학교 규정에 따라 다룹니다.',
+      '서비스나 다른 동아리의 운영을 방해하거나, 허락 없이 접근을 시도하지 않습니다.'])) +
+    sec('5. 서비스 변경 · 중단', '<p>회사는 기능을 개선하거나 바꿀 수 있습니다. 서비스를 중단해야 할 때는 미리 첫 화면에 알립니다. 서비스가 중단되어도 동아리 기록은 동아리 드라이브에 그대로 남습니다.</p>') +
+    sec('6. 책임', '<p>회사는 무료로 제공되는 서비스의 안정적인 운영을 위해 노력합니다. 다만 회사의 고의 또는 중대한 과실이 없는 장애, 구글 등 외부 서비스의 장애, 이용자의 관리 소홀로 생긴 손해에 대해서는 책임을 지지 않습니다.</p>') +
+    sec('7. 권리', '<p>가지 소프트웨어 · 디자인 · 로고의 권리는 회사에 있습니다. 이용자가 작성한 기록의 권리는 작성자와 동아리에 있습니다.</p>') +
+    sec('8. 문의 · 분쟁', '<p>문의는 <a href="mailto:sssoft1004@gmail.com">sssoft1004@gmail.com</a> 또는 앱의 ‘가지에 문의하기’로 보내 주세요. 이 약관은 대한민국 법을 따릅니다.</p>') +
+    '<p class="pm-date">시행일: 2026년 11월 19일</p>');
 }
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#pmodal')) $('#pmodal').remove(); });
 
@@ -343,6 +371,7 @@ document.addEventListener('click', (e) => {
   if (!b) return;
   const a = b.dataset.p;
   if (a === 'privacy') { e.preventDefault(); return privacy(); }
+  if (a === 'terms') { e.preventDefault(); return terms(); }
   if (a === 'pclose') return void ($('#pmodal') && $('#pmodal').remove());
   if (a === 'login') return login();
   if (a === 'logout') return signOut(auth).then(() => location.reload());

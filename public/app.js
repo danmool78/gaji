@@ -749,6 +749,8 @@
     const chain = new Set(selId && byId(selId) ? lineage(byId(selId)).map((x) => x.id) : []);
     rows.forEach((r, i) => { r.x = 18 + r.depth * 22; r.y = 24 + i * RH; });
     let lines = '', dots = '';
+    const sr = selId && rows.find((r) => r.n.id === selId);   // 지금 보는 실험: 그 줄 전체에 띠
+    if (sr) lines += '<rect x="' + Math.max(2, sr.x - 26) + '" y="' + (sr.y - RH / 2 + 3) + '" width="' + (W - 2 - Math.max(2, sr.x - 26)) + '" height="' + (RH - 6) + '" rx="12" style="fill:var(--brand-soft);stroke:var(--brand);stroke-width:1.5"/>';
     rows.forEach((r) => {
       if (!r.parent) return; const p = rows.find((q) => q.n.id === r.parent.id); if (!p) return;
       const hot = chain.has(r.n.id) && chain.has(p.n.id), fut = days(r.n.date) > 0 && r.n.status !== '기록 완료';
@@ -761,8 +763,8 @@
         '<rect x="0" y="' + (r.y - RH / 2) + '" width="' + W + '" height="' + RH + '" fill="transparent"/>' +
         (sel ? '<circle cx="' + r.x + '" cy="' + r.y + '" r="17" fill="var(--halo)"/>' : '') +
         '<circle cx="' + r.x + '" cy="' + r.y + '" r="' + (sel ? 11 : 9) + '" fill="' + (hol ? 'var(--surface)' : c) + '" stroke="' + c + '" stroke-width="3"' + (hol ? ' stroke-dasharray="4 3"' : '') + '/>' +
-        '<text x="' + (r.x + 20) + '" y="' + (r.y - 5) + '" font-size="11.5" style="fill:var(--muted);font-family:var(--f-num)">' + esc(code(n)) + ' · ' + fmt(n.date) + ' · ' + esc(tone(n)[1].replace('● ', '')) + '</text>' +
-        '<text x="' + (r.x + 20) + '" y="' + (r.y + 13) + '" font-size="14.5" font-weight="' + (chain.has(n.id) || !selId ? 700 : 500) + '" style="fill:var(--fg)">' + esc(ttl) + '</text></g>';
+        '<text x="' + (r.x + 20) + '" y="' + (r.y - 5) + '" font-size="11.5" style="fill:var(--muted);font-family:var(--f-num)">' + (sel ? '<tspan style="fill:var(--brand);font-weight:800">지금 보는 실험 · </tspan>' : '') + esc(code(n)) + ' · ' + fmt(n.date) + ' · ' + esc(tone(n)[1].replace('● ', '')) + '</text>' +
+        '<text x="' + (r.x + 20) + '" y="' + (r.y + 13) + '" font-size="14.5" font-weight="' + (sel ? 800 : chain.has(n.id) || !selId ? 700 : 500) + '" style="fill:' + (sel ? 'var(--brand)' : 'var(--fg)') + '">' + esc(ttl) + '</text></g>';
     });
     return '<svg class="branch-svg" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto" role="group" aria-label="가지 그림">' + lines + dots + '</svg>';
   }
